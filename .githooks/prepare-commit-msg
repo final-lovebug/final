@@ -1,0 +1,10 @@
+#!/bin/sh
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+KEY=$(printf '%s' "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+[ -z "$KEY" ] && exit 0
+
+MSG=$(cat "$1")
+case "$MSG" in
+  *"$KEY"*) ;;
+  *) printf '%s %s' "$KEY" "$MSG" > "$1" ;;
+esac
