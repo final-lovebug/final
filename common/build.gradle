@@ -1,0 +1,30 @@
+plugins {
+    id 'java-library'
+    id 'com.diffplug.spotless' version '8.10.1'
+}
+
+group = 'com.ubidict'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+}
+
+spotless {
+    java {
+        palantirJavaFormat()
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
