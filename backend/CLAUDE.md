@@ -14,7 +14,7 @@
 - **프레임워크** — Spring Boot 4.x
 - **빌드** — Gradle (Kotlin DSL)
 - **아키텍처** — 모놀리식 / 도메인별 레이어드
-- **영속성** — Spring Data JPA, MySQL
+- **영속성** — Spring Data JPA + MySQL, Spring Data MongoDB + MongoDB
 - **캐시·세션** — Redis
 - **인증·인가** — Spring Security, JWT (JJWT), OAuth2
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
@@ -32,7 +32,7 @@
 ## 4. 개발 명령어
 
 ```bash
-# 로컬 인프라 (MySQL, Redis) — compose.yaml
+# 로컬 인프라 (MySQL, MongoDB, Redis) — compose.yaml
 docker compose up -d
 docker compose down
 
