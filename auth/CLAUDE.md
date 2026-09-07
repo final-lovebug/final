@@ -16,7 +16,7 @@
 - **아키텍처** — 모놀리식 / 도메인별 레이어드
 - **영속성** — Spring Data JPA, PostgreSQL
 - **캐시·세션** — Redis
-- **인증·인가** — Spring Security, OAuth2
+- **인증·인가** — Spring Security, JWT (JJWT), OAuth2
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
 - **품질 도구** — Spotless(포맷팅), PMD(정적 분석)
 - **인프라** — Docker / Docker Compose, AWS
