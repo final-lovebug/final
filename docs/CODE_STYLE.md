@@ -40,6 +40,7 @@
 - @RequiredArgsConstructor
 - @NoArgsConstructor(access = AccessLevel.PROTECTED)
 - @Builder는 테스트 fixture 중심으로 제한적 사용
+- @Slf4j
 
 지양한다.
 

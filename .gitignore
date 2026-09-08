@@ -1,0 +1,3 @@
+# 로컬 Compose 오버라이드 (루트 / 하위 프로젝트 공통)
+compose.override.yaml
+compose.override.yml

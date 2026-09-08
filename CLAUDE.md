@@ -20,9 +20,13 @@
 
 - `CLAUDE.md` (이 문서) — 프로젝트 공통 적용 규칙
 - `docs/ARCHITECTURE.md` — 패키지 구조, 레이어 규칙
-- `docs/CODE_STYLE.md` - 코드 작성 규칙
+- `docs/CODE_STYLE.md` — 코드 작성 규칙
 - `docs/EXCEPTION.md` — 예외 처리 코드 작성 규칙
 - `docs/TEST.md` — 테스트 코드 작성 규칙
+
+하위 프로젝트에서 작업할 때는 해당 프로젝트의 문서를 함께 읽는다.
+
+- `backend/CLAUDE.md` — Backend 기술 스택, 개발 명령어, 로컬 인프라
 
 ---
 
@@ -46,6 +50,19 @@
 ## 환경 · 설정
 
 - 시크릿은 **환경변수 또는 AWS 파라미터 스토어**로 주입한다. 저장소에 커밋 금지.
-- 로컬 인프라는 루트의 **`compose.yaml`** 로 통일한다. 포트·이미지 태그를 임의로 바꾸지 않고, `docker-compose.yml`을 새로 만들지 않는다.
+- Compose 파일은 **역할에 따라 둘로 나눈다.** 파일명은 `compose.yaml`을 쓰고, `docker-compose.yml`을 새로 만들지 않는다. 포트·이미지 태그를 임의로 바꾸지 않는다.
+  - **`backend/compose.yaml` — 로컬 실행용.** `spring-boot-docker-compose`(`developmentOnly`)가 관리한다. `bootRun`이 컨테이너를 자동으로 띄우고 접속 정보를 주입하므로 `docker compose up -d`를 직접 실행하지 않는다.
+  - **루트 `compose.yaml` — 전체 통합 테스트용.** 아직 없으며 추후 추가 예정이다.
   - 로컬 오버라이드가 필요하면 `compose.override.yaml`을 쓰고 `.gitignore`에 등록한다.
 - 어떤 경우에도 운영·공용 환경의 `ddl-auto`를 `create`/`create-drop`/`update`로 설정하지 않는다.
+
+---
+
+## 미구성 항목
+
+2026-09-08 기준으로 아직 채워지지 않은 부분이다. 관련 작업을 할 때 함께 정리한다.
+
+- **로컬 `bootRun` 불가.** MySQL·MongoDB 의존성은 있으나 `backend/compose.yaml`에 해당 서비스가 없고 `application.properties`에도 접속 설정이 없다.
+- **MongoDB 미연결.** 의존성만 있고 `TestcontainersConfiguration`에 컨테이너 빈이 없다.
+- **Flyway 마이그레이션 없음.** `db/migration`이 비어 있어 테스트가 `spring.flyway.enabled=false` + `ddl-auto=create-drop`으로 우회 중이다. 첫 마이그레이션을 추가할 때 이 테스트 설정도 함께 정리한다.
+- **`SecurityConfig` 없음.** Spring Security 기본 설정이 적용되면 Swagger UI를 포함한 모든 요청이 인증에 막힌다.
