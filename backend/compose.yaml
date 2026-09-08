@@ -1,6 +1,6 @@
 services:
   grafana-lgtm:
-    image: 'grafana/otel-lgtm:latest'
+    image: 'grafana/otel-lgtm:0.32.1'
     ports:
       - '3000:3000'
       - '4317'
@@ -23,6 +23,6 @@ services:
     ports:
       - '3306'
   redis:
-    image: 'redis:latest'
+    image: 'redis:8.2-alpine'
     ports:
       - '6379'
