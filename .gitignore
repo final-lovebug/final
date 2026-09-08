@@ -1,3 +1,9 @@
 # 로컬 Compose 오버라이드 (루트 / 하위 프로젝트 공통)
 compose.override.yaml
 compose.override.yml
+
+# 개인 작업 추적용 (커밋 안 함)
+/task/
+
+# IDE 설정 (IntelliJ)
+/.idea/
