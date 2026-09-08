@@ -5,6 +5,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.grafana.LgtmStackContainer;
+import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.mysql.MySQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -15,6 +16,12 @@ class TestcontainersConfiguration {
     @ServiceConnection
     LgtmStackContainer grafanaLgtmContainer() {
         return new LgtmStackContainer(DockerImageName.parse("grafana/otel-lgtm:latest"));
+    }
+
+    @Bean
+    @ServiceConnection
+    MongoDBContainer mongoContainer() {
+        return new MongoDBContainer(DockerImageName.parse("mongo:8.0"));
     }
 
     @Bean

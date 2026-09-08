@@ -63,8 +63,6 @@
 
 2026-09-08 기준으로 아직 채워지지 않은 부분이다. 관련 작업을 할 때 함께 정리한다.
 
-- **로컬 `bootRun` 불가.** MySQL·MongoDB 의존성은 있으나 `backend/compose.yaml`에 해당 서비스가 없고 `application.properties`에도 접속 설정이 없다.
-- **MongoDB 미연결.** 의존성만 있고 `TestcontainersConfiguration`에 컨테이너 빈이 없다.
 - **Flyway 마이그레이션 없음.** `db/migration`이 비어 있어 테스트가 `spring.flyway.enabled=false` + `ddl-auto=create-drop`으로 우회 중이다. 첫 마이그레이션을 추가할 때 이 테스트 설정도 함께 정리한다.
 - **`SecurityConfig` 없음.** Spring Security 기본 설정이 적용되면 Swagger UI를 포함한 모든 요청이 인증에 막힌다.
 - **메시징 배포 대상 미확정.** Kafka 의존성은 제거했고, 로컬은 Spring `ApplicationEvent` 인메모리 어댑터로 동작한다. 배포 환경에서 쓸 메시지 큐가 정해지면 해당 어댑터와 로컬 대체 컨테이너를 함께 추가한다. 이벤트 발행 규약은 `docs/ARCHITECTURE.md`를 따른다.

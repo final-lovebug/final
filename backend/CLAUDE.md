@@ -68,11 +68,15 @@
 | 서비스 | 이미지 |
 | --- | --- |
 | Grafana LGTM | `grafana/otel-lgtm:latest` |
+| MongoDB | `mongo:8.0` |
+| MySQL | `mysql:8.4` |
 | Redis | `redis:latest` |
 
-- MySQL, MongoDB는 의존성만 추가되어 있고 `compose.yaml`에는 아직 없다.
-  이 상태에서는 해당 저장소에 접속하는 코드를 `bootRun`으로 확인할 수 없다.
+- MySQL·MongoDB의 계정과 데이터베이스 이름은 `compose.yaml`의 환경변수로만 정의한다.
+  `spring-boot-docker-compose`가 이 값을 읽어 접속 정보를 주입하므로
+  `application.properties`에 접속 설정을 적지 않는다. 로컬 전용 값이므로
+  운영 계정과 같은 값을 쓰지 않는다.
 - 테스트용 컨테이너는 별도로 `TestcontainersConfiguration`이 관리한다.
-  (MySQL, Redis, Grafana LGTM — MongoDB는 아직 없다.)
+  (MySQL, MongoDB, Redis, Grafana LGTM — 이미지 태그는 `compose.yaml`과 맞춘다.)
 - 메시징은 인메모리 어댑터를 사용하므로 로컬 인프라가 필요 없다. 배포용 어댑터를
   추가할 때 대응하는 로컬 컨테이너를 `compose.yaml`과 테스트에 함께 넣는다.
