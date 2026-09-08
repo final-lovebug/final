@@ -23,6 +23,13 @@
 - `docs/CODE_STYLE.md` — 코드 작성 규칙
 - `docs/EXCEPTION.md` — 예외 처리 코드 작성 규칙
 - `docs/TEST.md` — 테스트 코드 작성 규칙
+- `docs/API.md` — API 요청/응답 규격, 공통 규칙
+
+기획·도메인 문서는 구현 전에 읽고, 결정이 바뀌면 코드보다 먼저 갱신한다.
+
+- `docs/REQUIREMENTS.md` — 요구사항 목록(MVP 구분, 우선순위, 진행 상태)
+- `docs/DOMAIN.md` — 엔티티 속성 표, 관계, 정책·제약
+- `docs/UBIQUITOUS_LANGUAGE.md` — 도메인별 유비쿼터스 언어 사전
 
 하위 프로젝트에서 작업할 때는 해당 프로젝트의 문서를 함께 읽는다.
 
