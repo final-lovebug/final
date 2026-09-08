@@ -21,8 +21,8 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 
 ```json
 {
-  "code": "SOLVED_SESSION_BROKEN_CHAIN",
-  "message": "꼬리질문 연결이 올바르지 않습니다."
+  "code": "COMMON_RESOURCE_NOT_FOUND",
+  "message": "요청한 리소스를 찾을 수 없습니다."
 }
 ```
 
@@ -30,7 +30,7 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 
 # **Auth API**
 
-회원가입·로그인과 토큰 수명 관리를 담당한다. 관련 도메인은 `auth`다.
+로그인과 토큰 수명 관리를 담당한다. 관련 도메인은 `member`다.
 
 ## **인증 방식**
 
@@ -51,7 +51,7 @@ Authorization: Bearer {accessToken}
 - **한 계정의 활성 세션은 하나다.** 다시 로그인하면 이전 기기의 refresh token이 폐기되고, 그 기기는 다음 재발급 시점에 로그아웃된다.
 - `/api/auth/**`는 모두 인증 없이 호출한다. 재발급과 로그아웃은 access token이 이미 만료된 상태에서 호출되므로 인증을 요구하지 않는다.
 
-> refresh token을 해싱하는 과정(회원가입·로그인·재발급·로그아웃 모두 해당)에서 서버 환경이 해시 알고리즘(SHA-256)을 지원하지 않으면 `500 AUTH_TOKEN_HASH_FAILED`를 반환한다. 정상 배포 환경에서는 발생하지 않는 방어적 오류다.
+> refresh token을 해싱하는 과정(로그인·재발급·로그아웃 모두 해당)에서 서버 환경이 해시 알고리즘(SHA-256)을 지원하지 않으면 `500 AUTH_TOKEN_HASH_FAILED`를 반환한다. 정상 배포 환경에서는 발생하지 않는 방어적 오류다.
 
 ### **인증 실패 응답**
 
@@ -68,7 +68,7 @@ Authorization: Bearer {accessToken}
 
 ### **권한**
 
-토큰에는 사용자 권한(`role`)이 함께 담긴다. `USER`(일반 사용자) 또는 `ADMIN`(관리자)이며, 로그인 응답으로도 내려준다.
+토큰에는 사용자 권한(`role`)이 함께 담긴다. `REGULAR`(일반 회원) 또는 `ADMIN`(관리자)이며, 로그인 응답으로도 내려준다.
 
 - **관리자 전용 API는 `/api/admin/**` 경로를 쓴다.** 인증을 통과했더라도 `role`이 `ADMIN`이 아니면 `403 Forbidden` `AUTH_FORBIDDEN`을 반환한다.
 - **권한 승격은 API로 제공하지 않는다.** 관리자 지정은 운영 DB에서 직접 수행한다. → `docs/DOMAIN.md` 권한 정책
@@ -76,58 +76,100 @@ Authorization: Bearer {accessToken}
 
 ---
 
-## **회원가입**
+## **Google 로그인**
 
-계정을 생성한다. 토큰은 발급하지 않으므로 가입 후 로그인을 별도로 호출해야 한다. 직무(`position`)는 현재 `BACKEND`로 고정된다.
+Google OAuth2(Authorization Code Flow)로 로그인한다. 별도의 회원가입 API는 없다 — 최초 로그인 시 회원이 자동 생성된다.
 
-### **Endpoint**
+### **로그인 시작**
 
 ```
-POST /api/auth/signup
+GET /oauth2/authorization/google
 ```
 
-- 성공 시 `201 Created`와 생성된 사용자 ID를 반환한다.
+- 브라우저를 이 경로로 이동시키면 Google 동의 화면으로 리다이렉트된다.
 - 인증이 필요 없다.
 
-### **Request Body**
+### **콜백 및 토큰 교환**
+
+Google 인증이 끝나면 서버가 프론트엔드로 리다이렉트하면서 1회용 교환 코드(`code`)를 쿼리 파라미터로 전달한다. 프론트는 이 코드로 토큰을 교환한다.
+
+```
+POST /api/auth/oauth/google/exchange
+```
+
+- 성공 시 `200 OK`. Access token은 응답 본문으로, refresh token은 `Set-Cookie`(HttpOnly, Secure, SameSite)로 내려간다.
+- 인증이 필요 없다.
+
+#### Request Body
 
 ```json
 {
-  "email": "member@example.com",
-  "password": "password123",
-  "nickname": "테스터"
+  "code": "a1b2c3d4-..."
 }
 ```
 
 | **필드** | **타입** | **제약** | **설명** |
 | --- | --- | --- | --- |
-| `email` | String | 필수, 이메일 형식 | 로그인 ID로 사용한다. |
-| `password` | String | 필수, 8~12자 | 저장 시 해싱된다. |
-| `nickname` | String | 필수, 4~8자 | 중복될 수 없다. |
+| `code` | String | 필수 | 리다이렉트로 전달받은 1회용 교환 코드. 발급 후 30초 이내 사용해야 한다. |
 
-### **Response Body**
+#### Response Body
 
 ```json
 {
-  "userId": 1
+  "accessToken": "eyJ...",
+  "role": "REGULAR"
 }
 ```
 
 | **필드** | **타입** | **설명** |
 | --- | --- | --- |
-| `userId` | Long | 생성된 사용자 ID. |
+| `accessToken` | String | API 호출에 사용하는 access token. |
+| `role` | String | `REGULAR` 또는 `ADMIN`. |
 
-### **에러**
+#### 에러
 
 | **상황** | **status** | **code** |
 | --- | --- | --- |
-| 형식 검증 실패 | 400 | `INVALID_INPUT` |
-| 이미 사용 중인 이메일 | 409 | `USER_DUPLICATE_EMAIL` |
-| 구글 계정으로 가입된 이메일 | 409 | `USER_DUPLICATE_EMAIL_SOCIAL` |
-| 이미 사용 중인 닉네임 | 409 | `USER_DUPLICATE_NICKNAME` |
-| 닉네임 길이 규칙 위반 | 400 | `USER_INVALID_NICKNAME` |
-| 이메일 형식 규칙 위반 | 400 | `USER_INVALID_EMAIL` |
+| `code`가 없거나 형식이 잘못됨 | 400 | `INVALID_INPUT` |
+| `code`가 만료됐거나 이미 사용됨 | 401 | `AUTH_TOKEN_INVALID` |
+| 이미 다른 소셜 제공자로 가입된 이메일 | 409 | `MEMBER_DUPLICATE_SOCIAL_ACCOUNT` |
+| 정지·탈퇴 등으로 로그인할 수 없는 회원 | 403 | `MEMBER_LOGIN_NOT_ALLOWED` |
 
-> `INVALID_INPUT`은 요청 DTO 검증(`@Email`·`@Size`)에서, `USER_INVALID_*`는 도메인 모델 검증에서 발생한다. 같은 입력이라도 앞단에서 걸리면 `INVALID_INPUT`이 먼저 내려간다.
+### **재발급**
+
+```
+POST /api/auth/refresh
+```
+
+- `Cookie` 헤더의 refresh token으로 access/refresh token 쌍을 재발급한다. 재발급된 refresh token은 다시 쿠키로 내려간다.
+- 인증이 필요 없다(access token이 이미 만료된 상태에서 호출되므로).
+
+#### Response Body
+
+```json
+{
+  "accessToken": "eyJ...",
+  "role": "REGULAR"
+}
+```
+
+#### 에러
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| refresh token 쿠키가 없음 | 401 | `AUTH_TOKEN_MISSING` |
+| refresh token이 유효하지 않음(불일치·만료·유예시간 초과) | 401 | `AUTH_TOKEN_INVALID` |
+
+### **로그아웃**
+
+```
+POST /api/auth/logout
+```
+
+- `Cookie` 헤더의 refresh token을 서버에서 폐기하고, 쿠키를 만료시킨다.
+- 성공 시 `204 No Content`.
+- 인증이 필요 없다.
+
+> 위 엔드포인트 경로·요청/응답 필드는 설계 초안이며, 실제 구현 후 최종 확정한다(계획 9장 11단계).
 
 ---
