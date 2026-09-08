@@ -1,0 +1,46 @@
+package com.ubidict.backend.member.service;
+
+import com.ubidict.backend.member.domain.Member;
+import com.ubidict.backend.member.implement.MemberCreator;
+import com.ubidict.backend.member.implement.MemberReader;
+import com.ubidict.backend.member.implement.MemberUpdater;
+import com.ubidict.backend.member.implement.MemberWithdrawer;
+import com.ubidict.backend.member.service.model.CreateMemberCommand;
+import com.ubidict.backend.member.service.model.MemberResult;
+import com.ubidict.backend.member.service.model.UpdateMemberCommand;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@RequiredArgsConstructor
+@Service
+public class MemberService {
+
+    private final MemberCreator memberCreator;
+    private final MemberReader memberReader;
+    private final MemberUpdater memberUpdater;
+    private final MemberWithdrawer memberWithdrawer;
+
+    @Transactional
+    public MemberResult create(CreateMemberCommand command) {
+        Member member =
+                memberCreator.create(command.email(), command.displayName(), command.provider(), command.providerId());
+        return MemberResult.from(member);
+    }
+
+    @Transactional(readOnly = true)
+    public MemberResult getById(Long memberId) {
+        return MemberResult.from(memberReader.read(memberId));
+    }
+
+    @Transactional
+    public MemberResult update(UpdateMemberCommand command) {
+        Member member = memberUpdater.update(command.memberId(), command.displayName());
+        return MemberResult.from(member);
+    }
+
+    @Transactional
+    public void withdraw(Long memberId) {
+        memberWithdrawer.withdraw(memberId);
+    }
+}
