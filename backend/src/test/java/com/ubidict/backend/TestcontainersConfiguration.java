@@ -5,7 +5,6 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.grafana.LgtmStackContainer;
-import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.mysql.MySQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -16,12 +15,6 @@ class TestcontainersConfiguration {
     @ServiceConnection
     LgtmStackContainer grafanaLgtmContainer() {
         return new LgtmStackContainer(DockerImageName.parse("grafana/otel-lgtm:latest"));
-    }
-
-    @Bean
-    @ServiceConnection
-    KafkaContainer kafkaContainer() {
-        return new KafkaContainer(DockerImageName.parse("apache/kafka-native:latest"));
     }
 
     @Bean
