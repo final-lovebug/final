@@ -32,7 +32,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
         ErrorCode errorCode = e.errorCode();
-        log.warn("Business exception occurred. code={}, detail={}", errorCode.code(), e.getMessage());
+        log.warn(
+                "[GlobalExceptionHandler.handleBusinessException] Business exception occurred. code={}, detail={}",
+                errorCode.code(),
+                e.getMessage());
 
         return toResponse(errorCode);
     }
@@ -42,7 +45,7 @@ public class GlobalExceptionHandler {
         List<ValidationError> errors = e.getBindingResult().getAllErrors().stream()
                 .map(GlobalExceptionHandler::toValidationError)
                 .toList();
-        log.warn("Request validation failed. errors={}", errors);
+        log.warn("[GlobalExceptionHandler.handleMethodArgumentNotValid] Request validation failed. errors={}", errors);
 
         return toResponse(CommonErrorCode.COMMON_INVALID_REQUEST, errors);
     }
@@ -52,7 +55,7 @@ public class GlobalExceptionHandler {
         List<ValidationError> errors = e.getConstraintViolations().stream()
                 .map(GlobalExceptionHandler::toValidationError)
                 .toList();
-        log.warn("Request constraint violated. errors={}", errors);
+        log.warn("[GlobalExceptionHandler.handleConstraintViolation] Request constraint violated. errors={}", errors);
 
         return toResponse(CommonErrorCode.COMMON_INVALID_REQUEST, errors);
     }
@@ -62,21 +65,23 @@ public class GlobalExceptionHandler {
         List<ValidationError> errors = e.getParameterValidationResults().stream()
                 .flatMap(result -> result.getResolvableErrors().stream().map(error -> toValidationError(result, error)))
                 .toList();
-        log.warn("Request parameter validation failed. errors={}", errors);
+        log.warn(
+                "[GlobalExceptionHandler.handleHandlerMethodValidation] Request parameter validation failed. errors={}",
+                errors);
 
         return toResponse(CommonErrorCode.COMMON_INVALID_REQUEST, errors);
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException e) {
-        log.warn("Authentication failed. detail={}", e.getMessage());
+        log.warn("[GlobalExceptionHandler.handleAuthentication] Authentication failed. detail={}", e.getMessage());
 
         return toResponse(CommonErrorCode.COMMON_UNAUTHORIZED);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException e) {
-        log.warn("Access denied. detail={}", e.getMessage());
+        log.warn("[GlobalExceptionHandler.handleAccessDenied] Access denied. detail={}", e.getMessage());
 
         return toResponse(CommonErrorCode.COMMON_ACCESS_DENIED);
     }
@@ -87,28 +92,33 @@ public class GlobalExceptionHandler {
         MethodArgumentTypeMismatchException.class
     })
     public ResponseEntity<ErrorResponse> handleMalformedRequest(Exception e) {
-        log.warn("Malformed request. type={}, detail={}", e.getClass().getSimpleName(), e.getMessage());
+        log.warn(
+                "[GlobalExceptionHandler.handleMalformedRequest] Malformed request. type={}, detail={}",
+                e.getClass().getSimpleName(),
+                e.getMessage());
 
         return toResponse(CommonErrorCode.COMMON_INVALID_REQUEST);
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
-        log.warn("Unsupported request method. method={}", e.getMethod());
+        log.warn(
+                "[GlobalExceptionHandler.handleMethodNotSupported] Unsupported request method. method={}",
+                e.getMethod());
 
         return toResponse(CommonErrorCode.COMMON_METHOD_NOT_ALLOWED);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException e) {
-        log.warn("No resource found. path={}", e.getResourcePath());
+        log.warn("[GlobalExceptionHandler.handleNoResourceFound] No resource found. path={}", e.getResourcePath());
 
         return toResponse(CommonErrorCode.COMMON_RESOURCE_NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception e) {
-        log.error("Unexpected exception occurred.", e);
+        log.error("[GlobalExceptionHandler.handleException] Unexpected exception occurred.", e);
 
         return toResponse(CommonErrorCode.COMMON_INTERNAL_ERROR);
     }
