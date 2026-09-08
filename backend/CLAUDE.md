@@ -17,7 +17,7 @@
 - **영속성** — Spring Data JPA + MySQL, Spring Data MongoDB + MongoDB
 - **스키마 마이그레이션** — Flyway
 - **캐시·세션** — Redis
-- **메시징** — Kafka
+- **메시징** — Spring `ApplicationEvent`(인메모리). 배포용 어댑터는 미확정
 - **인증·인가** — Spring Security, JWT (JJWT), OAuth2
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
 - **관측** — Actuator, Micrometer(Prometheus), OpenTelemetry / Grafana LGTM
@@ -70,7 +70,9 @@
 | Grafana LGTM | `grafana/otel-lgtm:latest` |
 | Redis | `redis:latest` |
 
-- MySQL, MongoDB, Kafka는 의존성만 추가되어 있고 `compose.yaml`에는 아직 없다.
+- MySQL, MongoDB는 의존성만 추가되어 있고 `compose.yaml`에는 아직 없다.
   이 상태에서는 해당 저장소에 접속하는 코드를 `bootRun`으로 확인할 수 없다.
 - 테스트용 컨테이너는 별도로 `TestcontainersConfiguration`이 관리한다.
-  (MySQL, Kafka, Redis, Grafana LGTM — MongoDB는 아직 없다.)
+  (MySQL, Redis, Grafana LGTM — MongoDB는 아직 없다.)
+- 메시징은 인메모리 어댑터를 사용하므로 로컬 인프라가 필요 없다. 배포용 어댑터를
+  추가할 때 대응하는 로컬 컨테이너를 `compose.yaml`과 테스트에 함께 넣는다.
