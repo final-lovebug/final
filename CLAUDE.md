@@ -21,6 +21,7 @@
 - `CLAUDE.md` (이 문서) — 프로젝트 공통 적용 규칙
 - `docs/ARCHITECTURE.md` — 패키지 구조, 레이어 규칙
 - `docs/CODE_STYLE.md` — 코드 작성 규칙
+- `docs/LOG.md` — 로깅 코드 작성 규칙
 - `docs/EXCEPTION.md` — 예외 처리 코드 작성 규칙
 - `docs/TEST.md` — 테스트 코드 작성 규칙
 
