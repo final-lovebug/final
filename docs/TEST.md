@@ -15,9 +15,11 @@
 | --- | --- | --- |
 | Unit Test | Domain, Implement 단위 클래스 | 빠른 피드백, 정책/계산/검증 확인 |
 | Service Test | Service 유스케이스 | 비즈니스 흐름과 트랜잭션 경계 확인 |
-| Repository Test | Infra | 쿼리, 매핑, 영속성 확인 |
+| Repository Test | Infra(Repository) + Domain(엔티티 매핑) | 쿼리, 매핑, 영속성 확인 |
 | Controller Test | Presentation | 요청/응답, 검증, 상태 코드 확인 |
 | Integration Test | 여러 레이어 결합 | 주요 시나리오 회귀 방지 |
+
+> 도메인 모델이 JPA 엔티티를 겸하므로 단위 테스트는 도메인 객체를 `new`로 만들어 검증한다. 이때 식별자는 `null`이다. 식별자가 필요한 검증은 Repository·Service 테스트에서 하거나 Fixture Builder로 주입한다.
 
 ## **네이밍 규칙**
 
@@ -168,7 +170,7 @@ void pay_pointIsNotEnough() {
 
 - builder의 기본값은 정상 케이스를 만들 수 있는 값으로 둔다.
 - builder 메서드는 체이닝을 위해 자기 자신을 반환한다.
-- build()는 항상 유효한 테스트 객체를 반환해야 한다.
+- build()는 항상 유효한 테스트 객체를 반환해야 한다. 식별자가 필요하면 builder에서 주입한다(저장 전 id가 null이므로 테스트 코드에서의 리플렉션 주입을 허용한다).
 - 모든 필드를 한 번에 받는 create(id, name, age, status, ...) 형태의 fixture 메서드는 만들지 않는다.
 - 테스트마다 값이 자주 바뀌는 필드만 builder 메서드로 노출한다.
 - builder는 src/test 아래 테스트 코드에서만 사용한다.
@@ -346,7 +348,7 @@ public abstract class RepositoryTestSupport {
 
 - Testcontainers 또는 프로젝트 표준 테스트 DB 사용
 - 쿼리 조건과 정렬 검증
-- Entity 매핑 검증
+- 엔티티 매핑 검증 (domain 모델 ↔ 테이블)
 - N+1이나 fetch join이 중요한 조회 테스트
 
 지양한다.
