@@ -1,4 +1,4 @@
-package com.ubidict.backend.common.infra;
+package com.ubidict.backend.common.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

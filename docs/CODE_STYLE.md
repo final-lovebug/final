@@ -24,6 +24,8 @@
 | Repository | OrderRepository |
 | Client | OrderApiClient |
 
+도메인 모델은 개념 이름을 그대로 쓴다(`Workspace`, `Participant`). 도메인 모델이 JPA 엔티티를 겸하므로 `~Entity` 접미사는 쓰지 않는다.
+
 ## **메서드 작성 규칙**
 
 - public 메서드는 의도가 분명해야 한다.
@@ -42,7 +44,7 @@
 - @Builder는 테스트 fixture 중심으로 제한적 사용
 - @Slf4j
 
-지양한다.
+지양한다. 아래의 "Entity"는 domain 패키지의 도메인 모델을 가리킨다. 도메인 모델이 JPA 엔티티를 겸하므로 두 규칙이 같은 클래스에 적용된다.
 
 - Entity의 무분별한 @Setter
 - Entity의 @Data

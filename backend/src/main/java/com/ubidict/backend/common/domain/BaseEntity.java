@@ -1,4 +1,4 @@
-package com.ubidict.backend.common.infra;
+package com.ubidict.backend.common.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
