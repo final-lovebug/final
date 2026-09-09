@@ -217,9 +217,16 @@ POST /api/auth/logout
 
 ```json
 {
-  "workspaceId": 1
+  "workspaceId": 1,
+  "name": "개발팀",
+  "requiredDocumentReviewerCount": 0,
+  "requiredDictionaryReviewerCount": 0,
+  "myPermission": "OWNER",
+  "createdAt": "2026-09-09T10:24:38.123456Z"
 }
 ```
+
+> 생성·목록·상세가 같은 응답 형식을 쓴다. 생성 직후에는 요청자가 OWNER이고 룰셋이 `0 / 0`이다.
 
 ## **참여 중인 워크스페이스 목록 조회**
 
@@ -232,7 +239,10 @@ POST /api/auth/logout
   {
     "workspaceId": 1,
     "name": "개발팀",
-    "myPermission": "OWNER"
+    "requiredDocumentReviewerCount": 0,
+    "requiredDictionaryReviewerCount": 0,
+    "myPermission": "OWNER",
+    "createdAt": "2026-09-09T10:24:38.123456Z"
   }
 ]
 ```
