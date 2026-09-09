@@ -15,6 +15,7 @@
 ```java
 com.example.project
 └── payment
+    ├── exception
     ├── presentation
     ├── service
     ├── implement
@@ -24,6 +25,7 @@ com.example.project
 
 | **패키지** | **역할** |
 | --- | --- |
+| exception | 도메인 Exception, ErrorCode 예외 모음 |
 | presentation | HTTP 요청/응답, Controller, API DTO, 인증 사용자 해석 |
 | service | 비즈니스 흐름 조립, 유스케이스 단위 트랜잭션 경계 |
 | implement | 비즈니스 흐름을 구성하는 상세 구현 도구 |
