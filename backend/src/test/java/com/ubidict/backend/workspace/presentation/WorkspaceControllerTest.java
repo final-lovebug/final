@@ -61,7 +61,9 @@ class WorkspaceControllerTest {
                 .post("/api/workspaces?memberId={memberId}", MEMBER_ID)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
-                .body("workspaceId", equalTo(WORKSPACE_ID.intValue()));
+                .body("workspaceId", equalTo(WORKSPACE_ID.intValue()))
+                .body("name", equalTo("개발팀"))
+                .body("myPermission", equalTo("OWNER"));
     }
 
     @DisplayName("이름이 비어 있으면 400과 공통 검증 실패 코드를 응답한다.")
@@ -111,7 +113,8 @@ class WorkspaceControllerTest {
                 .statusCode(HttpStatus.OK.value())
                 .body("$", hasSize(1))
                 .body("[0].name", equalTo("개발팀"))
-                .body("[0].myPermission", equalTo("OWNER"));
+                .body("[0].myPermission", equalTo("OWNER"))
+                .body("[0].requiredDocumentReviewerCount", equalTo(0));
     }
 
     @DisplayName("워크스페이스 상세 응답에는 룰셋이 포함된다.")
