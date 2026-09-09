@@ -10,10 +10,8 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import com.ubidict.backend.workspace.service.CreateWorkspaceCommand;
-import com.ubidict.backend.workspace.service.WorkspaceIdResult;
 import com.ubidict.backend.workspace.service.WorkspaceResult;
 import com.ubidict.backend.workspace.service.WorkspaceService;
-import com.ubidict.backend.workspace.service.WorkspaceSummaryResult;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -51,7 +49,7 @@ class WorkspaceControllerTest {
     void create() {
         // given
         given(workspaceService.create(any(CreateWorkspaceCommand.class)))
-                .willReturn(new WorkspaceIdResult(WORKSPACE_ID));
+                .willReturn(new WorkspaceResult(WORKSPACE_ID, "개발팀", 0, 0, Permission.OWNER, OffsetDateTime.now()));
 
         // when & then
         RestAssuredMockMvc.given()
@@ -102,7 +100,8 @@ class WorkspaceControllerTest {
     void readMine() {
         // given
         given(workspaceService.readMine(MEMBER_ID))
-                .willReturn(List.of(new WorkspaceSummaryResult(WORKSPACE_ID, "개발팀", Permission.OWNER)));
+                .willReturn(List.of(
+                        new WorkspaceResult(WORKSPACE_ID, "개발팀", 0, 0, Permission.OWNER, OffsetDateTime.now())));
 
         // when & then
         RestAssuredMockMvc.given()

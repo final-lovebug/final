@@ -2,7 +2,7 @@ package com.ubidict.backend.workspace.presentation;
 
 import com.ubidict.backend.workspace.service.CreateWorkspaceCommand;
 import com.ubidict.backend.workspace.service.RenameWorkspaceCommand;
-import com.ubidict.backend.workspace.service.WorkspaceIdResult;
+import com.ubidict.backend.workspace.service.WorkspaceResult;
 import com.ubidict.backend.workspace.service.WorkspaceService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -35,7 +35,7 @@ public class WorkspaceController {
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping
     public WorkspaceIdResponse create(@RequestParam Long memberId, @Valid @RequestBody CreateWorkspaceRequest request) {
-        WorkspaceIdResult result = workspaceService.create(new CreateWorkspaceCommand(request.name(), memberId));
+        WorkspaceResult result = workspaceService.create(new CreateWorkspaceCommand(request.name(), memberId));
 
         return WorkspaceIdResponse.from(result);
     }

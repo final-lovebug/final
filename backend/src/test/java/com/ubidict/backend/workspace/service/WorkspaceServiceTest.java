@@ -30,7 +30,7 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void create() {
         // when
-        WorkspaceIdResult result = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult result = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
 
         // then
         Participant owner = participantRepository
@@ -43,7 +43,7 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void create_ruleSetIsInitial() {
         // given
-        WorkspaceIdResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
 
         // when
         WorkspaceResult result = workspaceService.read(created.workspaceId(), OWNER_ID);
@@ -57,22 +57,22 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void readMine() {
         // given
-        WorkspaceIdResult mine = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult mine = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
         workspaceService.create(new CreateWorkspaceCommand("남의팀", OTHER_MEMBER_ID));
 
         // when
-        List<WorkspaceSummaryResult> results = workspaceService.readMine(OWNER_ID);
+        List<WorkspaceResult> results = workspaceService.readMine(OWNER_ID);
 
         // then
-        assertThat(results).extracting(WorkspaceSummaryResult::workspaceId).containsExactly(mine.workspaceId());
-        assertThat(results).extracting(WorkspaceSummaryResult::myPermission).containsExactly(Permission.OWNER);
+        assertThat(results).extracting(WorkspaceResult::workspaceId).containsExactly(mine.workspaceId());
+        assertThat(results).extracting(WorkspaceResult::myPermission).containsExactly(Permission.OWNER);
     }
 
     @DisplayName("참여자가 아니면 상세를 조회할 수 없다.")
     @Test
     void read_memberIsNotParticipant() {
         // given
-        WorkspaceIdResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
 
         // when & then
         assertThatThrownBy(() -> workspaceService.read(created.workspaceId(), OTHER_MEMBER_ID))
@@ -85,7 +85,7 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void read_workspaceIsDeleted() {
         // given
-        WorkspaceIdResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
         workspaceService.delete(created.workspaceId(), OWNER_ID);
 
         // when & then
@@ -99,7 +99,7 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void rename() {
         // given
-        WorkspaceIdResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
         joinAs(created.workspaceId(), OTHER_MEMBER_ID, Permission.ADMIN);
 
         // when
@@ -114,7 +114,7 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void rename_permissionIsBelowAdmin() {
         // given
-        WorkspaceIdResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
         joinAs(created.workspaceId(), OTHER_MEMBER_ID, Permission.REGULAR);
         RenameWorkspaceCommand command = new RenameWorkspaceCommand(created.workspaceId(), "플랫폼팀", OTHER_MEMBER_ID);
 
@@ -129,7 +129,7 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void rename_memberIsNotParticipant() {
         // given
-        WorkspaceIdResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
         RenameWorkspaceCommand command = new RenameWorkspaceCommand(created.workspaceId(), "플랫폼팀", OTHER_MEMBER_ID);
 
         // when & then
@@ -143,7 +143,7 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void delete_memberIsNotOwner() {
         // given
-        WorkspaceIdResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
         joinAs(created.workspaceId(), OTHER_MEMBER_ID, Permission.ADMIN);
 
         // when & then
@@ -157,7 +157,7 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void delete() {
         // given
-        WorkspaceIdResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
 
         // when
         workspaceService.delete(created.workspaceId(), OWNER_ID);

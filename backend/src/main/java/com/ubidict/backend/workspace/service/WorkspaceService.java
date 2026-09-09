@@ -33,23 +33,23 @@ public class WorkspaceService {
      * 워크스페이스와 Owner 참여자를 한 트랜잭션에서 만든다. "Owner가 정확히 1명"을 이 경계가 보장한다.
      */
     @Transactional
-    public WorkspaceIdResult create(CreateWorkspaceCommand command) {
+    public WorkspaceResult create(CreateWorkspaceCommand command) {
         Workspace workspace = workspaceAppender.append(command.name(), command.memberId());
         participantAppender.appendOwner(workspace.getId(), command.memberId());
 
-        return WorkspaceIdResult.from(workspace);
+        return WorkspaceResult.of(workspace, Permission.OWNER);
     }
 
     /**
      * 참여한 워크스페이스만 조회하므로 별도의 접근 검증이 필요 없다.
      */
     @Transactional(readOnly = true)
-    public List<WorkspaceSummaryResult> readMine(Long memberId) {
+    public List<WorkspaceResult> readMine(Long memberId) {
         Map<Long, Permission> permissions = participantReader.readAllByMember(memberId).stream()
                 .collect(Collectors.toMap(Participant::getWorkspaceId, Participant::getPermission));
 
         return workspaceReader.readAll(permissions.keySet()).stream()
-                .map(workspace -> WorkspaceSummaryResult.of(workspace, permissions.get(workspace.getId())))
+                .map(workspace -> WorkspaceResult.of(workspace, permissions.get(workspace.getId())))
                 .toList();
     }
 
