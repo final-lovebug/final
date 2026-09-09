@@ -4,7 +4,7 @@
 
 | 메인 단어 | 영문 | 정의 | 대체 후보 |
 | --- | --- | --- | --- |
-| 회원 | Member | 서비스에 가입해 인증받는 주체 | 사용자(User), 계정(Account) |
+| 회원 | Member | 서비스에 가입해 인증받는 주체 | 사용자(Regular), 계정(Account) |
 | 인증 | Authentication | 회원임을 확인하는 행위 | 로그인, 로그인 세션 |
 
 관계: Workspace의 Participants가 Member를 참조한다.
@@ -14,7 +14,7 @@
 | 메인 단어 | 영문 | 정의 | 대체 후보 |
 | --- | --- | --- | --- |
 | 워크스페이스 | Workspace | 사전집과 문서를 공유하는 협업 단위 | 팀(Team), 프로젝트(Project), 스페이스 |
-| 참여자 | Participant | 워크스페이스에 소속되어 역할을 가진 회원(Owner, Admin, Member) | 구성원, 멤버십(Membership) |
+| 참여자 | Participant | 워크스페이스에 소속되어 역할을 가진 회원(Owner, Admin, Regular) | 구성원, 멤버십(Membership) |
 | 룰셋 | RuleSet | 리뷰·대조 시 적용되는 검토 규칙의 묶음 | 규칙집, 검토 기준, 정책(Policy) |
 | 설정 | Settings | 워크스페이스 단위의 운영 옵션 | 환경설정, 옵션, 정책 |
 
