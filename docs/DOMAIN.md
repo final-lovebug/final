@@ -83,13 +83,27 @@
 | 속성 | 영문 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- | --- |
 | 식별자 | id | DictionaryId | O |  |
-| 워크스페이스 | workspaceId | WorkspaceId | O |  |
-| 이름 | name | String | O |  |
-| 현재 버전 | currentVersionNo | Int | O |  |
-| 상태 | status | Enum | O | 활성중 / 보관중 |
+| 워크스페이스 | workspaceId | WorkspaceId | O | 워크스페이스당 활성중 1개 + 보관중 N개 |
+| 버전 | version | DictionaryVersion | O | 아래 값 객체. 사전집에 포함된다 |
+| 상태 | status | Enum | O | 활성중(ACTIVE) / 보관중(ARCHIVED) |
 | 생성일시 | createdAt | DateTime | O |  |
-| 생성자 | createdBy | MemberId | O |  |
-| 수정일시 | updatedAt | DateTime | O |  |
+| 생성자 | createdBy | MemberId | O | 반영을 수행한 사람 |
+| 수정일시 | updatedAt | DateTime | O | 상태 전환 외에는 변하지 않음 |
+
+**사전집 행 하나가 확정된 버전 하나다.** 워크스페이스에 사전집 행이 쌓이고, 활성중인 행 하나가 가장 최근 확정본이자 대조의 기준이다. 나머지는 지나간 버전이며 내용이 바뀌지 않는다.
+
+> **이름(`name`)은 두지 않는다.** 워크스페이스에 활성 사전집이 정확히 1개이므로 워크스페이스와 구분해 부를 이름이 필요 없다. 사전집을 여러 갈래로 풀게 되면 그때 다시 추가한다.
+
+#### DictionaryVersion (사전집 버전) — 값 객체
+
+식별자도 생명주기도 따로 두지 않는다. 사전집과 함께 생기고 함께 사라지며 항상 정확히 1개다. 별도 테이블 없이 `dictionary` 테이블의 컬럼으로 둔다. `RuleSet`이 `Workspace`에 포함된 것과 같은 모양이다.
+
+| 속성 | 영문 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- | --- |
+| 버전 번호 | versionNo | Int | O | 1부터. 워크스페이스 안에서 유일 |
+| 확정일시 | publishedAt | DateTime | O | 행이 만들어지는 순간이 확정 순간 |
+
+> **유래 리비전(`originRevisionId`)은 지금 두지 않는다.** 생성 주기상 모든 버전이 `RevisionDictionary`에서 나오므로 이 값은 실제로 의미를 갖지만, 리비전을 만들 수단이 아직 없어 항상 null이 된다. **리뷰 도메인 작업에서 되살릴 후보다.**
 
 ### Term
 
@@ -97,12 +111,16 @@
 | --- | --- | --- | --- | --- |
 | 식별자 | id | TermId | O |  |
 | 사전집 | dictionaryId | DictionaryId | O |  |
-| 표준어 | preferredForm | String | O | 사전집 내 유일. 제안어로 제시되는 값 |
-| 영문명 | englishName | String | X | 코드·DB 네이밍 기준 |
-| 정의 | definition | Text | O |  |
+| 표준어 | preferredForm | String | O | 사전집 내 유일. 100자. 제안어로 제시되는 값 |
+| 영문명 | englishName | String | X | 코드·DB 네이밍 기준. 100자 |
+| 정의 | definition | Text | O | 대조 시 LLM의 판단 근거 |
 | 생성일시 | createdAt | DateTime | O |  |
 | 생성자 | createdBy | MemberId | O |  |
-| 수정일시 | updatedAt | DateTime | O |  |
+| 수정일시 | updatedAt | DateTime | O | 생성 이후 변하지 않음 |
+
+용어는 소속 사전집 버전과 함께 얼어붙는다. 개별 용어를 고치는 경로는 없고, 새 버전을 반영할 때 그 버전의 용어가 통째로 새로 쌓인다.
+
+> **동의어·비권장어는 두지 않는다.** 문서 대조는 사전집에 저장된 표기 목록을 훑는 방식이 아니라, **LLM이 문서의 맥락을 파악해 표준어·정의와 비교·대조하고 바꿀 것을 제안하는 방식**이다. 사전집이 대조에 제공하는 것은 "이 워크스페이스의 표준어와 그 뜻" 목록뿐이다.
 
 ### ~~TermVersion~~
 
@@ -118,19 +136,20 @@
 | 생성자 | createdBy | MemberId | O |  |
 | 수정일시 | updatedAt | DateTime | O | 불변이라 생성 이후 변하지 않음 |
 
-### DictionaryVersion
+### ~~DictionaryVersion~~ → `Dictionary`에 값 객체로 흡수
+
+엔티티로 두지 않는다. 사전집 행 하나가 곧 확정된 버전 하나이므로 별도 이력 테이블이 필요 없다. 버전 번호와 확정일시는 위 **DictionaryVersion (사전집 버전) — 값 객체**를 본다.
+
+`terms`(용어 스냅샷)도 두지 않는다. **버전마다 사전집 행이 복제되면서 `Term`도 함께 복제되므로, 각 버전에 매달린 `Term`이 곧 그 버전의 스냅샷이다.** 아무도 편집하지 않으므로 저절로 불변이 된다.
 
 | 속성 | 영문 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- | --- |
-| 식별자 | id | DictionaryVersionId | O |  |
-| 사전집 | dictionaryId | DictionaryId | O |  |
-| 버전 번호 | versionNo | Int | O |  |
-| 용어 스냅샷 | terms | List<Term> | O | 확정 후 불변 |
-| 확정일시 | publishedAt | DateTime | O |  |
-| 유래 리비전 | originRevisionId | RevisionDictionaryId | X |  |
-| 생성일시 | createdAt | DateTime | O |  |
-| 생성자 | createdBy | MemberId | O |  |
-| 수정일시 | updatedAt | DateTime | O | 불변이라 생성 이후 변하지 않음 |
+| ~~식별자~~ | ~~id~~ | ~~DictionaryVersionId~~ | ~~O~~ | 값 객체라 식별자를 두지 않는다 |
+| ~~사전집~~ | ~~dictionaryId~~ | ~~DictionaryId~~ | ~~O~~ | `Dictionary`에 포함되므로 불필요 |
+| 버전 번호 | versionNo | Int | O | 값 객체로 이동 |
+| ~~용어 스냅샷~~ | ~~terms~~ | ~~List\<Term\>~~ | ~~O~~ | `Term`이 버전별로 복제되어 대체 |
+| 확정일시 | publishedAt | DateTime | O | 값 객체로 이동 |
+| 유래 리비전 | originRevisionId | RevisionDictionaryId | X | 리뷰 도메인 작업에서 되살릴 후보 |
 
 ---
 
@@ -478,8 +497,39 @@
 - 참여자가 빠져 현재 인원이 설정값보다 작아지면, 그 워크스페이스에서는 **참여자 수를 상한으로 간주**한다.
 - 리뷰 요청에 지정한 리뷰어 수가 설정값보다 적으면 요청을 만들 수 없다.
 
+### 사전집
+
+**생성 주기** — 사전집은 사람이 빈 껍데기를 만드는 것이 아니라, 문서에서 용어를 추출해 리뷰를 통과시킨 결과로 태어난다.
+
+```
+워크스페이스 생성            사전집 없음
+  ↓  문서 2개 이상 업로드
+용어 추출 (Admin 이상)       ① 문서별 용어 추출
+                            ② 유사 의미 용어를 묶어 후보어 생성
+                               (a-회원 · b-User · c-사용자 → 후보어 1개)
+  ↓
+DraftDictionary             ③ 요청자가 후보어마다 대표어를 고른다 → 초안 UPDATE
+  ↓  리뷰 요청
+RevisionDictionary          ④⑤ 리뷰 진행. 변경요청이면 CandidateTerm의 대표어를 고쳐 UPDATE
+  ↓  승인
+Dictionary (새 버전)        ⑥ 리비전이 그대로 반영되어 새 버전이 된다 ← 사전집 최종
+```
+
+- 워크스페이스를 만든 직후에는 **사전집이 없다.** 첫 사전집은 위 흐름을 거쳐 v1로 태어난다.
+- 워크스페이스에 사전집 행은 여러 개지만 **활성중인 것은 정확히 1개**다. 그 행이 **가장 최근 확정본이자 문서 대조의 기준**이다.
+- **새 버전은 리뷰 승인(Revise)의 반영으로만 생긴다.** 반영하면 기존 활성 사전집이 보관중으로 내려가고, 새 행이 다음 버전 번호로 활성중이 된다.
+- **모든 사전집 행과 그 용어는 확정된 뒤 바뀌지 않는다.** 상태 전환만 예외다. 따라서 개별 용어를 추가·수정·삭제하는 경로가 없고, 용어를 바꾸려면 새 버전을 만들어야 한다.
+- **사전집은 삭제하지 않는다.** 모든 행이 보존해야 할 버전 이력이다.
+- **표준어는 사전집 내 유일**하다. 앞뒤 공백을 제거한 뒤 대소문자를 구분해 비교한다.
+- **용어가 0개인 버전은 만들 수 없다.** 빈 사전집은 대조에 쓸 수 없다.
+- 생성·반영은 **Admin 이상**, 조회는 참여자면 누구나 가능하다.
+- **대조는 사전집에 저장된 동의어 목록을 훑는 방식이 아니다.** 사전집에는 표준어와 정의만 있고, LLM이 문서의 맥락을 파악해 그것과 비교·대조하여 바꿀 것을 제안한다.
+
+> **동시 반영을 따로 막지 않는 이유** — 아래 「초안 사전」 정책이 사전집당 진행 중인 등재 흐름을 1개로 제한하므로, 같은 버전을 기준으로 편집하는 주체가 둘이 될 수 없다. 기준 버전은 `DraftDictionary.dictionaryId`와 `RevisionDictionary.baseVersionNo`가 이미 들고 있고, 검사가 필요해지면 그 자리는 **리뷰 승인 시점**이다.
+
 ### 문서
 - 업로드 가능한 파일 형식은 **`txt`, `md`** 뿐이다.
+- **업로드 시 자동으로 사전집 대조나 용어 추출을 실행하지 않는다.** 사전집이 있는 상태에서 올라온 문서는 `outdated`이며, 사용자가 **"최신 사전집으로 갱신"**을 실행할 때 활성 사전집과 대조된다.
 - 문서 본문(`Document.content`)은 **10,000자 이내**다. (AI 토큰 사용량에 비례하므로 가볍게 유지)
 - 문서에 **라벨**을 붙일 수 있고, 문서 목록은 라벨로 **필터링**할 수 있다.
 - **outdated 문서는 용어 추출 대상이 아니다.** 최신 사전집 버전을 기준으로 대조되지 않은 문서에서는 `ExtractTerm`을 실행할 수 없다.
@@ -517,7 +567,9 @@
 | Workspace | 포함 | RuleSet | 값 객체. 리뷰어 수 제한 |
 | Workspace | 발급 | Invitation | 초대 링크(토큰) |
 | Invitation | 수락 | Workspace.Participant | 수락하면 참여자로 등록 |
-| Dictionary | 소속 | Workspace |  |
+| Dictionary | 소속 | Workspace | 활성중 1개 + 보관중 N개 |
+| Dictionary | 포함 | DictionaryVersion | 값 객체. 버전 번호·확정일시 |
+| Dictionary | 포함 | Term | 버전마다 용어가 함께 복제된다 |
 | Document | 소속 | Workspace |  |
 | Document (+Dictionary) | DictionaryContrast | DraftDocument | 비표준 표현 찾아 제안어 생성 |
 | Document | ExtractTerm | DraftDictionary | 미등재 용어를 후보어로 수집 |
@@ -526,5 +578,5 @@
 | RevisionDocument | Reexamine | RevisionDocument | 자기 반복 |
 | RevisionDictionary | Reexamine | RevisionDictionary | 자기 반복 |
 | ReviewRequest | Revise | DocumentVersion | 새 문서 버전 생성 |
-| ReviewRequest | Revise | Dictionary | 새 사전집 버전 생성 |
+| ReviewRequest | Revise | Dictionary | 새 사전집 버전 생성. 기존 활성 사전집은 보관중으로 내려간다 |
 | 각 단계 | 이벤트 발행 | Notification | 그래프에는 선이 없지만 필요 |

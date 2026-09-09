@@ -300,3 +300,136 @@ POST /api/auth/logout
 > `COMMON_INVALID_REQUEST`는 요청 DTO 검증(`@NotBlank`·`@Size`)에서, `WORKSPACE_INVALID_*`는 도메인 모델 검증에서 발생한다. 같은 입력이라도 앞단에서 걸리면 `COMMON_INVALID_REQUEST`가 먼저 내려간다.
 
 ---
+
+# **Dictionary API**
+
+워크스페이스의 표준 용어 집합인 사전집을 조회하고, 새 버전을 반영한다. 관련 도메인은 `dictionary`다.
+
+## **요청자 식별 — 임시 방식**
+
+인증 계층(`NFR-USR-001`)이 아직 없어 **요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다.** Workspace API와 같은 의도적 예외이며, **인증 도입 시 이 파라미터는 전부 사라진다.** 인증 전까지 운영 배포 대상이 아니다.
+
+## **반영 엔드포인트는 임시다**
+
+`docs/LIFECYCLE.md`의 생성 주기대로라면 **사전집 버전은 리뷰 승인(Revise)의 산출물**이다. 사전집 도메인이 스스로 버전을 만들지 않는다.
+
+리뷰 도메인이 아직 없어 반영 로직을 호출할 길이 없으므로 `POST /versions`를 임시로 열어 둔다. **리뷰 도메인이 완성되면 이 엔드포인트는 사라지고**, 승인 처리가 같은 서비스 메서드를 직접 호출한다. 클라이언트는 이 엔드포인트에 의존하지 않는다.
+
+## **모델**
+
+사전집 행 하나가 확정된 버전 하나다. 워크스페이스에 사전집 행이 쌓이고 **`ACTIVE`인 행 하나가 가장 최근 확정본**이며 문서 대조의 기준이 된다. 나머지는 `ARCHIVED`이고 내용이 바뀌지 않는다.
+
+- **워크스페이스를 만든 직후에는 사전집이 없다.** 상세 조회의 `404`는 정상 응답이며 오류 상황이 아니다. 버전 이력 조회는 빈 배열이다.
+- **개별 용어를 고치는 API가 없다.** 용어를 바꾸려면 새 버전을 반영한다.
+- **사전집을 지우는 API가 없다.** 모든 행이 보존해야 할 버전 이력이다.
+- 참여자가 아닌 워크스페이스는 `403`이 아니라 `404`로 응답한다(`NFR-WS-001` 데이터 격리). 참여자이지만 서열이 모자라면 `403`이다.
+
+| **Method** | **Path** | **권한** | **성공** |
+| --- | --- | --- | --- |
+| POST | `/api/workspaces/{workspaceId}/dictionary/versions` | ADMIN 이상 | `201` |
+| GET | `/api/workspaces/{workspaceId}/dictionary` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/dictionary/versions` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/dictionary/versions/{versionNo}` | 참여자 | `200` |
+
+## **새 버전 반영**
+
+`POST /api/workspaces/{workspaceId}/dictionary/versions?memberId={memberId}` → `201 Created`
+
+**ADMIN 이상**만 반영할 수 있다. 사전집이 없으면 버전 1이 만들어지고, 있으면 기존 활성 사전집이 `ARCHIVED`로 내려가면서 다음 버전이 활성이 된다.
+
+> **요청은 그 버전의 용어 전체를 싣는다.** 서버는 이전 버전에서 아무것도 복사하지 않는다. **변경분만 보내면 나머지 용어가 사라진다.** 클라이언트는 현재 확정본을 조회해 고친 뒤 통째로 보낸다.
+
+```json
+{
+  "terms": [
+    {
+      "preferredForm": "회원",
+      "englishName": "Member",
+      "definition": "서비스에 가입해 인증받는 주체"
+    },
+    {
+      "preferredForm": "워크스페이스",
+      "englishName": "Workspace",
+      "definition": "사전집과 문서를 공유하는 협업 단위"
+    }
+  ]
+}
+```
+
+| **필드** | **타입** | **제약** | **설명** |
+| --- | --- | --- | --- |
+| `terms` | Array | 필수, 1개 이상 | 이 버전에 담을 용어 전체 |
+| `terms[].preferredForm` | String | 필수, 1~100자 | 표준어. 사전집 안에서 유일하다 |
+| `terms[].englishName` | String | 선택, 100자 이하 | 코드·DB 네이밍 기준 |
+| `terms[].definition` | String | 필수 | 대조 시 LLM의 판단 근거라 비울 수 없다 |
+
+표기는 앞뒤 공백을 제거해 저장하며 대소문자는 구분한다. 응답은 아래 상세 조회와 같은 형식이다.
+
+## **현재 확정본 조회**
+
+`GET /api/workspaces/{workspaceId}/dictionary?memberId={memberId}` → `200 OK`
+
+용어는 **표준어 오름차순**이다.
+
+```json
+{
+  "dictionaryId": 3,
+  "workspaceId": 1,
+  "versionNo": 2,
+  "status": "ACTIVE",
+  "publishedAt": "2026-09-09T10:24:38.123456Z",
+  "createdBy": 7,
+  "terms": [
+    {
+      "termId": 10,
+      "preferredForm": "워크스페이스",
+      "englishName": "Workspace",
+      "definition": "사전집과 문서를 공유하는 협업 단위"
+    }
+  ]
+}
+```
+
+| **필드** | **타입** | **설명** |
+| --- | --- | --- |
+| `versionNo` | Int | 1부터. 워크스페이스 안에서 유일하다 |
+| `status` | Enum | `ACTIVE`(가장 최근 확정본) / `ARCHIVED`(지나간 버전) |
+| `publishedAt` | DateTime | 확정 시각. 행이 만들어지는 순간이다 |
+| `createdBy` | Long | 반영을 수행한 회원 |
+
+## **버전 이력 조회**
+
+`GET /api/workspaces/{workspaceId}/dictionary/versions?memberId={memberId}` → `200 OK`
+
+**`versionNo` 내림차순**이다. 응답이 비대해지지 않도록 용어를 싣지 않고 개수만 담는다. 사전집을 만든 적 없는 워크스페이스는 빈 배열이다.
+
+```json
+[
+  { "dictionaryId": 3, "versionNo": 2, "status": "ACTIVE",   "publishedAt": "2026-09-09T10:24:38.123456Z", "createdBy": 7, "termCount": 12 },
+  { "dictionaryId": 1, "versionNo": 1, "status": "ARCHIVED", "publishedAt": "2026-09-08T09:11:02.000000Z", "createdBy": 7, "termCount": 10 }
+]
+```
+
+## **특정 버전 조회**
+
+`GET /api/workspaces/{workspaceId}/dictionary/versions/{versionNo}?memberId={memberId}` → `200 OK`
+
+`ACTIVE`·`ARCHIVED` 구분 없이 버전 번호로 찾는다. 응답은 현재 확정본 조회와 같은 형식이다.
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
+| 참여자지만 ADMIN 미만이 반영을 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
+| 사전집이 없는데 조회, 없는 버전 번호 | 404 | `DICTIONARY_NOT_FOUND` |
+| 용어 없이 반영을 시도(도메인 검증) | 400 | `DICTIONARY_EMPTY_TERMS` |
+| 표준어가 비었거나 100자 초과(도메인 검증) | 400 | `TERM_INVALID_PREFERRED_FORM` |
+| 영문명이 100자 초과(도메인 검증) | 400 | `TERM_INVALID_ENGLISH_NAME` |
+| 정의가 비었음(도메인 검증) | 400 | `TERM_INVALID_DEFINITION` |
+| 한 요청 안에 같은 표준어가 둘 이상 | 409 | `TERM_DUPLICATE_PREFERRED_FORM` |
+| 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
+
+> 권한 부족에 사전집 전용 코드를 두지 않는다. 검증 주체가 워크스페이스 참여 권한이므로 `WORKSPACE_ADMIN_REQUIRED`를 그대로 쓴다.
+
+---
