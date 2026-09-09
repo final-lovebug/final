@@ -24,7 +24,7 @@ import org.testcontainers.mysql.MySQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Flyway 마이그레이션이 없는 단계이므로 스키마는 Hibernate가 생성한다.
+ * 테스트 전용 엔티티를 쓰므로 마이그레이션 대상이 아니다. 스키마는 Flyway 대신 Hibernate가 생성한다.
  */
 @Import(BaseEntityAuditingTest.MySqlContainerConfiguration.class)
 @AutoConfigureTestDatabase(replace = Replace.NONE)
