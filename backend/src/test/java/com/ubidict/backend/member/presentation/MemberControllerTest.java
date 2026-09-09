@@ -62,6 +62,7 @@ class MemberControllerTest {
                 .post("/api/members")
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
+                .header("Location", equalTo("/api/members/1"))
                 .body("memberId", equalTo(1))
                 .body("email", equalTo("member@example.com"))
                 .body("status", equalTo("ACTIVE"))
