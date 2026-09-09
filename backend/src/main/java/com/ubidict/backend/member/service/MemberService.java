@@ -1,10 +1,9 @@
 package com.ubidict.backend.member.service;
 
 import com.ubidict.backend.member.domain.Member;
-import com.ubidict.backend.member.implement.MemberCreator;
 import com.ubidict.backend.member.implement.MemberReader;
-import com.ubidict.backend.member.implement.MemberUpdater;
 import com.ubidict.backend.member.implement.MemberWithdrawer;
+import com.ubidict.backend.member.implement.MemberWriter;
 import com.ubidict.backend.member.service.model.CreateMemberCommand;
 import com.ubidict.backend.member.service.model.MemberResult;
 import com.ubidict.backend.member.service.model.UpdateMemberCommand;
@@ -16,15 +15,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MemberService {
 
-    private final MemberCreator memberCreator;
     private final MemberReader memberReader;
-    private final MemberUpdater memberUpdater;
+    private final MemberWriter memberWriter;
     private final MemberWithdrawer memberWithdrawer;
 
     @Transactional
     public MemberResult create(CreateMemberCommand command) {
         Member member =
-                memberCreator.create(command.email(), command.displayName(), command.provider(), command.providerId());
+                memberWriter.create(command.email(), command.displayName(), command.provider(), command.providerId());
         return MemberResult.from(member);
     }
 
@@ -35,7 +33,7 @@ public class MemberService {
 
     @Transactional
     public MemberResult update(UpdateMemberCommand command) {
-        Member member = memberUpdater.update(command.memberId(), command.displayName());
+        Member member = memberWriter.update(command.memberId(), command.displayName());
         return MemberResult.from(member);
     }
 

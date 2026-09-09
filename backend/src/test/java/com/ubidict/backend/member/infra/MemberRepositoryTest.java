@@ -13,19 +13,14 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.testcontainers.mysql.MySQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * Flyway 마이그레이션이 아직 이 테스트 슬라이스에 연결되지 않아 스키마는 Hibernate가
  * 생성한다({@code BaseEntityAuditingTest}와 동일한 관례).
  */
-@Import(MemberRepositoryTest.MySqlContainerConfiguration.class)
+@Import(MySqlContainerConfiguration.class)
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 @DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false"})
 class MemberRepositoryTest {
@@ -106,18 +101,5 @@ class MemberRepositoryTest {
         Member found = em.find(Member.class, member.getId());
         assertThat(found.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
         assertThat(found.isDeleted()).isTrue();
-    }
-
-    /**
-     * 컨테이너를 Spring 빈으로 두어 컨텍스트 종료 시점과 컨테이너 종료 시점을 맞춘다.
-     */
-    @TestConfiguration(proxyBeanMethods = false)
-    static class MySqlContainerConfiguration {
-
-        @Bean
-        @ServiceConnection
-        MySQLContainer mysqlContainer() {
-            return new MySQLContainer(DockerImageName.parse("mysql:8.4"));
-        }
     }
 }

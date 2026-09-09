@@ -9,10 +9,9 @@ import com.ubidict.backend.member.domain.Member;
 import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.domain.MemberStatus;
 import com.ubidict.backend.member.domain.OAuthProvider;
-import com.ubidict.backend.member.implement.MemberCreator;
 import com.ubidict.backend.member.implement.MemberReader;
-import com.ubidict.backend.member.implement.MemberUpdater;
 import com.ubidict.backend.member.implement.MemberWithdrawer;
+import com.ubidict.backend.member.implement.MemberWriter;
 import com.ubidict.backend.member.service.model.CreateMemberCommand;
 import com.ubidict.backend.member.service.model.MemberResult;
 import com.ubidict.backend.member.service.model.UpdateMemberCommand;
@@ -25,19 +24,17 @@ import org.junit.jupiter.api.Test;
  */
 class MemberServiceTest {
 
-    private final MemberCreator memberCreator = mock(MemberCreator.class);
     private final MemberReader memberReader = mock(MemberReader.class);
-    private final MemberUpdater memberUpdater = mock(MemberUpdater.class);
+    private final MemberWriter memberWriter = mock(MemberWriter.class);
     private final MemberWithdrawer memberWithdrawer = mock(MemberWithdrawer.class);
-    private final MemberService memberService =
-            new MemberService(memberCreator, memberReader, memberUpdater, memberWithdrawer);
+    private final MemberService memberService = new MemberService(memberReader, memberWriter, memberWithdrawer);
 
     @DisplayName("회원을 생성하면 생성된 회원 정보를 반환한다.")
     @Test
     void create() {
         // given
         Member member = Member.create("member@example.com", "member1", OAuthProvider.GOOGLE, "google-1");
-        given(memberCreator.create("member@example.com", "member1", OAuthProvider.GOOGLE, "google-1"))
+        given(memberWriter.create("member@example.com", "member1", OAuthProvider.GOOGLE, "google-1"))
                 .willReturn(member);
 
         // when
@@ -71,7 +68,7 @@ class MemberServiceTest {
         // given
         Member member = Member.create("member@example.com", "member1", OAuthProvider.GOOGLE, "google-1");
         member.changeDisplayName("새이름");
-        given(memberUpdater.update(1L, "새이름")).willReturn(member);
+        given(memberWriter.update(1L, "새이름")).willReturn(member);
 
         // when
         MemberResult result = memberService.update(new UpdateMemberCommand(1L, "새이름"));
