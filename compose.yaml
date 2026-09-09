@@ -1,0 +1,150 @@
+# 전체 통합 테스트용 Compose.
+#
+# 로컬 실행용인 backend/compose.yaml과 역할이 다르다. 이 파일은 backend 이미지를
+# 직접 빌드해 인프라와 함께 띄우고, `docker compose up`으로 직접 기동한다.
+#
+# ⚠ bootRun과 동시에 띄우지 않는다. backend/compose.yaml도 3000을 퍼블리시하고
+#   bootRun은 8080을 점유한다. Compose 프로젝트는 분리되지만 호스트 포트는
+#   공유 자원이라 `port is already allocated`로 죽는다.
+#
+# ⚠ 첫 실행은 `docker compose build backend`를 먼저 돌린다. Grafana LGTM 스택과
+#   Gradle 빌드 JVM이 겹치면 Docker Desktop 기본 메모리에서 빌드가 OOM으로 죽는다.
+#
+# ui는 아직 포함하지 않는다. 프로젝트 구성이 정해지면 서비스를 추가한다.
+
+name: ubidict
+
+x-logging: &default-logging
+  driver: 'json-file'
+  options:
+    max-size: '100m'
+    max-file: '10'
+
+services:
+  grafana-lgtm:
+    image: 'grafana/otel-lgtm:0.32.1'
+    ports:
+      # Grafana UI만 노출한다. OTLP(4317/4318)는 Compose 네트워크 내부로만 쓴다.
+      - '3000:3000'
+    logging: *default-logging
+
+  mongo:
+    image: 'mongo:8.0'
+    environment:
+      - 'MONGO_INITDB_DATABASE=ubidict'
+      - 'MONGO_INITDB_ROOT_PASSWORD=ubidict'
+      - 'MONGO_INITDB_ROOT_USERNAME=ubidict'
+    healthcheck:
+      # 자격증명 없이 ping하면 초기화용 임시 mongod(auth 미활성, 계정 미생성)에서도
+      # 통과한다. 또 db.adminCommand()는 실패 시 예외가 아니라 {ok:0}을 반환해
+      # mongosh exit code가 0이므로, .ok 값을 직접 검사한다.
+      test: "mongosh --quiet -u ubidict -p ubidict --authenticationDatabase admin --eval 'db.adminCommand({ping:1}).ok' | grep -q 1"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+      start_interval: 2s
+    volumes:
+      - 'mongo-data:/data/db'
+    logging: *default-logging
+
+  mysql:
+    image: 'mysql:8.4'
+    environment:
+      - 'MYSQL_DATABASE=ubidict'
+      - 'MYSQL_PASSWORD=ubidict'
+      - 'MYSQL_ROOT_PASSWORD=ubidict'
+      - 'MYSQL_USER=ubidict'
+    healthcheck:
+      # -h 127.0.0.1로 TCP를 강제한다. 공식 엔트리포인트의 초기화용 임시 서버는
+      # --skip-networking이라 TCP가 열리지 않으므로 초기화 창이 정확히 배제된다.
+      # mysqladmin ping은 Access denied에도 exit 0이라 계정 검증이 안 되므로
+      # 실제 쿼리를 쓴다.
+      test: "mysql -h 127.0.0.1 -uubidict -pubidict -e 'select 1' ubidict"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+      start_interval: 2s
+    volumes:
+      - 'mysql-data:/var/lib/mysql'
+    logging: *default-logging
+
+  redis:
+    image: 'redis:8.2-alpine'
+    healthcheck:
+      # 로딩 중 에러 응답도 exit 0이므로 PONG을 직접 확인한다.
+      test: 'redis-cli ping | grep -q PONG'
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+      start_interval: 2s
+    volumes:
+      - 'redis-data:/data'
+    logging: *default-logging
+
+  backend:
+    build:
+      context: './backend'
+    ports:
+      - '8080:8080'
+    environment:
+      # 접속 정보는 환경변수로만 주입한다. application.properties에는 적지 않는다.
+      #
+      # MySQL URL에 파라미터를 붙이지 않는다. Connector/J 기본 sslMode=PREFERRED와
+      # MySQL 8.4의 자동 생성 인증서로 TLS가 협상되어 caching_sha2_password가
+      # 성립한다. sslMode=DISABLED를 넣는 순간 allowPublicKeyRetrieval이 필요해진다.
+      - 'SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/ubidict'
+      - 'SPRING_DATASOURCE_USERNAME=ubidict'
+      - 'SPRING_DATASOURCE_PASSWORD=ubidict'
+      # Boot 4에서 연결 정보가 spring.data.mongodb.* → spring.mongodb.*로 옮겨졌다
+      # (spring.data.mongodb.uri는 deprecation level=error, 즉 바인딩에서 제거).
+      # auto-index-creation 같은 Spring Data 계층 설정은 여전히 spring.data.mongodb.*다.
+      - 'SPRING_MONGODB_URI=mongodb://ubidict:ubidict@mongo:27017/ubidict?authSource=admin'
+      - 'SPRING_DATA_REDIS_HOST=redis'
+      - 'SPRING_DATA_REDIS_PORT=6379'
+      # OTLP endpoint에는 기본값이 없다. 즉 아래 두 줄이 곧 관측 스위치이며,
+      # 주지 않으면 해당 exporter가 활성화되지 않는다.
+      #
+      # 메트릭만 접두사가 management.otlp.*인 것은 오타가 아니다. 이 키는
+      # micrometer-registry-otlp의 프로퍼티라서 Boot 4의 management.opentelemetry.*
+      # 재정비 대상이 아니었다.
+      - 'MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT=http://grafana-lgtm:4318/v1/traces'
+      - 'MANAGEMENT_OTLP_METRICS_EXPORT_URL=http://grafana-lgtm:4318/v1/metrics'
+      #
+      # 로그는 OTLP로 보내지 않는다. spring-boot-starter-opentelemetry에
+      # Logback → OpenTelemetry 브리지(opentelemetry-logback-appender)가 들어 있지
+      # 않아, MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT를 줘도 exporter만
+      # 만들어지고 로그 소스가 없어 Loki에 아무것도 적재되지 않는다(실측 확인).
+      # 켜려면 그 의존성 추가 + logback-spring.xml에 OpenTelemetryAppender 등록이
+      # 필요하다. 배포 환경도 stdout + awslogs/FireLens가 표준이므로(docs/LOG.md)
+      # 로그는 `docker compose logs`로 본다.
+      # 100% 샘플링은 로컬 전용이다. CloudWatch/X-Ray로 보낼 때 그대로 두면
+      # 권장치(5%) 대비 최대 20배 인제스트 비용이 된다.
+      - 'MANAGEMENT_TRACING_SAMPLING_PROBABILITY=1.0'
+    healthcheck:
+      # SecurityConfig가 없어 /actuator/health도 401이므로 HTTP 검사를 쓸 수 없고,
+      # eclipse-temurin:25-jre에는 curl/wget이 없다. bash 내장 /dev/tcp로
+      # 리스닝만 확인한다. SecurityConfig가 추가되면 /actuator/health로 교체한다.
+      test: ['CMD', 'bash', '-c', 'echo > /dev/tcp/127.0.0.1/8080']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+      start_interval: 2s
+    depends_on:
+      grafana-lgtm:
+        condition: service_started
+      mongo:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+
+volumes:
+  mongo-data:
+  mysql-data:
+  redis-data:
