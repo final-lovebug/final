@@ -28,9 +28,21 @@
 | --- | --- | --- | --- | --- |
 | 식별자 | id | WorkspaceId | O |  |
 | 이름 | name | String | O |  |
+| 리뷰 규칙 | ruleSet | RuleSet | O | 아래 값 객체. 워크스페이스에 포함된다 |
 | 생성일시 | createdAt | DateTime | O |  |
 | 생성자 | createdBy | MemberId | O |  |
 | 수정일시 | updatedAt | DateTime | O |  |
+
+#### RuleSet (리뷰 규칙) — 값 객체
+
+식별자도 생명주기도 따로 두지 않는다. 워크스페이스와 함께 생기고 함께 사라지며, 항상 정확히 1개다. 별도 테이블 없이 `workspace` 테이블의 컬럼으로 둔다.
+
+| 속성 | 영문 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- | --- |
+| 필수 문서 리뷰어 수 | requiredDocumentReviewerCount | Int | O | 승인에 필요한 최소 인원. 기본 0 |
+| 필수 사전 리뷰어 수 | requiredDictionaryReviewerCount | Int | O | 승인에 필요한 최소 인원. 기본 0 |
+
+> 룰셋 변경 이력이나 리뷰 요청 시점의 스냅샷이 필요해지면 값 객체를 엔티티로 승격한다. 아래 **미확정** 항목이다.
 
 ### Participant
 
@@ -45,26 +57,21 @@
 | 생성자 | createdBy | MemberId | O |                                        |
 | 수정일시 | updatedAt | DateTime | O |                                        |
 
-### RuleSet
+### Invitation (초대)
 
 | 속성 | 영문 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- | --- |
-| 식별자 | id | RuleSetId | O |  |
+| 식별자 | id | InvitationId | O |  |
 | 워크스페이스 | workspaceId | WorkspaceId | O |  |
-| 필수 문서 리뷰어 수 | requiredDocumentReviewerCount | Int | O | 승인에 필요한 최소 인원 |
-| 필수 사전 리뷰어 수 | requiredDictionaryReviewerCount | Int | O | 승인에 필요한 최소 인원 |
+| 초대 대상 이메일 | inviteeEmail | String | X | 링크 복사 방식이면 null |
+| 초대 토큰 | token | String | O | 초대 링크에 실리는 값. 전역 유일 |
+| 부여 권한 | permission | Enum | O | 수락 시 부여할 권한. 관리자(Admin) / 사용자(Regular) |
+| 상태 | status | Enum | O | 대기 / 수락 / 만료 / 취소 |
+| 만료일시 | expiresAt | DateTime | O |  |
+| 수락일시 | acceptedAt | DateTime | X |  |
+| 수락 참여자 | acceptedParticipantId | ParticipantId | X | 수락 후 만들어진 참여자 |
 | 생성일시 | createdAt | DateTime | O |  |
-| 생성자 | createdBy | MemberId | O |  |
-| 수정일시 | updatedAt | DateTime | O |  |
-
-### Settings
-
-| 속성 | 영문 | 타입 | 필수 | 설명 |
-| --- | --- | --- | --- | --- |
-| 식별자 | id | SettingsId | O |  |
-| 기본 알림 채널 | defaultChannels | List<Enum> | O |  |
-| 생성일시 | createdAt | DateTime | O |  |
-| 생성자 | createdBy | MemberId | O |  |
+| 생성자 | createdBy | MemberId | O | 초대한 사람 |
 | 수정일시 | updatedAt | DateTime | O |  |
 
 ---
@@ -436,14 +443,40 @@
 ### 워크스페이스 · 권한
 - 워크스페이스 **참여자는 최대 5명**이다. 정원이 찬 워크스페이스에는 초대할 수 없다.
 - 참여자 권한은 **소유자(Owner) / 관리자(Admin) / 사용자(Regular)** 3단계다. (`Member.role`의 사이트 레벨 권한도 `REGULAR/ADMIN`으로, 일반 등급을 가리키는 이름을 두 레벨에서 일부러 통일했다 — `Participant.permission`은 워크스페이스 단위, `Member.role`은 사이트 단위로 범위가 다르다.)
-- **Owner와 Admin은 사실상 동급 권한이다.** Owner는 별도 상위 권한이 아니라 워크스페이스 생성자에게 붙는 명칭일 뿐이며, 할 수 있는 일은 Admin과 같다(9/8 확정).
+- **Owner와 Admin은 사실상 동급 권한이다.** Owner는 별도 상위 권한이 아니라 워크스페이스 생성자에게 붙는 명칭일 뿐이며, 할 수 있는 일은 Admin과 같다(9/8 확정). **단 워크스페이스 삭제만 Owner 전용이다**(아래 «워크스페이스 생성 · 삭제» 참고).
 - **Admin 이상(Owner 포함)만 가능한 기능**: **용어 추출**, **문서 삭제**, **멤버 초대**, **워크스페이스 설정**(이름·설명 수정 등, REQ-WS-006).
 - Regular는 문서 작성·교정·리뷰까지만 가능하다.
+                                       
+### 워크스페이스 생성 · 삭제
+- 워크스페이스를 만든 회원은 **Owner 참여자로 자동 등록**된다. 워크스페이스에는 **Owner가 정확히 1명** 있다.
+- 룰셋은 워크스페이스에 포함된 값이라 **기본값 0 / 0으로 함께 저장된다.** 따로 만들 행은 없다.
+- 이름 변경은 Admin 이상, **삭제는 Owner만** 가능하다.
 
-### 리뷰 규칙 (RuleSet)
+### 워크스페이스 설정 — 참여자
+
+**초대 (Invitation)**
+- Admin 이상이 초대 링크(토큰)를 발급하고, 받은 사람이 링크를 수락하면 참여자로 등록된다. 이메일 발송은 후순위다.
+- 정원 검사는 **수락 시점**에 한다. 그 사이 정원이 찼으면 수락은 실패한다.
+- **이미 참여자인 회원**에게는 초대를 발급하지 않는다. 같은 워크스페이스·같은 대상에 **대기 상태 초대는 1개**만 둔다.
+- 만료·취소된 토큰으로는 수락할 수 없다.
+- 초대로 줄 수 있는 권한은 **Admin / Regular**다. Owner는 초대로 부여하지 않는다.
+
+**삭제**
+- **Owner는 삭제 대상이 아니다.** Admin은 **Regular만** 내보낼 수 있고, Admin을 내보내는 것은 Owner만 가능하다.
+- 자기 자신은 내보내기로 처리하지 않는다(탈퇴로 처리).
+- 내보낸 참여자가 남긴 문서·리뷰·코멘트는 그대로 유지된다.
+- 진행 중인 리뷰 요청에서 그 참여자가 리뷰어였다면 리뷰어에서 제외되고, 필요 리뷰어 수는 아래 룰셋 규칙을 따른다.
+
+**권한 설정**
+- 소유권 이전은 기존 Owner가 다른 참여자를 Owner로 지정하는 방식이고, 이때 기존 Owner는 Admin이 된다.
+- 권한을 낮춰도 그 참여자가 Admin 권한으로 이미 한 작업은 되돌리지 않는다.
+
+### 워크스페이스 설정 — 리뷰 규칙 (RuleSet)
+- 룰셋은 **Workspace에 포함된 값 객체**다. 워크스페이스당 1개이고, 생성 시 기본값(0 / 0)으로 함께 저장된다.                                          
 - `requiredDocumentReviewerCount`, `requiredDictionaryReviewerCount`는 각각 **0 이상, 워크스페이스 참여자 수 이하**다(현 정원 기준 **0~5**).
 - **0이면 리뷰어 없이 바로 반영**할 수 있다.
 - 참여자가 빠져 현재 인원이 설정값보다 작아지면, 그 워크스페이스에서는 **참여자 수를 상한으로 간주**한다.
+- 리뷰 요청에 지정한 리뷰어 수가 설정값보다 적으면 요청을 만들 수 없다.
 
 ### 문서
 - 업로드 가능한 파일 형식은 **`txt`, `md`** 뿐이다.
@@ -465,8 +498,14 @@
   - 동일인 판별은 OAuth로 받아오는 개인정보(이메일 등) 범위에 따라 가능 여부가 갈린다.
 
 > **모델 반영 필요(미확정)** — 위 정책 중 아직 엔티티 표에 없는 항목:
+> - **참여자 권한 변경 주체** — Owner 전용으로 둘지, Admin에게도 Regular 승격·강등을 허용할지
+> - **참여자 삭제 방식** — 내보낸 참여자를 행 삭제로 지울지, 이력으로 남길지(`Participant.leftAt` 등). 참여자 관리 작업에서 확정한다
+>   - 워크스페이스 삭제는 **소프트 삭제로 확정**했다. `deletedAt`을 남기고 모든 조회에서 `deleted_at is null`을 건다
+> - **룰셋 이력·스냅샷** — 룰셋을 바꿨을 때 진행 중인 리뷰 요청에 소급 적용할지, 요청 생성 시점 값을 리비전에 남길지. 이력이 필요해지면 값 객체를 별도 엔티티로 승격한다
+> - **알림 설정 모델** — 유형별 수신 여부·채널을 어떤 단위(워크스페이스 / 참여자)로 둘지. notification 도메인 작업에서 확정한다
+> - `Document`의 **라벨** 속성 및 Label 엔티티, 문서당 라벨 개수 상한. document 도메인 작업에서 확정한다
 > - `Document`의 **outdated 판별 속성**(상태 또는 기준 사전집 버전 비교 방식)
-> - `Document`의 **라벨** 속성 및 Label 엔티티
+> - `Member`의 **소셜 제공자(provider)** 속성
 
 ---
 
@@ -475,6 +514,9 @@
 | 출발 | 행위 | 도착 | 설명 |
 | --- | --- | --- | --- |
 | Workspace.Participant | 참조 | Member | 참여자가 회원을 가리킴 |
+| Workspace | 포함 | RuleSet | 값 객체. 리뷰어 수 제한 |
+| Workspace | 발급 | Invitation | 초대 링크(토큰) |
+| Invitation | 수락 | Workspace.Participant | 수락하면 참여자로 등록 |
 | Dictionary | 소속 | Workspace |  |
 | Document | 소속 | Workspace |  |
 | Document (+Dictionary) | DictionaryContrast | DraftDocument | 비표준 표현 찾아 제안어 생성 |
