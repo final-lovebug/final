@@ -2,11 +2,13 @@ package com.ubidict.backend.common.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.ubidict.backend.common.infra.persistence.JpaAuditingConfig;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +28,7 @@ import org.testcontainers.utility.DockerImageName;
 /**
  * 테스트 전용 엔티티를 쓰므로 마이그레이션 대상이 아니다. 스키마는 Flyway 대신 Hibernate가 생성한다.
  */
-@Import(BaseEntityAuditingTest.MySqlContainerConfiguration.class)
+@Import({JpaAuditingConfig.class, BaseEntityAuditingTest.MySqlContainerConfiguration.class})
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 @DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false"})
 class BaseEntityAuditingTest {
@@ -46,6 +48,10 @@ class BaseEntityAuditingTest {
         // then
         assertThat(entity.getCreatedAt()).isNotNull();
         assertThat(entity.getUpdatedAt()).isNotNull();
+        assertThat(entity.getCreatedAt().getOffset()).isEqualTo(ZoneOffset.UTC);
+        assertThat(entity.getUpdatedAt().getOffset()).isEqualTo(ZoneOffset.UTC);
+        assertThat(entity.getCreatedAt().getNano() % 1_000).isZero();
+        assertThat(entity.getUpdatedAt().getNano() % 1_000).isZero();
     }
 
     @DisplayName("엔티티를 저장하면 삭제 시각은 비어 있다.")
