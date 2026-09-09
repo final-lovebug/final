@@ -186,7 +186,7 @@ POST /api/auth/logout
 
 ## **권한과 응답 원칙**
 
-참여자 권한은 `OWNER > ADMIN > MEMBER` 3단계다.
+참여자 권한은 `OWNER > ADMIN > REGULAR` 3단계다.
 
 - **참여자가 아닌 워크스페이스는 `403`이 아니라 `404`로 응답한다.** `403`을 주면 그 워크스페이스가 존재한다는 사실이 드러난다(`NFR-WS-001` 데이터 격리).
 - 참여자이지만 서열이 모자라면 `403`이다.
@@ -256,7 +256,7 @@ POST /api/auth/logout
 | --- | --- | --- |
 | `requiredDocumentReviewerCount` | Int | 문서 승인에 필요한 최소 리뷰어 수 |
 | `requiredDictionaryReviewerCount` | Int | 사전 승인에 필요한 최소 리뷰어 수 |
-| `myPermission` | Enum | 요청자의 권한. `OWNER` / `ADMIN` / `MEMBER` |
+| `myPermission` | Enum | 요청자의 권한. `OWNER` / `ADMIN` / `REGULAR` |
 
 ## **워크스페이스 이름 수정**
 

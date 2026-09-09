@@ -110,12 +110,12 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
                 .isEqualTo("플랫폼팀");
     }
 
-    @DisplayName("MEMBER는 워크스페이스 이름을 바꿀 수 없다.")
+    @DisplayName("REGULAR는 워크스페이스 이름을 바꿀 수 없다.")
     @Test
     void rename_permissionIsBelowAdmin() {
         // given
         WorkspaceIdResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
-        joinAs(created.workspaceId(), OTHER_MEMBER_ID, Permission.MEMBER);
+        joinAs(created.workspaceId(), OTHER_MEMBER_ID, Permission.REGULAR);
         RenameWorkspaceCommand command = new RenameWorkspaceCommand(created.workspaceId(), "플랫폼팀", OTHER_MEMBER_ID);
 
         // when & then
