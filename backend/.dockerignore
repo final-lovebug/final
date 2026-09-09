@@ -1,0 +1,22 @@
+# 빌드 산출물·캐시 (호스트 절대경로를 담고 있어 이미지 안에서 재사용 불가)
+.gradle
+build
+out
+
+# IDE
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+
+# 이미지에 들어갈 필요 없는 것
+.git
+.gitattributes
+.gitignore
+HELP.md
+Dockerfile
+.dockerignore
+compose.yaml
+compose.override.yaml
+compose.override.yml
