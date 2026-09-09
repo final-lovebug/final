@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Import(GlobalExceptionHandlerTest.TestController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest
+@WebMvcTest(GlobalExceptionHandlerTest.TestController.class)
 class GlobalExceptionHandlerTest {
 
     @Autowired
