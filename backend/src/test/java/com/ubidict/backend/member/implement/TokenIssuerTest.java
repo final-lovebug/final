@@ -36,6 +36,7 @@ class TokenIssuerTest {
         // then
         assertThat(tokenPair.accessToken()).isEqualTo("access-token");
         assertThat(tokenPair.refreshToken()).isEqualTo("refresh-token");
+        assertThat(tokenPair.role()).isEqualTo(MemberRole.REGULAR);
         verify(refreshTokenRedisRepository).deleteAll(1L);
         verify(refreshTokenRedisRepository).saveCurrent(1L, "refresh-token-hash");
     }

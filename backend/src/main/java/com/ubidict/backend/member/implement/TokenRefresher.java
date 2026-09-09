@@ -58,6 +58,6 @@ public class TokenRefresher {
         refreshTokenRedisRepository.saveGrace(memberId, presentedHash);
         refreshTokenRedisRepository.saveCurrent(memberId, refreshTokenHasher.hash(newRefreshToken));
 
-        return new TokenPair(newAccessToken, newRefreshToken);
+        return new TokenPair(newAccessToken, newRefreshToken, member.getRole());
     }
 }

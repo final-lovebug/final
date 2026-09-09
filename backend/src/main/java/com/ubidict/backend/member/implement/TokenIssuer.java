@@ -30,6 +30,6 @@ public class TokenIssuer {
         refreshTokenRedisRepository.deleteAll(memberId);
         refreshTokenRedisRepository.saveCurrent(memberId, refreshTokenHasher.hash(refreshToken));
 
-        return new TokenPair(accessToken, refreshToken);
+        return new TokenPair(accessToken, refreshToken, role);
     }
 }

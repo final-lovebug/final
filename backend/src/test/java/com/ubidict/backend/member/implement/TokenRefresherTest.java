@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.domain.AuthErrorCode;
 import com.ubidict.backend.member.domain.Member;
+import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.domain.OAuthProvider;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.member.infra.security.RefreshTokenHasher;
@@ -53,6 +54,7 @@ class TokenRefresherTest {
         // then
         assertThat(tokenPair.accessToken()).isEqualTo("new-access-token");
         assertThat(tokenPair.refreshToken()).isEqualTo("new-refresh-token");
+        assertThat(tokenPair.role()).isEqualTo(MemberRole.REGULAR);
         verify(refreshTokenRedisRepository).saveGrace(1L, "presented-hash");
         verify(refreshTokenRedisRepository).saveCurrent(1L, "new-refresh-hash");
     }
