@@ -10,10 +10,13 @@
 | 이메일 | email | String | O | 전역 유일 |
 | 표시 이름 | displayName | String | O |  |
 | 상태 | status | Enum | O | 가입대기 / 활성 / 정지 / 탈퇴 |
-| 역할 | role | Enum | O | USER/ADMIN |
+| 역할 | role | Enum | O | REGULAR/ADMIN |
+| 소셜 제공자 | provider | Enum | O | GOOGLE (MVP1). KAKAO/NAVER는 MVP2 확장 예약 |
+| 제공자 식별자 | providerId | String | O | OAuth `sub`. `(provider, providerId)` 조합 유일 |
 | 생성일시 | createdAt | DateTime | O |  |
-| 생성자 | createdBy | MemberId | O |  |
 | 수정일시 | updatedAt | DateTime | O |  |
+
+> `Member`는 자기 자신이 가입 주체라 `createdBy`(생성자)를 둘 자연스러운 대상이 없어 다른 엔티티와 달리 생략한다.
 
 ---
 
@@ -43,16 +46,16 @@
 
 ### Participant
 
-| 속성 | 영문 | 타입 | 필수 | 설명                                                            |
-| --- | --- | --- | --- |---------------------------------------------------------------|
-| 식별자 | id | ParticipantId | O |                                                               |
-| 워크스페이스 | workspaceId | WorkspaceId | O |                                                               |
-| 회원 | memberId | MemberId | O |                                                               |
-| 권한 | permission | Enum | O | 소유자(Owner) / 관리자(Admin) / 멤버(Member) |
-| 참여일시 | joinedAt | DateTime | O |                                                               |
-| 생성일시 | createdAt | DateTime | O |                                                               |
-| 생성자 | createdBy | MemberId | O |                                                               |
-| 수정일시 | updatedAt | DateTime | O |                                                               |
+| 속성 | 영문 | 타입 | 필수 | 설명                                     |
+| --- | --- | --- | --- |----------------------------------------|
+| 식별자 | id | ParticipantId | O |                                        |
+| 워크스페이스 | workspaceId | WorkspaceId | O |                                        |
+| 회원 | memberId | MemberId | O |                                        |
+| 권한 | permission | Enum | O | 소유자(Owner) / 관리자(Admin) / 사용자(Regular) |
+| 참여일시 | joinedAt | DateTime | O |                                        |
+| 생성일시 | createdAt | DateTime | O |                                        |
+| 생성자 | createdBy | MemberId | O |                                        |
+| 수정일시 | updatedAt | DateTime | O |                                        |
 
 ### Invitation (초대)
 
@@ -439,11 +442,11 @@
 
 ### 워크스페이스 · 권한
 - 워크스페이스 **참여자는 최대 5명**이다. 정원이 찬 워크스페이스에는 초대할 수 없다.
-- 참여자 권한은 **소유자(Owner) / 관리자(Admin) / 멤버(Member)** 3단계다.
-- **Admin 이상**만 가능한 기능: **용어 추출**, **문서 삭제**, **멤버 초대**.
-- Member는 문서 작성·교정·리뷰까지만 가능하다.
-- 설정 변경은 아래에 따로 적지 않은 한 **Admin 이상**만 가능하다. 조회는 참여자면 누구나 가능하다.
-
+- 참여자 권한은 **소유자(Owner) / 관리자(Admin) / 사용자(Regular)** 3단계다. (`Member.role`의 사이트 레벨 권한도 `REGULAR/ADMIN`으로, 일반 등급을 가리키는 이름을 두 레벨에서 일부러 통일했다 — `Participant.permission`은 워크스페이스 단위, `Member.role`은 사이트 단위로 범위가 다르다.)
+- **Owner와 Admin은 사실상 동급 권한이다.** Owner는 별도 상위 권한이 아니라 워크스페이스 생성자에게 붙는 명칭일 뿐이며, 할 수 있는 일은 Admin과 같다(9/8 확정).
+- **Admin 이상(Owner 포함)만 가능한 기능**: **용어 추출**, **문서 삭제**, **멤버 초대**, **워크스페이스 설정**(이름·설명 수정 등, REQ-WS-006).
+- Regular는 문서 작성·교정·리뷰까지만 가능하다.
+                                       
 ### 워크스페이스 생성 · 삭제
 - 워크스페이스를 만든 회원은 **Owner 참여자로 자동 등록**된다. 워크스페이스에는 **Owner가 정확히 1명** 있다.
 - 룰셋은 워크스페이스에 포함된 값이라 **기본값 0 / 0으로 함께 저장된다.** 따로 만들 행은 없다.
@@ -469,7 +472,7 @@
 - 권한을 낮춰도 그 참여자가 Admin 권한으로 이미 한 작업은 되돌리지 않는다.
 
 ### 워크스페이스 설정 — 리뷰 규칙 (RuleSet)
-- 룰셋은 **Workspace에 포함된 값 객체**다. 워크스페이스당 1개이고, 생성 시 기본값(0 / 0)으로 함께 저장된다.
+- 룰셋은 **Workspace에 포함된 값 객체**다. 워크스페이스당 1개이고, 생성 시 기본값(0 / 0)으로 함께 저장된다.                                          
 - `requiredDocumentReviewerCount`, `requiredDictionaryReviewerCount`는 각각 **0 이상, 워크스페이스 참여자 수 이하**다(현 정원 기준 **0~5**).
 - **0이면 리뷰어 없이 바로 반영**할 수 있다.
 - 참여자가 빠져 현재 인원이 설정값보다 작아지면, 그 워크스페이스에서는 **참여자 수를 상한으로 간주**한다.
@@ -488,8 +491,9 @@
 ### 초안 사전 (DraftDictionary)
 - 사전집에 **초안(DraftDictionary) 또는 개정안(RevisionDictionary)이 존재하면 추가 초안을 생성할 수 없다.** 사전집당 진행 중인 등재 흐름은 **1개**다.
 
-### 인증 · 회원가입 (선택)
-- 소셜 로그인은 **카카오 / 구글 / 네이버**만 허용한다.
+### 인증 · 회원가입
+- 소셜 로그인은 **MVP1은 구글만** 지원한다. 카카오/네이버는 MVP2에서 확장한다.
+- 별도의 회원가입 절차는 없다 — 최초 Google 로그인 시 회원이 자동 생성된다.
 - **한 회원은 하나의 소셜 계정으로만 가입**한다. 이미 가입된 이메일로 다른 소셜을 통해 가입을 시도하면 거부한다.
   - 동일인 판별은 OAuth로 받아오는 개인정보(이메일 등) 범위에 따라 가능 여부가 갈린다.
 
