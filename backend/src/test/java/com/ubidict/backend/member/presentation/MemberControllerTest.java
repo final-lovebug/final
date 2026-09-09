@@ -11,6 +11,7 @@ import com.ubidict.backend.member.domain.MemberErrorCode;
 import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.domain.MemberStatus;
 import com.ubidict.backend.member.domain.OAuthProvider;
+import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.member.presentation.dto.CreateMemberRequest;
 import com.ubidict.backend.member.presentation.dto.UpdateMemberRequest;
 import com.ubidict.backend.member.service.MemberService;
@@ -29,7 +30,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * SecurityConfig가 아직 없어(로그인 도메인 몫) addFilters=false로 Security 필터 체인을 우회한다.
+ * addFilters=false로 Security 필터 체인 자체는 우회하지만, SecurityConfig가 이 슬라이스에
+ * 함께 로드되므로 JwtAuthenticationFilter가 요구하는 JwtProvider는 mock으로 채워 컨텍스트를
+ * 띄운다. 인증/인가 흐름 자체는 SecurityConfigTest에서 검증한다.
  */
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(MemberController.class)
@@ -40,6 +43,9 @@ class MemberControllerTest {
 
     @MockitoBean
     private MemberService memberService;
+
+    @MockitoBean
+    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {
