@@ -38,8 +38,8 @@
 - 100 - 199: workspace 도메인
 - 200 - 299: document 도메인
 - 300 - 399: dictionary 도메인
-- 400 - 499: draftdictionary 도메인
-- 500 - 599: draftdocument 도메인
+- 400 - 499: draftdocument 도메인
+- 500 - 599: draftdictionary 도메인
 - 600 - 699: reviewrequest 도메인
 - 900 - 999: 공통 / 사후 정리
 
