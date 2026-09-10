@@ -5,6 +5,7 @@ import { useDictionary } from '../../features/dictionary/hooks/useDictionary'
 import { TERM_IN_FOCUS_ID } from '../../features/dictionary/model/fixtures'
 import { CURRENT_DICTIONARY_REVISION_ID } from '../../features/review/model/fixtures'
 import { cx } from '../../shared/lib/cx'
+import { downloadCsv } from '../../shared/lib/downloadCsv'
 
 export function DictionaryPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
@@ -16,6 +17,19 @@ export function DictionaryPage() {
   }
 
   const { dictionary, terms } = data
+
+  function handleExport() {
+    const rows = [
+      ['표준어', '영문명', '정의', '최종 수정'],
+      ...terms.map((term) => [
+        term.preferredForm,
+        term.englishName ?? '',
+        term.definition,
+        term.updatedAt,
+      ]),
+    ]
+    downloadCsv(`${dictionary.name}_r${dictionary.currentVersionNo}.csv`, rows)
+  }
 
   return (
     <div>
@@ -96,9 +110,13 @@ export function DictionaryPage() {
 
       <div className="mt-4 flex gap-[10px]">
         <Link to={routes.dictionaryDraft(workspaceId)}>
-          <Button variant="outline">직접 후보 등록</Button>
+          <Button variant="outline" title="사전집 초안으로 이동">
+            직접 후보 등록
+          </Button>
         </Link>
-        <Button variant="outline">내보내기</Button>
+        <Button variant="outline" onClick={handleExport}>
+          내보내기
+        </Button>
       </div>
     </div>
   )

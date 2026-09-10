@@ -48,9 +48,11 @@ export interface CandidateTermListItem extends CandidateTerm {
   ownerName: string
   quotes: CandidateQuote[]
   splitNote?: string
+  /** words 중 표준어로 고른 것. 없으면 words[0]을 기본값으로 쓴다(화면에서 fallback 처리). */
+  selectedWord?: string
 }
 
-const DRAFT_DICTIONARY_ID = 'draft-dict-potenup-be'
+export const DRAFT_DICTIONARY_ID = 'draft-dict-potenup-be'
 
 export const CANDIDATE_TERM_FIXTURES: CandidateTermListItem[] = [
   {

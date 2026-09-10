@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Avatar, Button, Card, Pill } from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
 import { useDictionaryRevision } from '../../features/review/hooks/useDictionaryRevision'
+import { useAddRevisionComment } from '../../features/review/hooks/useAddRevisionComment'
+import { useAuthStore } from '../../shared/stores/authStore'
 import type { PillTone } from '../../shared/ui'
 
 export function DictionaryRevisionPage() {
@@ -11,6 +14,22 @@ export function DictionaryRevisionPage() {
   }>()
   const navigate = useNavigate()
   const { data } = useDictionaryRevision(revisionId)
+  const addComment = useAddRevisionComment(revisionId)
+  const currentMember = useAuthStore((state) => state.currentMember)
+  const [commentDraft, setCommentDraft] = useState('')
+
+  function handleSubmitComment() {
+    if (!commentDraft.trim() || !currentMember) return
+    addComment.mutate(
+      {
+        revisionId,
+        authorName: currentMember.displayName,
+        authorInitial: currentMember.displayName.charAt(0),
+        text: commentDraft.trim(),
+      },
+      { onSuccess: () => setCommentDraft('') },
+    )
+  }
 
   return (
     <div>
@@ -85,8 +104,23 @@ export function DictionaryRevisionPage() {
               )}
             </Card>
           ))}
-          <div className="rounded-[10px] border border-border-strong bg-surface-muted px-3 py-[10px] text-[12.5px] text-text-quaternary">
-            댓글 남기기…
+          <div className="flex flex-col gap-2">
+            <textarea
+              value={commentDraft}
+              onChange={(event) => setCommentDraft(event.target.value)}
+              placeholder="댓글 남기기…"
+              rows={2}
+              className="rounded-[10px] border border-border-strong bg-surface-muted px-3 py-[10px] text-[12.5px] text-text placeholder:text-text-quaternary"
+            />
+            <Button
+              size="sm"
+              variant="primary"
+              className="self-end"
+              onClick={handleSubmitComment}
+              disabled={addComment.isPending || !commentDraft.trim()}
+            >
+              등록
+            </Button>
           </div>
         </div>
       </div>

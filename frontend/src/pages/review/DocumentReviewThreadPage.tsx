@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Avatar, Button, Card } from '../../shared/ui'
 import { useReviewThreadComments } from '../../features/review/hooks/useReviewThreadComments'
+import { useAddReviewThreadComment } from '../../features/review/hooks/useAddReviewThreadComment'
 import { useDocument } from '../../features/document/hooks/useDocument'
+import { useAuthStore } from '../../shared/stores/authStore'
 import { DOCUMENT_REVIEW_REQUEST_ID } from '../../features/review/model/reviewRequestFixtures'
 
-// ui/main.js renderReviewThreadScreen() 이식. 댓글 목록은 목데이터로 실제 렌더링한다.
-// 댓글 작성/삭제, Approve/Change request 액션은 백엔드가 없어 아직 붙이지 않았다.
+// ui/main.js renderReviewThreadScreen() 이식. 댓글 목록 조회·등록 모두 실제로 동작한다.
+// Approve/Change request 액션은 백엔드가 없어 아직 붙이지 않았다.
 //
 // 본문 표시는 두 갈래다: 미리 만들어둔 doc-plan 리뷰(DOCUMENT_REVIEW_REQUEST_ID)는 원본
 // ui/main.js의 term-flag 하이라이트를 그대로 보여주고, `DocumentReviewPage`에서 새로
@@ -17,8 +20,25 @@ export function DocumentReviewThreadPage() {
     reviewId: string
   }>()
   const { data: comments } = useReviewThreadComments(reviewId)
+  const addComment = useAddReviewThreadComment(reviewId)
   const { data: document } = useDocument(documentId)
+  const currentMember = useAuthStore((state) => state.currentMember)
+  const [commentDraft, setCommentDraft] = useState('')
   const isSeededDemoReview = reviewId === DOCUMENT_REVIEW_REQUEST_ID
+
+  function handleSubmitComment() {
+    if (!commentDraft.trim() || !currentMember) return
+    addComment.mutate(
+      {
+        reviewId,
+        authorId: currentMember.id,
+        authorName: currentMember.displayName,
+        authorInitial: currentMember.displayName.charAt(0),
+        content: commentDraft.trim(),
+      },
+      { onSuccess: () => setCommentDraft('') },
+    )
+  }
 
   return (
     <div>
@@ -85,8 +105,23 @@ export function DocumentReviewThreadPage() {
               )}
             </Card>
           ))}
-          <div className="rounded-[10px] border border-border-strong bg-surface-muted px-3 py-[10px] text-[12.5px] text-text-quaternary">
-            댓글 남기기…
+          <div className="flex flex-col gap-2">
+            <textarea
+              value={commentDraft}
+              onChange={(event) => setCommentDraft(event.target.value)}
+              placeholder="댓글 남기기…"
+              rows={2}
+              className="rounded-[10px] border border-border-strong bg-surface-muted px-3 py-[10px] text-[12.5px] text-text placeholder:text-text-quaternary"
+            />
+            <Button
+              size="sm"
+              variant="primary"
+              className="self-end"
+              onClick={handleSubmitComment}
+              disabled={addComment.isPending || !commentDraft.trim()}
+            >
+              등록
+            </Button>
           </div>
         </div>
       </div>

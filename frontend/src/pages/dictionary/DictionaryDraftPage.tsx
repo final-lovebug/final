@@ -1,20 +1,62 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Button, Card, Pill } from '../../shared/ui'
 import { useCandidates } from '../../features/dictionary/hooks/useCandidates'
+import { useCreateCandidateTerm } from '../../features/dictionary/hooks/useCreateCandidateTerm'
+import { useUpdateCandidateTerm } from '../../features/dictionary/hooks/useUpdateCandidateTerm'
+import { useAuthStore } from '../../shared/stores/authStore'
 import { cx } from '../../shared/lib/cx'
+import type { CandidateTermListItem } from '../../features/dictionary/model/fixtures'
 
-// ui/main.js renderDraftScreen() 이식. 표준어 선택(라디오)·정의 수정 같은 실제 편집은
-// 백엔드가 없어 아직 반영되지 않는다 — 지금은 후보 목록/상세를 보여주는 데 집중했다.
+const CANDIDATE_TYPES: CandidateTermListItem['type'][] = ['동의어', '동형이의', '표기 변형']
+
+// ui/main.js renderDraftScreen() 이식. 표준어 선택·정의 수정·후보 직접 등록까지 실제로
+// 동작한다 — updateCandidateTerm/createCandidateTerm mutation(인메모리 반영).
 export function DictionaryDraftPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
   const { data: candidates, isLoading } = useCandidates(workspaceId)
+  const createCandidate = useCreateCandidateTerm(workspaceId)
+  const updateCandidate = useUpdateCandidateTerm(workspaceId)
+  const currentMember = useAuthStore((state) => state.currentMember)
+
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [definitionDraft, setDefinitionDraft] = useState('')
+  const [newWord, setNewWord] = useState('')
+  const [newType, setNewType] = useState<CandidateTermListItem['type']>('동의어')
 
   const selected =
     candidates?.find((c) => c.id === selectedId) ?? candidates?.[0] ?? null
 
+  // 선택한 후보가 바뀔 때마다 정의 입력창을 그 후보의 값으로 다시 채운다.
+  useEffect(() => {
+    setDefinitionDraft(selected?.proposedDefinition ?? '')
+  }, [selected?.id, selected?.proposedDefinition])
+
   if (isLoading) return <p className="text-sm text-text-tertiary">불러오는 중…</p>
+
+  function handleAddCandidate() {
+    if (!newWord.trim() || !currentMember) return
+    createCandidate.mutate(
+      {
+        form: newWord.trim(),
+        type: newType,
+        ownerId: currentMember.id,
+        ownerName: currentMember.displayName,
+      },
+      { onSuccess: (created) => setSelectedId(created.id) },
+    )
+    setNewWord('')
+  }
+
+  function handleSelectWord(word: string) {
+    if (!selected) return
+    updateCandidate.mutate({ candidateId: selected.id, selectedWord: word })
+  }
+
+  function handleSaveDefinition() {
+    if (!selected) return
+    updateCandidate.mutate({ candidateId: selected.id, proposedDefinition: definitionDraft })
+  }
 
   return (
     <div>
@@ -71,6 +113,37 @@ export function DictionaryDraftPage() {
               ))}
             </tbody>
           </table>
+
+          <div className="flex items-center gap-2 border-t border-border-soft px-4 py-3">
+            <input
+              value={newWord}
+              onChange={(event) => setNewWord(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && handleAddCandidate()}
+              placeholder="새 후보 단어"
+              className="flex-1 rounded-sm border border-border-strong px-3 py-[7px] text-[12.5px] text-text placeholder:text-text-quaternary"
+            />
+            <select
+              value={newType}
+              onChange={(event) =>
+                setNewType(event.target.value as CandidateTermListItem['type'])
+              }
+              className="rounded-sm border border-border-strong px-2 py-[7px] text-[12.5px] text-text"
+            >
+              {CANDIDATE_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={handleAddCandidate}
+              disabled={createCandidate.isPending}
+            >
+              + 추가
+            </Button>
+          </div>
         </Card>
 
         {selected && (
@@ -88,31 +161,52 @@ export function DictionaryDraftPage() {
             <div>
               <p className="mb-2 text-xs font-bold text-text">표준어 후보</p>
               <div className="flex flex-col gap-[7px]">
-                {selected.words.map((word) => (
-                  <div
-                    key={word}
-                    className="flex items-center gap-2 text-[13px] text-text-secondary"
-                  >
-                    <span className="inline-block h-[15px] w-[15px] shrink-0 rounded-full border-[1.5px] border-text-disabled" />
-                    {word}
-                  </div>
-                ))}
+                {selected.words.map((word) => {
+                  const isSelected = (selected.selectedWord ?? selected.words[0]) === word
+                  return (
+                    <div
+                      key={word}
+                      onClick={() => handleSelectWord(word)}
+                      className={cx(
+                        'flex cursor-pointer items-center gap-2 rounded-sm px-1 py-[3px] text-[13px] hover:bg-surface-muted',
+                        isSelected ? 'font-semibold text-text' : 'text-text-secondary',
+                      )}
+                    >
+                      <span
+                        className={cx(
+                          'inline-block h-[15px] w-[15px] shrink-0 rounded-full border-[1.5px]',
+                          isSelected ? 'border-accent bg-accent' : 'border-text-disabled',
+                        )}
+                      />
+                      {word}
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
             <div>
               <p className="mb-2 text-xs font-bold text-text">정의</p>
-              <div className="min-h-16 rounded-sm border border-border-strong bg-surface-muted px-3 py-[10px] text-[12.5px] leading-[1.6] text-text-secondary">
-                {selected.proposedDefinition}
-              </div>
+              <textarea
+                value={definitionDraft}
+                onChange={(event) => setDefinitionDraft(event.target.value)}
+                onBlur={handleSaveDefinition}
+                rows={3}
+                className="min-h-16 w-full rounded-sm border border-border-strong bg-surface-muted px-3 py-[10px] text-[12.5px] leading-[1.6] text-text-secondary"
+              />
               <p className="mt-[5px] text-[10.5px] text-text-quaternary">
-                AI 초안 · 수정할 수 있습니다
+                AI 초안 · 입력창 밖을 클릭하면 저장됩니다
               </p>
             </div>
 
             <div>
               <p className="mb-2 text-xs font-bold text-text">근거 문장</p>
               <div className="flex flex-col gap-2">
+                {selected.quotes.length === 0 && (
+                  <p className="text-[11px] text-text-quaternary">
+                    직접 등록한 후보라 근거 문장이 없습니다.
+                  </p>
+                )}
                 {selected.quotes.map((quote, idx) => (
                   <div
                     key={idx}
@@ -134,7 +228,7 @@ export function DictionaryDraftPage() {
             <div className="flex items-center gap-[10px] border-t border-border-soft pt-[14px]">
               <span className="text-xs font-bold text-text">작성 담당자</span>
               <span className="rounded-sm border border-border-strong bg-surface px-[10px] py-[6px] text-xs">
-                {selected.ownerName} ▾
+                {selected.ownerName}
               </span>
             </div>
             <div className="flex gap-2">
