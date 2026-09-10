@@ -276,3 +276,127 @@ POST /api/members
 | 이미 등록된 이메일 | 409 | `MEMBER_DUPLICATE_EMAIL` |
 
 ---
+# **Workspace API**
+
+사전집과 문서를 공유하는 협업 단위를 만들고 관리한다. 관련 도메인은 `workspace`다.
+
+## **요청자 식별 — 임시 방식**
+
+인증 계층(`NFR-USR-001`)이 아직 없어 **요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다.** 공통 규칙("인증 사용자 식별자는 인증 계층에서 해석해 컨트롤러로 전달한다")에 대한 의도적 예외이며, **인증 도입 시 이 파라미터는 전부 사라진다.** 누구나 남의 `memberId`를 넣어 호출할 수 있으므로 **인증 전까지 운영 배포 대상이 아니다.**
+
+## **권한과 응답 원칙**
+
+참여자 권한은 `OWNER > ADMIN > REGULAR` 3단계다.
+
+- **참여자가 아닌 워크스페이스는 `403`이 아니라 `404`로 응답한다.** `403`을 주면 그 워크스페이스가 존재한다는 사실이 드러난다(`NFR-WS-001` 데이터 격리).
+- 참여자이지만 서열이 모자라면 `403`이다.
+
+| **Method** | **Path** | **권한** | **성공** |
+| --- | --- | --- | --- |
+| POST | `/api/workspaces` | 로그인 | `201` |
+| GET | `/api/workspaces` | — | `200` |
+| GET | `/api/workspaces/{workspaceId}` | 참여자 | `200` |
+| PATCH | `/api/workspaces/{workspaceId}` | ADMIN 이상 | `204` |
+| DELETE | `/api/workspaces/{workspaceId}` | OWNER | `204` |
+
+## **워크스페이스 생성**
+
+`POST /api/workspaces?memberId={memberId}` → `201 Created`
+
+생성자를 **OWNER 참여자로 자동 등록**한다. 리뷰 규칙(룰셋)은 기본값 `0 / 0`으로 함께 저장된다.
+
+```json
+{
+  "name": "개발팀"
+}
+```
+
+| **필드** | **타입** | **제약** | **설명** |
+| --- | --- | --- | --- |
+| `name` | String | 필수, 1~50자 | 워크스페이스 이름 |
+
+```json
+{
+  "workspaceId": 1,
+  "name": "개발팀",
+  "requiredDocumentReviewerCount": 0,
+  "requiredDictionaryReviewerCount": 0,
+  "myPermission": "OWNER",
+  "createdAt": "2026-09-09T10:24:38.123456Z"
+}
+```
+
+> 생성·목록·상세가 같은 응답 형식을 쓴다. 생성 직후에는 요청자가 OWNER이고 룰셋이 `0 / 0`이다.
+
+## **참여 중인 워크스페이스 목록 조회**
+
+`GET /api/workspaces?memberId={memberId}` → `200 OK`
+
+**참여 중인 워크스페이스만** 내려간다. 참여하지 않은 워크스페이스는 목록에 들어오지 않는다.
+
+```json
+[
+  {
+    "workspaceId": 1,
+    "name": "개발팀",
+    "requiredDocumentReviewerCount": 0,
+    "requiredDictionaryReviewerCount": 0,
+    "myPermission": "OWNER",
+    "createdAt": "2026-09-09T10:24:38.123456Z"
+  }
+]
+```
+
+## **워크스페이스 상세 조회**
+
+`GET /api/workspaces/{workspaceId}?memberId={memberId}` → `200 OK`
+
+```json
+{
+  "workspaceId": 1,
+  "name": "개발팀",
+  "requiredDocumentReviewerCount": 0,
+  "requiredDictionaryReviewerCount": 0,
+  "myPermission": "OWNER",
+  "createdAt": "2026-09-09T10:24:38.123456Z"
+}
+```
+
+| **필드** | **타입** | **설명** |
+| --- | --- | --- |
+| `requiredDocumentReviewerCount` | Int | 문서 승인에 필요한 최소 리뷰어 수 |
+| `requiredDictionaryReviewerCount` | Int | 사전 승인에 필요한 최소 리뷰어 수 |
+| `myPermission` | Enum | 요청자의 권한. `OWNER` / `ADMIN` / `REGULAR` |
+
+## **워크스페이스 이름 수정**
+
+`PATCH /api/workspaces/{workspaceId}?memberId={memberId}` → `204 No Content`
+
+**ADMIN 이상**만 수정할 수 있다. 이름만 바꾸므로 응답 본문이 없다.
+
+```json
+{
+  "name": "플랫폼팀"
+}
+```
+
+## **워크스페이스 삭제**
+
+`DELETE /api/workspaces/{workspaceId}?memberId={memberId}` → `204 No Content`
+
+**OWNER만** 삭제할 수 있다. **소프트 삭제**이며 이후 모든 조회에서 빠진다. 참여자 행은 함께 지우지 않는다 — 조회가 워크스페이스에서 먼저 막히기 때문이다.
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
+| 참여자지만 ADMIN 미만이 이름 수정을 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
+| 참여자지만 OWNER가 아닌 사용자가 삭제를 시도 | 403 | `WORKSPACE_OWNER_REQUIRED` |
+| 이름이 비었거나 50자 초과(도메인 검증) | 400 | `WORKSPACE_INVALID_NAME` |
+| 필수 리뷰어 수가 0 미만(도메인 검증) | 400 | `WORKSPACE_INVALID_REVIEWER_COUNT` |
+| 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
+
+> `COMMON_INVALID_REQUEST`는 요청 DTO 검증(`@NotBlank`·`@Size`)에서, `WORKSPACE_INVALID_*`는 도메인 모델 검증에서 발생한다. 같은 입력이라도 앞단에서 걸리면 `COMMON_INVALID_REQUEST`가 먼저 내려간다.
+
+---

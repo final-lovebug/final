@@ -70,5 +70,6 @@
 
 2026-09-08 기준으로 아직 채워지지 않은 부분이다. 관련 작업을 할 때 함께 정리한다.
 
-- **Flyway 마이그레이션 없음.** `db/migration`이 비어 있어 테스트가 `spring.flyway.enabled=false` + `ddl-auto=create-drop`으로 우회 중이다. 첫 마이그레이션을 추가할 때 이 테스트 설정도 함께 정리한다.
+- ~~**Flyway 마이그레이션 없음.**~~ **해소** — `V1__create_workspace_and_participant.sql`을 추가했다. Repository 테스트는 `RepositoryTestSupport`를 통해 Flyway가 만든 스키마를 쓴다. `BaseEntityAuditingTest`만 테스트 전용 엔티티를 쓰므로 `flyway.enabled=false` + `ddl-auto=create-drop`을 유지한다.
+- **`SecurityConfig` 없음.** Spring Security 기본 설정이 적용되면 Swagger UI를 포함한 모든 요청이 인증에 막힌다.
 - **메시징 배포 대상 미확정.** Kafka 의존성은 제거했고, 로컬은 Spring `ApplicationEvent` 인메모리 어댑터로 동작한다. 배포 환경에서 쓸 메시지 큐가 정해지면 해당 어댑터와 로컬 대체 컨테이너를 함께 추가한다. 이벤트 발행 규약은 `docs/ARCHITECTURE.md`를 따른다.
