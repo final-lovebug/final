@@ -1,6 +1,7 @@
 package com.ubidict.backend.member.infra.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,7 +24,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * {@link GoogleOAuth2LoginSuccessHandler}/{@link GoogleOAuth2LoginFailureHandler}가 프론트엔드
  * 리다이렉트로 이어받는다 — stateless 정책과 맞추기 위해 OAuth2 로그인 자체의 세션 인가
  * 상태는 유지하지 않는다.
+ *
+ * <p>서블릿 웹 애플리케이션일 때만 등록한다 — {@link JwtAuthenticationEntryPoint}/
+ * {@link JwtAccessDeniedHandler}가 필요로 하는 {@code HandlerExceptionResolver}가
+ * {@code webEnvironment = WebEnvironment.NONE}(예: {@code IntegrationTestSupport} 기반 서비스
+ * 통합 테스트)에서는 존재하지 않아, 그런 컨텍스트까지 이 설정을 로드하려다 실패하지 않게 한다.
  */
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @RequiredArgsConstructor
 @EnableWebSecurity
 @Configuration

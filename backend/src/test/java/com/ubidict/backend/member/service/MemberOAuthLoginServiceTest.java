@@ -10,10 +10,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.domain.AuthErrorCode;
 import com.ubidict.backend.member.domain.Member;
-import com.ubidict.backend.member.domain.MemberErrorCode;
 import com.ubidict.backend.member.domain.OAuthProvider;
+import com.ubidict.backend.member.exception.AuthErrorCode;
+import com.ubidict.backend.member.exception.MemberErrorCode;
 import com.ubidict.backend.member.implement.MemberRegistrar;
 import com.ubidict.backend.member.implement.MemberStatusValidator;
 import com.ubidict.backend.member.implement.OAuthExchangeCodeResolver;

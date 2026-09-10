@@ -14,19 +14,15 @@ spring:
             client-id: "${GOOGLE_CLIENT_ID}"
             client-secret: "${GOOGLE_CLIENT_SECRET}"
 
-# 아래는 src/main/resources/application.yml과 동일하게 맞춘 값이다 — 테스트 클래스패스에서
-# 이 파일이 main의 application.yml을 완전히 가려버려서(병합이 아니라 대체), 여기 없으면
-# @SpringBootTest 전체 컨텍스트를 띄우는 테스트에서 JwtProvider 등의 빈 생성이 실패한다.
-# main 파일이 바뀌면 이 파일도 함께 갱신해야 한다.
 app:
   jwt:
     secret: "${JWT_SECRET:local-dev-only-jwt-secret-do-not-use-in-production-0123456789}"
     access-token-validity: 30m
     refresh-token-validity: 7d
   oauth:
+    # 프론트엔드가 아직 정해지지 않아 임시값이다 - 프론트 개발 시작 시 실제 값으로 교체한다.
     frontend-redirect-uri: "${OAUTH_FRONTEND_REDIRECT_URI:http://localhost:3000/oauth/callback}"
   auth:
     cookie:
+      # refresh token 쿠키의 Secure 플래그. 로컬(http)에서는 application-local.yml이 false로 덮어쓴다.
       secure: true
-  worker:
-    enabled: false

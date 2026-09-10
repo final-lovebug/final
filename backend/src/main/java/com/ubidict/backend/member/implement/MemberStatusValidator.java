@@ -2,7 +2,7 @@ package com.ubidict.backend.member.implement;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.domain.Member;
-import com.ubidict.backend.member.domain.MemberErrorCode;
+import com.ubidict.backend.member.exception.MemberErrorCode;
 import org.springframework.stereotype.Component;
 
 /**

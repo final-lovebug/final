@@ -5,8 +5,8 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.BDDMockito.given;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.domain.MemberErrorCode;
 import com.ubidict.backend.member.domain.MemberRole;
+import com.ubidict.backend.member.exception.MemberErrorCode;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.member.infra.security.OAuthExchangeCodeRedisRepository;
 import com.ubidict.backend.member.presentation.dto.DevLoginRequest;
