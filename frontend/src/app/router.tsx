@@ -4,6 +4,8 @@ import { RequireAuth } from './RequireAuth'
 import { LoginPage } from '../pages/LoginPage'
 import { WorkspacesPage } from '../pages/WorkspacesPage'
 import { DocumentListPage } from '../pages/document/DocumentListPage'
+import { DocumentDraftListPage } from '../pages/document/DocumentDraftListPage'
+import { DocumentReviewRequestListPage } from '../pages/document/DocumentReviewRequestListPage'
 import { DocumentUploadPage } from '../pages/document/DocumentUploadPage'
 import { DocumentDetailPage } from '../pages/document/DocumentDetailPage'
 import { DocumentHistoryPage } from '../pages/document/DocumentHistoryPage'
@@ -45,6 +47,16 @@ export const router = createBrowserRouter([
             path: 'documents',
             element: <DocumentListPage />,
             handle: { title: '문서' },
+          },
+          {
+            path: 'documents/drafts',
+            element: <DocumentDraftListPage />,
+            handle: { title: '초안' },
+          },
+          {
+            path: 'documents/reviews',
+            element: <DocumentReviewRequestListPage />,
+            handle: { title: '개정안' },
           },
           {
             path: 'documents/upload',

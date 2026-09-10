@@ -6,6 +6,10 @@ export const routes = {
   workspaces: () => '/workspaces',
 
   documents: (workspaceId: string) => `/workspaces/${workspaceId}/documents`,
+  documentDrafts: (workspaceId: string) =>
+    `/workspaces/${workspaceId}/documents/drafts`,
+  documentReviewRequests: (workspaceId: string) =>
+    `/workspaces/${workspaceId}/documents/reviews`,
   documentUpload: (workspaceId: string) =>
     `/workspaces/${workspaceId}/documents/upload`,
   documentDetail: (workspaceId: string, documentId: string) =>

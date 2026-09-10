@@ -9,5 +9,5 @@ export async function fetchSuggestionHistory(
   documentId: DocumentId,
 ): Promise<SuggestionHistoryItem[]> {
   await delay()
-  return documentId === 'doc-plan' ? SUGGESTION_HISTORY_FIXTURES : []
+  return SUGGESTION_HISTORY_FIXTURES[documentId] ?? []
 }

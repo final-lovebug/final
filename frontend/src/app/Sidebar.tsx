@@ -3,13 +3,15 @@ import { NavLink, useParams } from 'react-router-dom'
 import { Avatar } from '../shared/ui'
 import { cx } from '../shared/lib/cx'
 import { routes } from '../shared/config/routes'
+import { CURRENT_DICTIONARY_REVISION_ID } from '../features/review/model/fixtures'
 
-// ui/main.js renderSidebar() 이식. 원본은 "문서" 그룹에 초안(reviewDoc)·개정안(reviewThread),
-// "사전집" 그룹에 초안(draft)·개정안(revision)까지 퀵링크로 뒀지만, 그 화면들은 실제로는
-// 특정 문서/리비전 id가 있어야 진입할 수 있어(frontend/docs/ARCHITECTURE.md 라우트 참고)
-// 목록 없이 사이드바에서 바로 연결할 수 없다. 그래서 지금은 목록형 화면만 넣었고,
-// 리뷰류 화면은 각 목록에서 드릴다운으로 들어가는 것으로 둔다. 실제 데이터가 붙는
-// Phase 5~6에서 이 결정을 다시 볼 수 있다.
+// ui/main.js renderSidebar() 이식. **(2026-09-10 정정)** Phase 3에서는 "문서" 그룹의
+// 초안(reviewDoc)/개정안(reviewThread), "사전집" 그룹의 개정안(revision)이 특정 문서/
+// 리비전 id가 있어야 진입 가능하다는 이유로 사이드바에서 뺐었는데, 이건 틀린 판단이었다.
+// 필요한 건 "그 id로 바로 가는 링크"가 아니라 "그 단계에 있는 항목들의 목록 화면"이다.
+// 문서는 여러 개가 동시에 초안/개정안 단계에 있을 수 있어 목록 화면(DocumentDraftListPage,
+// DocumentReviewRequestListPage)을 새로 만들었고, 사전집은 "사전집당 진행 중인 등재
+// 흐름은 1개"(docs/DOMAIN.md 정책)라 목록 없이 현재 개정안 하나로 바로 연결한다.
 export function Sidebar() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
 
@@ -25,11 +27,20 @@ export function Sidebar() {
 
       <nav className="flex flex-1 flex-col gap-4 overflow-auto p-3">
         <SidebarGroup title="문서">
-          <SidebarItem to={routes.documents(workspaceId)} label="문서 목록" />
+          <SidebarItem to={routes.documents(workspaceId)} label="문서" end />
+          <SidebarItem to={routes.documentDrafts(workspaceId)} label="초안" />
+          <SidebarItem
+            to={routes.documentReviewRequests(workspaceId)}
+            label="개정안"
+          />
         </SidebarGroup>
         <SidebarGroup title="사전집">
-          <SidebarItem to={routes.dictionary(workspaceId)} label="사전집" />
+          <SidebarItem to={routes.dictionary(workspaceId)} label="사전집" end />
           <SidebarItem to={routes.dictionaryDraft(workspaceId)} label="초안" />
+          <SidebarItem
+            to={routes.dictionaryRevision(workspaceId, CURRENT_DICTIONARY_REVISION_ID)}
+            label="개정안"
+          />
           <SidebarItem
             to={routes.dictionaryHistory(workspaceId)}
             label="리비전 이력"
@@ -82,14 +93,19 @@ function SidebarItem({
   to,
   label,
   trailing,
+  end,
 }: {
   to: string
   label: string
   trailing?: ReactNode
+  /** 정확히 이 경로일 때만 활성 표시. 하위 경로(초안/개정안 등)를 가진 목록형 항목에 준다 —
+      안 주면 NavLink가 하위 경로에서도 활성으로 표시해 형제 항목과 동시에 켜져 보인다. */
+  end?: boolean
 }) {
   return (
     <NavLink
       to={to}
+      end={end}
       className={({ isActive }) =>
         cx(
           'flex items-center gap-2 rounded-sm px-[10px] py-2 text-[13px] font-semibold text-text-secondary hover:bg-bg',

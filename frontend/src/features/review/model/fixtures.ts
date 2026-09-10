@@ -1,4 +1,5 @@
 import type { Comment } from './types'
+import { DOCUMENT_REVIEW_REQUEST_ID } from './reviewRequestFixtures'
 
 // ui/data.js REVIEW_THREAD_COMMENTS/REVISION_THREAD/REVISION_ROWS 이전.
 // mine/initial/tone처럼 화면에만 필요한 값은 Comment 도메인 타입에 없어 뷰 아이템으로 얹었다.
@@ -9,24 +10,25 @@ export interface CommentListItem extends Comment {
   mine: boolean
 }
 
-const FOCUS_REVIEW_ID = 'review-doc-plan-r5'
-
 export const DOCUMENT_REVIEW_THREAD_COMMENTS: CommentListItem[] = [
   {
-    id: 'comment-1', reviewId: FOCUS_REVIEW_ID, authorId: 'member-mock-lee-be',
+    id: 'comment-1', reviewId: DOCUMENT_REVIEW_REQUEST_ID, authorId: 'member-mock-lee-be',
     authorName: '이백엔드', authorInitial: '이', authorTone: 'warn', mine: true,
     content: '여기 "오류"는 PG 응답 실패가 아니라 검증 오류입니다. 결제 실패로 치환하면 안 됩니다.',
     resolved: false,
     createdAt: '2026-09-01T00:00:00.000Z', createdBy: 'member-mock-lee-be', updatedAt: '2026-09-01T00:00:00.000Z',
   },
   {
-    id: 'comment-2', reviewId: FOCUS_REVIEW_ID, authorId: 'member-mock-choi-mkt',
+    id: 'comment-2', reviewId: DOCUMENT_REVIEW_REQUEST_ID, authorId: 'member-mock-choi-mkt',
     authorName: '최마케팅', authorInitial: '최', authorTone: 'success', mine: false,
     content: '마케팅 문서에서는 "혜택금"으로도 씁니다. 사전에 매핑 하나 더 추가해주세요.',
     resolved: false,
     createdAt: '2026-09-01T02:00:00.000Z', createdBy: 'member-mock-choi-mkt', updatedAt: '2026-09-01T02:00:00.000Z',
   },
 ]
+
+/** 사전집당 진행 중인 개정안은 1개뿐이라(docs/DOMAIN.md 정책) 목록 없이 이 id로 바로 간다. */
+export const CURRENT_DICTIONARY_REVISION_ID = 'current'
 
 export interface RevisionCommentListItem {
   initial: string

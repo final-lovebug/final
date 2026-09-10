@@ -3,6 +3,7 @@ import { Button, Card, Pill } from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
 import { useDictionary } from '../../features/dictionary/hooks/useDictionary'
 import { TERM_IN_FOCUS_ID } from '../../features/dictionary/model/fixtures'
+import { CURRENT_DICTIONARY_REVISION_ID } from '../../features/review/model/fixtures'
 import { cx } from '../../shared/lib/cx'
 
 export function DictionaryPage() {
@@ -31,7 +32,7 @@ export function DictionaryPage() {
       <Card className="mb-2 flex items-center justify-between bg-accent-bg-strong p-3 text-[12.5px]">
         <span>사전집 개정안에서 승인 대기 중인 변경 8건 — 용어 추가 5 · 정의 수정 3</span>
         <Link
-          to={routes.dictionaryRevision(workspaceId, 'latest')}
+          to={routes.dictionaryRevision(workspaceId, CURRENT_DICTIONARY_REVISION_ID)}
           className="font-semibold text-accent-strong"
         >
           개정안 보기 →

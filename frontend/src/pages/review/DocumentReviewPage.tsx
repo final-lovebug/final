@@ -1,45 +1,65 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Pill } from '../../shared/ui'
 import { cx } from '../../shared/lib/cx'
+import { routes } from '../../shared/config/routes'
+import { useAuthStore } from '../../shared/stores/authStore'
 import { useSuggestions } from '../../features/document/hooks/useSuggestions'
 import { useResolveSuggestion } from '../../features/document/hooks/useResolveSuggestion'
 import { useSuggestionHistory } from '../../features/document/hooks/useSuggestionHistory'
+import { useDocument } from '../../features/document/hooks/useDocument'
+import { SUGGESTION_PARAGRAPHS } from '../../features/document/model/suggestionFixtures'
 import type { SuggestionTerm } from '../../features/document/model/types'
+import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
+import { useRequestDocumentReview } from '../../features/review/hooks/useRequestDocumentReview'
 
-// ui/main.js renderReviewDocScreen() 이식. 본문은 doc-plan 문서의 고정된 문구를 그대로
-// 옮겼다 — 실제 문서 본문에서 정확한 위치(anchor)를 찾아 치환 후보를 표시하는 로직은
+// ui/main.js renderReviewDocScreen() 이식. 본문은 문서별 고정 조각(SUGGESTION_PARAGRAPHS)을
+// 그대로 옮겼다 — 실제 문서 본문에서 정확한 위치(anchor)를 찾아 치환 후보를 표시하는 로직은
 // 아직 없다(SuggestionTerm.anchor가 지금은 자리표시자 값). 본문과 위치가 진짜로 연결되려면
 // 백엔드의 대조(DictionaryContrast, MVP1 제외) 결과가 필요하다.
-const PARAGRAPH: Array<{ text: string } | { suggestionId: string }> = [
-  { text: '새로운 신규 획득 정책 2026에 따라 ' },
-  { suggestionId: 's1' },
-  { text: '를 대상으로 다음과 같은 비즈니스 규칙을 적용합니다. 첫 번째 규칙은 ' },
-  { suggestionId: 's2' },
-  { text: ' 14일이 충분한 시점을 기준으로 합니다. 이때 고객의 상태는 ' },
-  { suggestionId: 's3' },
-  { text: '로 자동 전환되어야 합니다. 만약 이 과정에서 ' },
-  { suggestionId: 's4' },
-  { text: '가 발생할 경우, 시스템은 즉시 ' },
-  { suggestionId: 's5' },
-  { text: ' 처리를 진행하고 안내 메일을 발송해야 합니다. 두 번째 규칙은 기존 고객의 상향 가입을 유도하기 위한 정책입니다. ' },
-  { suggestionId: 's6' },
-  { text: '을 진행할 경우, 시스템은 혜택의 일환으로 ' },
-  { suggestionId: 's7' },
-  { text: ' 5,000원을 지급합니다.' },
-]
-
 export function DocumentReviewPage() {
-  const { documentId = '' } = useParams<{ documentId: string }>()
+  const { workspaceId = '', documentId = '' } = useParams<{
+    workspaceId: string
+    documentId: string
+  }>()
+  const navigate = useNavigate()
+  const currentMember = useAuthStore((state) => state.currentMember)
+  const { data: document } = useDocument(documentId)
   const { data: suggestions } = useSuggestions(documentId)
   const { data: history } = useSuggestionHistory(documentId)
+  const { data: members } = useWorkspaceMembers(workspaceId)
   const resolveSuggestion = useResolveSuggestion(documentId)
+  const requestReview = useRequestDocumentReview(workspaceId)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [sideTab, setSideTab] = useState<'suggestions' | 'history'>('suggestions')
 
   const byId = new Map(suggestions?.map((s) => [s.id, s]) ?? [])
-  const resolvedCount =
-    suggestions?.filter((s) => s.status !== 'PENDING').length ?? 0
+  const resolvedCount = suggestions?.filter((s) => s.status !== 'PENDING').length ?? 0
+  const totalCount = suggestions?.length ?? 0
+  const allResolved = totalCount > 0 && resolvedCount === totalCount
+  const paragraph = SUGGESTION_PARAGRAPHS[documentId] ?? []
+
+  function handleCompleteReview() {
+    if (!document || !currentMember) return
+    const reviewerMemberIds = (members ?? [])
+      .filter((m) => m.id !== currentMember.id)
+      .map((m) => m.id)
+
+    requestReview.mutate(
+      {
+        workspaceId,
+        documentId,
+        title: `${document.title} 개정 반영`,
+        requesterId: currentMember.id,
+        reviewerMemberIds,
+      },
+      {
+        onSuccess: (reviewRequest) => {
+          navigate(routes.documentReviewThread(workspaceId, documentId, reviewRequest.id))
+        },
+      },
+    )
+  }
 
   function renderSpan(suggestion: SuggestionTerm) {
     if (suggestion.status !== 'PENDING') {
@@ -109,16 +129,33 @@ export function DocumentReviewPage() {
     <div>
       <div className="mb-4 flex items-center gap-3">
         <Pill tone="warn">AI 검토</Pill>
-        <Pill tone="outline">r4</Pill>
-        <Pill tone="danger">재검사 필요</Pill>
-        <span className="text-[11.5px] text-text-tertiary">리뷰어 승인 1/2</span>
+        {document && <Pill tone="outline">r{document.currentVersionNo}</Pill>}
+        {document?.badge && (
+          <Pill tone={document.badge === 'danger' ? 'danger' : 'neutral'}>
+            {document.badge === 'danger' ? '재검사 필요' : '뒤처짐'}
+          </Pill>
+        )}
         <div className="flex-1" />
-        <Button variant="primary">검토 완료</Button>
+        {!allResolved && (
+          <span className="text-[11.5px] text-text-quaternary">
+            제안 {resolvedCount}/{totalCount}건 처리 — 전부 처리해야 리뷰를 요청할 수 있습니다
+          </span>
+        )}
+        <Button
+          variant="primary"
+          disabled={!allResolved || requestReview.isPending}
+          onClick={handleCompleteReview}
+        >
+          {requestReview.isPending ? '리뷰 요청 중…' : '검토 완료 · 리뷰 요청'}
+        </Button>
       </div>
 
       <div className="flex items-start gap-5">
         <Card className="flex-1 p-[26px] text-sm leading-[2.1] text-[#2A2D33]">
-          {PARAGRAPH.map((part, idx) => (
+          {paragraph.length === 0 && (
+            <p className="text-text-tertiary">이 문서에는 아직 검토할 제안이 없습니다.</p>
+          )}
+          {paragraph.map((part, idx) => (
             <span key={idx}>
               {'text' in part
                 ? part.text
@@ -160,7 +197,7 @@ export function DocumentReviewPage() {
           {sideTab === 'suggestions' ? (
             <>
               <p className="my-3 text-xs font-semibold text-text-tertiary">
-                처리 {resolvedCount}/{suggestions?.length ?? 0}
+                처리 {resolvedCount}/{totalCount}
               </p>
               <div className="flex flex-col gap-[7px] text-xs">
                 {suggestions?.map((s) => (

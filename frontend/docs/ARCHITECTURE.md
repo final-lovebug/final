@@ -152,6 +152,8 @@ features/{domain}/components -> features/{domain}/hooks (또는 model 타입만 
 | (renderLogin) | 로그인 | `/login` | `auth` |
 | (renderWorkspaces) | 워크스페이스 선택 | `/workspaces` | `workspace` |
 | `docs` | 문서 목록 | `/workspaces/:workspaceId/documents` | `document` |
+| (신규) | 문서 초안 목록 | `/workspaces/:workspaceId/documents/drafts` | `document` |
+| (신규) | 문서 개정안 목록 | `/workspaces/:workspaceId/documents/reviews` | `review` |
 | `upload` | 문서 업로드 | `/workspaces/:workspaceId/documents/upload` | `document` |
 | `docDetail` | 문서 상세 | `/workspaces/:workspaceId/documents/:documentId` | `document` |
 | `docHistory` | 문서 버전 이력 | `/workspaces/:workspaceId/documents/:documentId/history` | `document` |
@@ -170,12 +172,22 @@ features/{domain}/components -> features/{domain}/hooks (또는 model 타입만 
 `/settings`는 `SettingsLayout`(탭 네비게이션 + `Outlet`)이 감싸고, 위 4개 하위 라우트로
 연결된다(Phase 3에서 확정). 경로 상수는 `src/shared/config/routes.ts` 기준.
 
-**사이드바 퀵링크 관련 결정 (Phase 3)**: `ui/main.js`의 사이드바는 "문서" 그룹에
-초안(`reviewDoc`)·개정안(`reviewThread`), "사전집" 그룹에 개정안(`revision`)까지 직접 링크로
-뒀지만, 이 화면들은 위 표에서 보듯 특정 `:documentId`/`:revisionId`가 있어야 진입 가능하다.
-목록 없이 사이드바에서 바로 연결할 수 없으므로, 실제 구현에서는 사이드바에 목록형 화면
-(문서 목록/사전집/사전집 초안/사전집 리비전 이력)만 두고 리뷰류 화면은 그 목록에서
-드릴다운으로 진입하는 구조로 바꿨다 (`src/app/Sidebar.tsx` 참고).
+**사이드바 퀵링크 관련 결정 — 2026-09-10 정정**: Phase 3에서는 `ui/main.js` 사이드바의
+"문서" 그룹 초안(`reviewDoc`)·개정안(`reviewThread`), "사전집" 그룹 개정안(`revision`)이
+특정 `:documentId`/`:revisionId`가 있어야 진입 가능하다는 이유로 사이드바에서 뺐었다.
+**이건 틀린 판단이었다** — 실제 서비스 사용자가 확인한 의도된 흐름은 다음과 같다.
+
+- **문서**: 문서(최초 생성/개정 완료본) → **초안**(사전집 대조 후 적용/무시·수정, 완료 시
+  "리뷰 요청"으로 전이) → **개정안**(리뷰어가 코멘트 남기는 공간)
+- **사전집**: 사전집(확정 용어) → **초안**(문서에서 "용어 추출"로 모인 후보어, 작업 후
+  "개정안"으로 제출) → **개정안**(리뷰어에게 검토받는 공간)
+
+문서는 여러 개가 동시에 초안·개정안 단계에 있을 수 있으므로, 사이드바에 필요한 건 특정 id로
+바로 가는 링크가 아니라 **그 단계에 있는 문서들의 목록 화면**이었다 — 그래서
+`DocumentDraftListPage`/`DocumentReviewRequestListPage`를 새로 만들어 문서 그룹에
+초안/개정안을 다시 넣었다. 사전집은 "사전집당 진행 중인 등재 흐름은 1개"(docs/DOMAIN.md
+정책)라 여러 개가 동시에 진행될 수 없으므로, 목록 없이 현재 진행 중인 개정안 하나로 바로
+연결한다(`CURRENT_DICTIONARY_REVISION_ID` 상수, `features/review/model/fixtures.ts`).
 
 ## **디자인 시스템 컴포넌트 매핑 (`ui/style.css` → `shared/ui`)**
 
