@@ -100,6 +100,11 @@ features/{domain}/components -> features/{domain}/hooks (또는 model 타입만 
 1. 상위 계층은 하위 계층만 참조한다. `shared`는 어떤 `features`도 참조하지 않는다.
 2. `features/{domain}` 간 직접 참조는 하지 않는다. 다른 도메인 데이터가 필요하면
    `pages`(조합 지점)에서 여러 도메인의 `hooks`를 함께 사용하거나, 공용 개념이면 `shared`로 뺀다.
+   **예외**: `model` 계층끼리는 실제 도메인 관계(한 엔티티가 다른 도메인의 값을 그대로 포함하는
+   경우, 예: `RevisionDictionary.proposedTerms: CandidateTerm[]`)라면 타입만 import할 수 있다.
+   여러 도메인이 공유하는 식별자 타입(`MemberId` 등)은 애초에 `shared/types/ids.ts`에 둬서
+   이런 참조 자체가 필요 없게 한다. `hooks`/`api`/`components`는 이 예외 없이 여전히 다른
+   도메인을 직접 참조하지 않는다.
 3. `components`는 `api`를 직접 호출하지 않는다. 데이터 접근은 항상 `hooks`를 통한다 —
    컴포넌트가 통신 기술을 몰라야 목업↔실 API 전환 시 컴포넌트 코드가 바뀌지 않는다.
 4. `api` 계층은 서버 응답(원본 DTO)을 그대로 상위로 올리지 않는다. `model`이 정의한
