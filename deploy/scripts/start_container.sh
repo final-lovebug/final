@@ -5,8 +5,8 @@ REGION=ap-northeast-2
 REGISTRY=416121583617.dkr.ecr.ap-northeast-2.amazonaws.com
 IMAGE_REPO="$REGISTRY/lovebug/spring"
 
-TAG=$(cat "$DEPLOYMENT_ARCHIVE_DIR/IMAGE_TAG" 2>/dev/null \
-      || cat "$(dirname "$0")/../IMAGE_TAG")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TAG=$(cat "$SCRIPT_DIR/../IMAGE_TAG")
 echo "deploying tag: $TAG"
 
 aws ecr get-login-password --region "$REGION" \
