@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
+FROM --platform=$BUILDPLATFORM eclipse-temurin:25-jdk AS build
 WORKDIR /src
 
 COPY gradlew ./
@@ -14,7 +14,7 @@ RUN mkdir -p /out && cd /out \
  && java -Djarmode=tools -jar /src/build/libs/*.jar extract --layers --destination .
 
 ######
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 RUN groupadd -r app && useradd -r -g app app \
