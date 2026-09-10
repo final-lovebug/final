@@ -11,14 +11,20 @@ import org.springframework.stereotype.Component;
  * 워크스페이스 접근 검증의 단일 지점(NFR-WS-001, NFR-USR-006).
  *
  * <p>참여자가 아니면 403이 아니라 404를 던진다. 403을 주면 그 워크스페이스가 존재한다는 사실이 드러난다.
+ *
+ * <p>워크스페이스 소프트 삭제 시 참여자 행은 남으므로, 참여 여부만 보면 삭제된 워크스페이스에 딸린 자원이 새어 나간다. 워크스페이스 생존 확인까지 이 클래스가 책임진다 — 사전집·문서처럼
+ * 워크스페이스 자체를 읽을 이유가 없는 도메인도 같은 검증에 올라탄다.
  */
 @Component
 @RequiredArgsConstructor
 public class WorkspaceAccessValidator {
 
+    private final WorkspaceReader workspaceReader;
     private final ParticipantReader participantReader;
 
     public Permission validateParticipant(Long workspaceId, Long memberId) {
+        workspaceReader.read(workspaceId);
+
         return participantReader
                 .readOptional(workspaceId, memberId)
                 .map(Participant::getPermission)
