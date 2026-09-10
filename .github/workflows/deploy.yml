@@ -51,7 +51,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=spring
 
   deploy:
-    if: false   # 7단계(CodeDeploy 구성) 완료 후 이 줄 제거
     needs: build
     runs-on: ubuntu-latest
     steps:
