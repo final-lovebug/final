@@ -14,10 +14,6 @@ aws ecr get-login-password --region "$REGION" \
 
 docker pull "$IMAGE_REPO:$TAG"
 
-DB_PASSWORD=$(aws ssm get-parameter --name /prod/rds/password \
-  --with-decryption --region "$REGION" \
-  --query Parameter.Value --output text)
-
 docker rm -f spring 2>/dev/null || true
 
 docker run -d --name spring \
@@ -28,7 +24,7 @@ docker run -d --name spring \
   --log-opt max-size=100m \
   --log-opt max-file=3 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e SPRING_DATASOURCE_PASSWORD="$DB_PASSWORD" \
+  -e AWS_REGION="$REGION" \
   "$IMAGE_REPO:$TAG"
 
 docker image prune -af --filter "until=168h" || true
