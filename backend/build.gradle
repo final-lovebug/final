@@ -8,6 +8,10 @@ plugins {
 group = 'com.ubidict'
 version = '0.0.1-SNAPSHOT'
 
+ext {
+    springCloudAwsVersion = '4.1.1'
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
@@ -18,7 +22,14 @@ repositories {
     mavenCentral()
 }
 
+dependencyManagement {
+    imports {
+        mavenBom "io.awspring.cloud:spring-cloud-aws-dependencies:${springCloudAwsVersion}"
+    }
+}
+
 dependencies {
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-parameter-store'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
