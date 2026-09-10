@@ -11,7 +11,7 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 - 기본 경로 접두사는 `/api`다.
 - 요청/응답 본문은 모두 `application/json`이다.
 - 성공 응답의 HTTP 상태 코드는 유스케이스 의미에 맞춘다. 리소스 생성은 `201 Created`, 조회는 `200 OK`를 사용한다.
-- 요청 형식 검증 실패는 `400 Bad Request`와 `INVALID_INPUT` 코드로 내려간다.
+- 요청 형식 검증 실패는 `400 Bad Request`와 `COMMON_INVALID_REQUEST` 코드로 내려간다.
 - 비즈니스 규칙 위반은 도메인 `ErrorCode`에 정의된 상태 코드와 코드로 내려간다.
 - 인증 사용자 식별자(`userId`)는 인증 계층에서 해석해 컨트롤러로 전달한다. 요청 본문에 담지 않는다.
 - 도메인 모델을 응답 본문으로 직접 직렬화하지 않는다. presentation은 service가 반환한 result 모델만 응답 DTO로 변환한다.
@@ -94,13 +94,16 @@ GET /oauth2/authorization/google
 
 ### **콜백 및 토큰 교환**
 
-Google 인증이 끝나면 서버가 프론트엔드로 리다이렉트하면서 1회용 교환 코드(`code`)를 쿼리 파라미터로 전달한다. 프론트는 이 코드로 토큰을 교환한다.
+Google 인증이 끝나면 서버가 프론트엔드로 리다이렉트하면서 1회용 교환 코드(`code`)를 쿼리 파라미터로 전달한다(`{프론트 URL}?code=...`). 프론트는 이 코드로 토큰을 교환한다.
+
+- Google 로그인 자체가 실패하면(동의 거부 등) 교환 코드 대신 `{프론트 URL}?error=oauth_failed`로 리다이렉트한다.
 
 ```
 POST /api/auth/oauth/google/exchange
 ```
 
-- 성공 시 `200 OK`. Access token은 응답 본문으로, refresh token은 `Set-Cookie`(HttpOnly, Secure, SameSite)로 내려간다.
+- 성공 시 `200 OK`. Access token은 응답 본문으로, refresh token은 `Set-Cookie`로 내려간다.
+- refresh token 쿠키 속성: `HttpOnly`, `Secure`(로컬 프로필에서만 꺼짐), `SameSite=Strict`, `Path=/api/auth` — `/api/auth/**` 밖에서는 전송되지 않는다.
 - 인증이 필요 없다.
 
 #### Request Body
@@ -133,7 +136,7 @@ POST /api/auth/oauth/google/exchange
 
 | **상황** | **status** | **code** |
 | --- | --- | --- |
-| `code`가 없거나 형식이 잘못됨 | 400 | `INVALID_INPUT` |
+| `code`가 없거나 형식이 잘못됨 | 400 | `COMMON_INVALID_REQUEST` |
 | `code`가 만료됐거나 이미 사용됨 | 401 | `AUTH_TOKEN_INVALID` |
 | 이미 다른 소셜 제공자로 가입된 이메일 | 409 | `MEMBER_DUPLICATE_SOCIAL_ACCOUNT` |
 | 정지·탈퇴 등으로 로그인할 수 없는 회원 | 403 | `MEMBER_LOGIN_NOT_ALLOWED` |
@@ -144,7 +147,7 @@ POST /api/auth/oauth/google/exchange
 POST /api/auth/refresh
 ```
 
-- `Cookie` 헤더의 refresh token으로 access/refresh token 쌍을 재발급한다. 재발급된 refresh token은 다시 쿠키로 내려간다.
+- `Cookie` 헤더의 refresh token으로 access/refresh token 쌍을 재발급한다. 재발급된 refresh token은 다시 쿠키로 내려간다(속성은 "콜백 및 토큰 교환" 절과 동일).
 - 인증이 필요 없다(access token이 이미 만료된 상태에서 호출되므로).
 
 #### Response Body
@@ -170,10 +173,107 @@ POST /api/auth/logout
 ```
 
 - `Cookie` 헤더의 refresh token을 서버에서 폐기하고, 쿠키를 만료시킨다.
+- refresh token 쿠키가 없어도 `204`를 응답한다(멱등 — 이미 로그아웃된 상태를 실패로 보지 않는다).
 - 성공 시 `204 No Content`.
 - 인증이 필요 없다.
 
-> 위 엔드포인트 경로·요청/응답 필드는 설계 초안이며, 실제 구현 후 최종 확정한다(계획 9장 11단계).
+> 위 Auth API는 `feat/WLSH-75-member-social-login-OAtuh2`에서 구현 완료됐다(9/10). 실제 구현 기준으로 최종화한 문서다.
+
+---
+
+# **Member API**
+
+회원 정보 조회·수정·탈퇴를 담당한다. 관련 도메인은 `member`다.
+
+- `/api/members/**`는 `Auth API`에서 발급한 access token으로 인증해야 한다(`/api/auth/**` 제외 공통 규칙).
+- 본인 리소스만 조회·수정·탈퇴할 수 있다 — 대상은 URL 경로 변수가 아니라 `/me`로 고정하고, 실제 대상은 access token에서 해석한다.
+
+### **내 정보 조회**
+
+```
+GET /api/members/me
+```
+
+#### Response Body
+
+```json
+{
+  "memberId": 1,
+  "email": "member@example.com",
+  "displayName": "홍길동",
+  "status": "ACTIVE",
+  "role": "REGULAR"
+}
+```
+
+### **내 정보 수정**
+
+```
+PATCH /api/members/me
+```
+
+표시 이름(`displayName`)만 수정한다.
+
+#### Request Body
+
+```json
+{
+  "displayName": "새이름"
+}
+```
+
+| **필드** | **타입** | **제약** | **설명** |
+| --- | --- | --- | --- |
+| `displayName` | String | 필수, 공백 불가 | 표시 이름 |
+
+#### Response Body
+
+내 정보 조회와 동일한 형식.
+
+#### 에러
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| `displayName`이 없거나 공백 | 400 | `COMMON_INVALID_REQUEST` |
+
+### **회원 탈퇴**
+
+```
+DELETE /api/members/me
+```
+
+- 로컬 상태를 `WITHDRAWN`으로 변경하고 소프트 삭제한다. Google 쪽 소셜 연동 해제(Unlink)는 호출하지 않는다 — 필요하면 회원이 Google 계정에서 직접 해제해야 한다(`docs/DOMAIN.md` 인증·회원가입 정책).
+- 성공 시 `204 No Content`.
+
+### **회원 생성(테스트/관리자용)**
+
+```
+POST /api/members
+```
+
+실제 가입은 Google 로그인 시 자동으로 이뤄진다 — 이 엔드포인트는 테스트·관리자 용도로만 email/displayName/provider/providerId를 직접 입력받아 회원을 만든다.
+
+#### Request Body
+
+```json
+{
+  "email": "member@example.com",
+  "displayName": "홍길동",
+  "provider": "GOOGLE",
+  "providerId": "google-sub-1"
+}
+```
+
+#### Response Body
+
+내 정보 조회와 동일한 형식. 성공 시 `201 Created`와 `Location` 헤더(`/api/members/{memberId}`).
+
+#### 에러
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 요청 필드 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
+| 이미 등록된 이메일 | 409 | `MEMBER_DUPLICATE_EMAIL` |
 
 ---
 # **Workspace API**
