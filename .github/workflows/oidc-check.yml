@@ -1,0 +1,17 @@
+name: oidc-check
+on: workflow_dispatch
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::416121583617:role/lovebug-github-actions
+          aws-region: ap-northeast-2
+      - run: aws sts get-caller-identity
+      - run: aws ecr describe-repositories --repository-names lovebug/spring lovebug/fastapi
