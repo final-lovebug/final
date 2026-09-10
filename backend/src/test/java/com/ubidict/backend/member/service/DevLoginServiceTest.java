@@ -11,8 +11,8 @@ import static org.mockito.Mockito.verify;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.domain.Member;
-import com.ubidict.backend.member.domain.MemberErrorCode;
 import com.ubidict.backend.member.domain.OAuthProvider;
+import com.ubidict.backend.member.exception.MemberErrorCode;
 import com.ubidict.backend.member.implement.MemberReader;
 import com.ubidict.backend.member.implement.MemberStatusValidator;
 import com.ubidict.backend.member.implement.TokenIssuer;

@@ -6,8 +6,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.domain.AuthErrorCode;
 import com.ubidict.backend.member.domain.OAuthProvider;
+import com.ubidict.backend.member.exception.AuthErrorCode;
 import com.ubidict.backend.member.infra.security.OAuthExchangeCodeRedisRepository;
 import com.ubidict.backend.member.infra.security.OAuthExchangeEntry;
 import java.util.Optional;

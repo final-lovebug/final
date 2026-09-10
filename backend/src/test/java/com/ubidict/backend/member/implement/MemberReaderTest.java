@@ -7,8 +7,8 @@ import static org.mockito.Mockito.mock;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.domain.Member;
-import com.ubidict.backend.member.domain.MemberErrorCode;
 import com.ubidict.backend.member.domain.OAuthProvider;
+import com.ubidict.backend.member.exception.MemberErrorCode;
 import com.ubidict.backend.member.infra.MemberRepository;
 import java.util.List;
 import java.util.Optional;
