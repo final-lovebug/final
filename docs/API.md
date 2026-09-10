@@ -300,3 +300,189 @@ POST /api/auth/logout
 > `COMMON_INVALID_REQUEST`는 요청 DTO 검증(`@NotBlank`·`@Size`)에서, `WORKSPACE_INVALID_*`는 도메인 모델 검증에서 발생한다. 같은 입력이라도 앞단에서 걸리면 `COMMON_INVALID_REQUEST`가 먼저 내려간다.
 
 ---
+
+# **Document API**
+
+워크스페이스에 속한 문서를 만들고 읽고 지운다. 버전 이력과 라벨도 여기서 다룬다. 관련 도메인은 `document`다.
+
+## **요청자 식별 — 임시 방식**
+
+Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다. **인증 전까지 운영 배포 대상이 아니다.**
+
+## **알아 둘 것 셋**
+
+- **본문은 확정 버전에만 있다.** `Document`에는 본문 컬럼이 없다. 상세 응답의 `content`는 `currentVersionNo`가 가리키는 `DocumentVersion`에서 온다.
+- **본문을 바꾸는 엔드포인트가 없다.** 본문이 바뀌는 경로는 대조 → 초안 → 리뷰 → 반영뿐이고, 업로드(v1)만 예외다. 문서 편집도 그 경로를 타므로 `draftdocument` 도메인이 `POST /documents/{documentId}/drafts`로 연다(`REQ-CHK-007`). 아래 `PATCH`는 **제목·라벨 전용**이다.
+- **`outdated`는 사전집 도메인이 붙기 전까지 항상 `false`다.** 판정 규칙은 구현돼 있으나 활성 사전집 버전을 읽을 곳이 아직 없다. 사전집이 없으면 갱신할 대상이 없으므로 `false`가 맞는 값이다.
+
+## **엔드포인트**
+
+경로는 모두 워크스페이스 하위에 중첩된다. `workspaceId`가 URL에 강제되면 데이터 격리(`NFR-WS-001`) 검증이 모든 엔드포인트에서 같은 모양이 된다.
+
+| **Method** | **Path** | **권한** | **성공** |
+| --- | --- | --- | --- |
+| POST | `/api/workspaces/{workspaceId}/documents` | 참여자 | `201` |
+| GET | `/api/workspaces/{workspaceId}/documents` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `200` |
+| PATCH | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `204` |
+| DELETE | `/api/workspaces/{workspaceId}/documents/{documentId}` | **ADMIN 이상** | `204` |
+| GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions/{versionNo}` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/labels` | 참여자 | `200` |
+
+## **문서 생성**
+
+`POST /api/workspaces/{workspaceId}/documents?memberId={memberId}` → `201 Created`
+
+`Document`와 `DocumentVersion` v1을 한 트랜잭션에서 만든다. **파일 업로드가 아니라 JSON 본문 작성**이다(`REQ-DOC-001`. multipart 업로드는 후속).
+
+```json
+{
+  "title": "결제 도메인 설계",
+  "content": "회원은 결제할 수 있다.",
+  "labels": ["설계", "결제"]
+}
+```
+
+| **필드** | **타입** | **제약** | **설명** |
+| --- | --- | --- | --- |
+| `title` | String | 필수, 1~200자 | 워크스페이스 안에서 중복을 허용한다 |
+| `content` | String | 필수, 1~10,000자 | v1 버전의 본문이 된다 |
+| `labels` | String[] | 선택, 최대 5개, 각 1~20자 | **없는 이름은 라벨이 새로 만들어진다** |
+
+```json
+{
+  "documentId": 1,
+  "workspaceId": 1,
+  "title": "결제 도메인 설계",
+  "content": "회원은 결제할 수 있다.",
+  "currentVersionNo": 1,
+  "outdated": false,
+  "dictionaryVersionNo": null,
+  "labels": ["결제", "설계"],
+  "uploaderId": 7,
+  "createdAt": "2026-09-10T10:24:38.123456Z",
+  "updatedAt": "2026-09-10T10:24:38.123456Z"
+}
+```
+
+| **필드** | **타입** | **설명** |
+| --- | --- | --- |
+| `content` | String | **최신 확정 버전의 본문** |
+| `outdated` | Boolean | 최신 사전집에 맞춰지지 않았는지. 판정 기준은 아래 |
+| `dictionaryVersionNo` | Int | 최신 확정 버전이 통과한 사전집 버전. 업로드본은 `null` |
+| `uploaderId` | Long | 문서를 올린 회원 |
+
+> **`outdated` 판정** — 활성 사전집이 없으면 `false`, 최신 확정 버전의 `dictionaryVersionNo`가 `null`이거나 활성 사전집 버전과 다르면 `true`. 기준이 「마지막으로 대조한 시점」이 아니라 「마지막으로 반영된 버전」이므로, **대조만 하고 교정을 끝내지 않은 문서는 여전히 `true`다.**
+
+## **문서 목록 조회**
+
+`GET /api/workspaces/{workspaceId}/documents?memberId={memberId}&label={name}` → `200 OK`
+
+`label`은 선택이다. 주면 그 라벨이 붙은 문서만 내려간다.
+
+**목록 응답에는 `content`가 없다.** 10,000자 × N을 목록에 실을 이유가 없다.
+
+```json
+[
+  {
+    "documentId": 1,
+    "title": "결제 도메인 설계",
+    "currentVersionNo": 1,
+    "outdated": false,
+    "labels": ["결제", "설계"],
+    "uploaderId": 7,
+    "createdAt": "2026-09-10T10:24:38.123456Z",
+    "updatedAt": "2026-09-10T10:24:38.123456Z"
+  }
+]
+```
+
+## **문서 상세 조회**
+
+`GET /api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}` → `200 OK`
+
+생성 응답과 같은 형식이다. `content`는 최신 확정 버전에서 온다.
+
+## **문서 수정**
+
+`PATCH /api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}` → `204 No Content`
+
+**제목과 라벨만 바꾼다.** 본문은 이 경로로 바뀌지 않는다.
+
+```json
+{
+  "title": "정산 도메인 설계",
+  "labels": ["정산"]
+}
+```
+
+> **`labels`는 통째로 교체된다.** 빈 배열이나 생략은 「라벨을 모두 뗀다」는 뜻이다. 부분 추가·삭제 엔드포인트를 따로 두지 않는 이유는 문서당 5개뿐이라 전체 교체가 더 단순하기 때문이다. **문서에서 뗀 라벨도 워크스페이스에는 남는다.**
+
+## **문서 삭제**
+
+`DELETE /api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}` → `204 No Content`
+
+**ADMIN 이상만** 삭제할 수 있다. **소프트 삭제**이며 이후 모든 조회에서 빠진다. 확정된 버전 행과 라벨 연결 행은 함께 지우지 않는다 — 조회가 문서에서 먼저 막히기 때문이다.
+
+## **버전 이력 조회**
+
+`GET /api/workspaces/{workspaceId}/documents/{documentId}/versions?memberId={memberId}` → `200 OK`
+
+`versionNo` 내림차순. **본문을 담지 않는다.**
+
+```json
+[
+  { "versionNo": 2, "publishedAt": "2026-09-11T09:00:00.000000Z", "dictionaryVersionNo": 3, "publishedBy": 7 },
+  { "versionNo": 1, "publishedAt": "2026-09-10T10:24:38.123456Z", "dictionaryVersionNo": null, "publishedBy": 7 }
+]
+```
+
+> 반영(Revise) 경로가 아직 없어 **현재는 v1 하나만 쌓인다.** v2 이상은 `reviewrequest` 도메인이 붙어야 생긴다.
+
+## **특정 버전 조회**
+
+`GET /api/workspaces/{workspaceId}/documents/{documentId}/versions/{versionNo}?memberId={memberId}` → `200 OK`
+
+위 형식에 `body`가 붙는다.
+
+```json
+{
+  "versionNo": 1,
+  "body": "회원은 결제할 수 있다.",
+  "publishedAt": "2026-09-10T10:24:38.123456Z",
+  "dictionaryVersionNo": null,
+  "publishedBy": 7
+}
+```
+
+## **워크스페이스 라벨 목록 조회**
+
+`GET /api/workspaces/{workspaceId}/labels?memberId={memberId}` → `200 OK`
+
+이름 오름차순. 목록 필터 UI를 채우기 위한 것이다. **라벨 생성·수정·삭제 엔드포인트는 없다** — 라벨은 문서에 붙일 때 없으면 만들어진다.
+
+```json
+[
+  { "labelId": 1, "name": "결제" },
+  { "labelId": 2, "name": "설계" }
+]
+```
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
+| 없거나 삭제된 문서, **다른 워크스페이스의 문서 식별자** | 404 | `DOCUMENT_NOT_FOUND` |
+| 없는 버전 번호 | 404 | `DOCUMENT_VERSION_NOT_FOUND` |
+| 참여자지만 ADMIN 미만이 삭제를 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
+| 제목이 비었거나 200자 초과(도메인 검증) | 400 | `DOCUMENT_INVALID_TITLE` |
+| 본문이 비었거나 10,000자 초과(도메인 검증) | 400 | `DOCUMENT_INVALID_CONTENT` |
+| 라벨이 6개 이상 | 400 | `DOCUMENT_LABEL_LIMIT_EXCEEDED` |
+| 라벨 이름이 비었거나 20자 초과 | 400 | `LABEL_INVALID_NAME` |
+| 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
+
+> 권한 부족에 document 전용 코드를 두지 않고 `WORKSPACE_ADMIN_REQUIRED`를 그대로 쓴다. 검증 주체가 `WorkspaceAccessValidator`이므로 같은 뜻의 코드를 도메인마다 늘리지 않는다.
+
+---
