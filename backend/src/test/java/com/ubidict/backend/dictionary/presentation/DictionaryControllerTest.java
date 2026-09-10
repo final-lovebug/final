@@ -17,6 +17,7 @@ import com.ubidict.backend.dictionary.service.DictionaryService;
 import com.ubidict.backend.dictionary.service.model.DictionaryResult;
 import com.ubidict.backend.dictionary.service.model.DictionaryVersionResult;
 import com.ubidict.backend.dictionary.service.model.TermResult;
+import com.ubidict.backend.member.infra.security.JwtProvider;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -44,6 +45,13 @@ class DictionaryControllerTest {
 
     @MockitoBean
     private DictionaryService dictionaryService;
+
+    /**
+     * addFilters=false로 Security 필터 체인은 우회하지만 SecurityConfig가 이 슬라이스에 함께
+     * 로드되므로, JwtAuthenticationFilter가 요구하는 JwtProvider를 mock으로 채워 컨텍스트를 띄운다.
+     */
+    @MockitoBean
+    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {
