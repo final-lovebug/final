@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import com.ubidict.backend.workspace.service.CreateWorkspaceCommand;
@@ -26,6 +27,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+/**
+ * addFilters=false로 Security 필터 체인 자체는 우회하지만, SecurityConfig가 이 슬라이스에
+ * 함께 로드되므로 JwtAuthenticationFilter가 요구하는 JwtProvider는 mock으로 채워 컨텍스트를
+ * 띄운다(member 도메인의 컨트롤러 테스트들과 동일한 이유).
+ */
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(WorkspaceController.class)
 class WorkspaceControllerTest {
@@ -38,6 +44,9 @@ class WorkspaceControllerTest {
 
     @MockitoBean
     private WorkspaceService workspaceService;
+
+    @MockitoBean
+    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

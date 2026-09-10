@@ -63,7 +63,7 @@
 ### 금지
 
 - `git commit`, `git push`, `git reset --hard`, 브랜치 삭제 등 **git 상태를 바꾸는 명령을 사용자 지시 없이 실행하지 않는다.**
-- `application.properties`, 인프라 설정, 시크릿, `.env` 파일을 임의로 변경하지 않는다.
+- `application.yml`(또는 `.properties`), 인프라 설정, 시크릿, `.env` 파일을 임의로 변경하지 않는다.
 - 운영 DB·AWS 리소스에 영향을 주는 명령 실행 금지.
 
 ---

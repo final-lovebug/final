@@ -82,8 +82,9 @@ public class Member extends BaseEntity {
     }
 
     /**
-     * 탈퇴 처리한다. 소셜 연동 해제(Unlink)는 로그인 도메인(별도 티켓)에서 처리하고,
-     * 여기서는 상태 변경과 소프트 삭제만 한다.
+     * 탈퇴 처리한다. 소셜 연동 해제(Unlink)는 로컬 상태 변경(soft delete)까지만 의미한다 —
+     * Google API를 호출해 토큰을 revoke하지 않는다({@code docs/DOMAIN.md} 인증·회원가입
+     * 정책, 9/10 확정).
      */
     public void withdraw() {
         if (status == MemberStatus.WITHDRAWN) {
