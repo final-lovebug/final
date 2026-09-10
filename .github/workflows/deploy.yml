@@ -1,0 +1,88 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'deploy/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-spring
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+  AWS_ROLE: arn:aws:iam::416121583617:role/lovebug-github-actions
+  BUCKET: lovebug-s3-416121583617-ap-northeast-2-an
+  TAG: ${{ github.sha }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ steps.ecr.outputs.registry }}/lovebug/spring:${{ env.TAG }}
+          cache-from: type=gha,scope=spring
+          cache-to: type=gha,mode=max,scope=spring
+
+  deploy:
+    if: false   # 7단계(CodeDeploy 구성) 완료 후 이 줄 제거
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload bundle
+        run: |
+          echo "$TAG" > deploy/IMAGE_TAG
+          cd deploy && zip -qr "$GITHUB_WORKSPACE/bundle.zip" .
+          cd "$GITHUB_WORKSPACE"
+          unzip -l bundle.zip
+          aws s3 cp bundle.zip "s3://$BUCKET/lovebug/deploy/spring-$TAG.zip"
+
+      - name: Deploy
+        timeout-minutes: 30
+        run: |
+          ID=$(aws deploy create-deployment \
+            --application-name lovebug-spring \
+            --deployment-group-name prod \
+            --description "$TAG" \
+            --s3-location "bucket=$BUCKET,key=lovebug/deploy/spring-$TAG.zip,bundleType=zip" \
+            --query deploymentId --output text)
+          echo "deployment: $ID"
+
+          aws deploy wait deployment-successful --deployment-id "$ID" || {
+            aws deploy get-deployment --deployment-id "$ID" \
+              --query 'deploymentInfo.{Status:status,Error:errorInformation}'
+            exit 1
+          }

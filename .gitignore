@@ -8,3 +8,6 @@ compose.override.yml
 
 # IDE 설정 (IntelliJ)
 /.idea/
+
+# 배포 번들 생성 산출물
+deploy/IMAGE_TAG
