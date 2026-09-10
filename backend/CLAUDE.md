@@ -17,7 +17,7 @@
 - **영속성** — Spring Data JPA + MySQL, Spring Data MongoDB + MongoDB
 - **스키마 마이그레이션** — Flyway
 - **캐시·세션** — Redis
-- **메시징** — Spring `ApplicationEvent`(인메모리). 배포용 어댑터는 미확정
+- **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS.** 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다
 - **인증·인가** — Spring Security, JWT (JJWT), OAuth2
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
 - **관측** — Actuator, Micrometer(Prometheus), OpenTelemetry / Grafana LGTM
@@ -91,8 +91,9 @@
   운영 계정과 같은 값을 쓰지 않는다.
 - 테스트용 컨테이너는 별도로 `TestcontainersConfiguration`이 관리한다.
   (MySQL, MongoDB, Redis, Grafana LGTM — 이미지 태그는 `compose.yaml`과 맞춘다.)
-- 메시징은 인메모리 어댑터를 사용하므로 로컬 인프라가 필요 없다. 배포용 어댑터를
-  추가할 때 대응하는 로컬 컨테이너를 `compose.yaml`과 테스트에 함께 넣는다.
+- 메시징은 로컬·테스트에서 인메모리 어댑터를 쓰므로 로컬 인프라가 필요 없다.
+  **배포용 SQS 어댑터를 추가할 때** 대응하는 로컬 대체 컨테이너(LocalStack 등)를
+  `compose.yaml`과 테스트에 함께 넣는다.
 
 ### 환경변수
 

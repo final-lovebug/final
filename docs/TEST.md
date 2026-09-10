@@ -223,14 +223,31 @@ Mock은 외부 협력 객체의 결과를 통제해야 할 때만 사용한다.
 
 ## DB 테스트 독립 환경 설정
 
-각 테스트의 독립적인 환경을 위한 롤백 처리 방식으로 `@Transactional` 을 사용한다.
+각 테스트의 독립적인 환경은 **`DbCleaner`가 테이블을 비우는 방식**으로 만든다. **개별 테스트에 `@Transactional`을 붙이지 않는다.**
 
 ```java
-@Transactional
-@DisplayName("결제에 성공한다")
-@Test
-void pay() {}
+// support/IntegrationTestSupport — 상속만 하면 매 테스트 전에 정리된다
+@ActiveProfiles("test")
+@Import({TestcontainersConfiguration.class, DbCleaner.class})
+@SpringBootTest(webEnvironment = WebEnvironment.NONE)
+public abstract class IntegrationTestSupport {
+
+    @BeforeEach
+    void setUp() {
+        dbCleaner.clean();
+    }
+}
 ```
+
+**`@Transactional` 롤백에 기대지 않는 이유가 셋이다.**
+
+- **서비스가 선언한 트랜잭션 경계를 테스트 트랜잭션이 덮어써** 경계 자체를 검증하지 못하게 된다. 「Owner는 정확히 1명」이나 소유권 이전처럼 트랜잭션 경계로만 보장되는 불변식이 통과해 버린다.
+- `@TransactionalEventListener(AFTER_COMMIT)` 리스너가 실행되지 않는다. 커밋이 일어나지 않기 때문이다.
+- 명시적 flush로 순서를 만드는 코드(`DictionaryUpdater.archive`의 `saveAndFlush`)가 무엇을 막는지 드러나지 않는다.
+
+`DbCleaner`는 엔티티 메타모델이 아니라 `information_schema`에서 실제 테이블을 읽어 `truncate`한다. Flyway 이력 테이블은 지우지 않는다 — 지우면 다음 컨텍스트에서 마이그레이션이 다시 돌아 스키마가 어긋난다.
+
+> **테스트 전용 엔티티를 만들지 않는다.** 스키마는 Flyway 마이그레이션이 만들고, 실제 운영 스키마와 같은 형태에서 매핑을 검증한다. 예외는 `BaseEntityAuditingTest` 하나이며 그 테스트만 `flyway.enabled=false` + `ddl-auto=create-drop`을 쓴다.
 
 ## 계층별 테스트
 
