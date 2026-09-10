@@ -1,0 +1,15 @@
+package com.ubidict.backend.workspace.infra;
+
+import com.ubidict.backend.workspace.domain.Participant;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ParticipantRepository extends JpaRepository<Participant, Long> {
+
+    Optional<Participant> findByWorkspaceIdAndMemberIdAndDeletedAtIsNull(Long workspaceId, Long memberId);
+
+    List<Participant> findAllByMemberIdAndDeletedAtIsNull(Long memberId);
+
+    long countByWorkspaceIdAndDeletedAtIsNull(Long workspaceId);
+}

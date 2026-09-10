@@ -328,7 +328,7 @@ Repository 테스트는 실제 DB와 가까운 환경에서 검증한다.
 
 ```java
 @ActiveProfiles("test")
-@Import({DbCleaner.class, JpaConfiguration.class})
+@Import(DbCleaner.class)
 @DataJpaTest
 public abstract class RepositoryTestSupport {
 

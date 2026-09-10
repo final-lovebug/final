@@ -10,6 +10,7 @@ import com.ubidict.backend.member.domain.Member;
 import com.ubidict.backend.member.domain.MemberErrorCode;
 import com.ubidict.backend.member.domain.OAuthProvider;
 import com.ubidict.backend.member.infra.MemberRepository;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,5 +44,31 @@ class MemberReaderTest {
         assertThatThrownBy(() -> memberReader.read(1L))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.errorCode())
                         .isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND));
+    }
+
+    @DisplayName("여러 회원 id로 조회하면 존재하는 회원만 반환한다.")
+    @Test
+    void readAll() {
+        // given
+        Member member = Member.create("member@example.com", "member1", OAuthProvider.GOOGLE, "google-1");
+        given(memberRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(member));
+
+        // when
+        List<Member> found = memberReader.readAll(List.of(1L, 2L));
+
+        // then
+        assertThat(found).containsExactly(member);
+    }
+
+    @DisplayName("존재하는 회원 id면 exists가 true를 반환한다.")
+    @Test
+    void exists() {
+        // given
+        given(memberRepository.existsById(1L)).willReturn(true);
+        given(memberRepository.existsById(2L)).willReturn(false);
+
+        // when & then
+        assertThat(memberReader.exists(1L)).isTrue();
+        assertThat(memberReader.exists(2L)).isFalse();
     }
 }

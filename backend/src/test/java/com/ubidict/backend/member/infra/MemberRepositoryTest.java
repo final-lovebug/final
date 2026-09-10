@@ -3,6 +3,7 @@ package com.ubidict.backend.member.infra;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.ubidict.backend.common.infra.persistence.JpaAuditingConfig;
 import com.ubidict.backend.member.domain.Member;
 import com.ubidict.backend.member.domain.MemberStatus;
 import com.ubidict.backend.member.domain.OAuthProvider;
@@ -20,7 +21,7 @@ import org.springframework.dao.DataIntegrityViolationException;
  * Flyway 마이그레이션이 아직 이 테스트 슬라이스에 연결되지 않아 스키마는 Hibernate가
  * 생성한다({@code BaseEntityAuditingTest}와 동일한 관례).
  */
-@Import(MySqlContainerConfiguration.class)
+@Import({JpaAuditingConfig.class, MySqlContainerConfiguration.class})
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 @DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false"})
 class MemberRepositoryTest {
