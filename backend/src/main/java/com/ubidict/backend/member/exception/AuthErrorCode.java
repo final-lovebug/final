@@ -1,4 +1,4 @@
-package com.ubidict.backend.member.domain;
+package com.ubidict.backend.member.exception;
 
 import com.ubidict.backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;

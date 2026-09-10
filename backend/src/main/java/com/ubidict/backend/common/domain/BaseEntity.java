@@ -1,24 +1,35 @@
 package com.ubidict.backend.common.domain;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
- * 생성·수정 시각에 더해 <b>소프트 삭제</b>를 가지는 상위 클래스.
+ * 모든 도메인 엔티티가 공통으로 가지는 생성·수정·삭제 시각을 정의한다.
  *
- * <p>생성/수정 시각은 Hibernate가 채우므로 애플리케이션 코드에서 직접 설정하지 않는다.
- * Spring Data Auditing(@CreatedDate)은 OffsetDateTime 변환을 지원하지 않아 Hibernate 타임스탬프를 사용한다.
- *
- * <p>삭제 경로가 없는 엔티티는 {@code deleted_at} 컬럼을 만들지 않으므로 {@link AuditableEntity}를 상속한다.
+ * <p>생성/수정 시각은 Spring Data Auditing이 채우므로 애플리케이션 코드에서 직접 설정하지 않는다.
  */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @MappedSuperclass
-public abstract class BaseEntity extends AuditableEntity {
+@EntityListeners(AuditingEntityListener.class)
+public abstract class BaseEntity {
+
+    @CreatedDate
+    @Column(nullable = false, updatable = false)
+    private OffsetDateTime createdAt;
+
+    @LastModifiedDate
+    @Column(nullable = false)
+    private OffsetDateTime updatedAt;
 
     private OffsetDateTime deletedAt;
 
