@@ -6,7 +6,7 @@ import { cx } from '../../shared/lib/cx'
 // 중첩 라우트로 옮긴 것. 각 탭은 src/pages/settings/Settings*Page.tsx.
 const TABS = [
   { key: 'members', label: '멤버' },
-  { key: 'ruleset', label: '룰셋' },
+  { key: 'ruleset', label: '승인 규칙' },
   { key: 'notifications', label: '알림' },
   { key: 'labels', label: '라벨' },
 ] as const
