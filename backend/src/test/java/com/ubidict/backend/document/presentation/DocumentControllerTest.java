@@ -18,6 +18,7 @@ import com.ubidict.backend.document.service.model.DocumentResult;
 import com.ubidict.backend.document.service.model.DocumentSummaryResult;
 import com.ubidict.backend.document.service.model.DocumentVersionResult;
 import com.ubidict.backend.document.service.model.DocumentVersionSummaryResult;
+import com.ubidict.backend.member.infra.security.JwtProvider;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -45,6 +46,13 @@ class DocumentControllerTest {
 
     @MockitoBean
     private DocumentService documentService;
+
+    /**
+     * addFilters=false로 Security 필터 체인은 우회하지만 SecurityConfig가 이 슬라이스에 함께
+     * 로드되므로, JwtAuthenticationFilter가 요구하는 JwtProvider를 mock으로 채워 컨텍스트를 띄운다.
+     */
+    @MockitoBean
+    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

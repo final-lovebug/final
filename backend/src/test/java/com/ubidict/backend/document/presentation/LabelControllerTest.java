@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.ubidict.backend.document.service.DocumentService;
 import com.ubidict.backend.document.service.model.LabelResult;
+import com.ubidict.backend.member.infra.security.JwtProvider;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,13 @@ class LabelControllerTest {
 
     @MockitoBean
     private DocumentService documentService;
+
+    /**
+     * addFilters=false로 Security 필터 체인은 우회하지만 SecurityConfig가 이 슬라이스에 함께
+     * 로드되므로, JwtAuthenticationFilter가 요구하는 JwtProvider를 mock으로 채워 컨텍스트를 띄운다.
+     */
+    @MockitoBean
+    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {
