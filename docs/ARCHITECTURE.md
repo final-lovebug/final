@@ -15,6 +15,7 @@
 ```java
 com.example.project
 └── payment
+    ├── exception
     ├── presentation
     ├── service
     ├── implement
@@ -24,11 +25,12 @@ com.example.project
 
 | **패키지** | **역할** |
 | --- | --- |
+| exception | 도메인 Exception, ErrorCode 예외 모음 |
 | presentation | HTTP 요청/응답, Controller, API DTO, 인증 사용자 해석 |
 | service | 비즈니스 흐름 조립, 유스케이스 단위 트랜잭션 경계 |
 | implement | 비즈니스 흐름을 구성하는 상세 구현 도구 |
-| infra | DB, 외부 저장소, 외부 API 접근 기술 격리 |
-| domain | 도메인 모델, 값 객체, 정책, 상태 전이 규칙 |
+| infra | 저장소 접근(Repository), 외부 API·캐시·메시징 기술 격리 |
+| domain | 도메인 모델(JPA 엔티티 겸용), 값 객체, 정책, 상태 전이 규칙 |
 
 ## **의존성 방향**
 
@@ -46,6 +48,7 @@ presentation -> service -> implement -> infra
 3. 레이어를 건너뛰지 않는다. 예를 들어 service가 infra를 직접 참조하지 않는다.
 4. 동일 레이어 간 참조는 피한다. 단, implement 레이어는 협력 도구 성격이 강하므로 필요한 경우 같은 도메인 안에서만 참조할 수 있다.
 5. 다른 도메인을 직접 참조해야 한다면 먼저 도메인 간 의존 방향과 공개 API를 합의한다.
+6. infra는 domain을 참조한다. Repository가 도메인 모델을 다루기 때문이다. 반대 방향(domain -> infra)은 금지한다. 공통 매핑 상위 클래스도 domain에 둔다.
 
 ## **Service 작성 규칙**
 
@@ -62,7 +65,7 @@ service는 비즈니스 로직을 "직접 구현"하는 곳이 아니라 비즈�
 금지한다.
 
 - Repository 직접 주입
-- JPA, QueryDSL, Redis, Kafka, HTTP Client 같은 기술 객체 직접 사용
+- JPA, QueryDSL, Redis, 메시징 클라이언트, HTTP Client 같은 기술 객체 직접 사용
 - 요청 DTO를 그대로 서비스 인자로 받기
 - 응답 DTO를 서비스에서 직접 조립하기
 - 복잡한 if, for, switch가 누적되어 구현 상세가 드러나는 코드
@@ -138,11 +141,77 @@ implement는 서비스가 사용하는 협력 도구다. 하나의 클래스는 
 
 infra는 기술 의존성을 격리한다.
 
-- JPA Entity, Spring Data Repository, QueryDSL, Redis, 외부 API Client 구현체는 이 레이어에 둔다.
+- Spring Data Repository, QueryDSL, Redis, 외부 API Client 구현체는 이 레이어에 둔다.
+- **JPA 엔티티는 domain에 둔다.** 도메인 모델 클래스에 JPA 애노테이션을 붙여 쓰므로 별도 엔티티 클래스와 변환 코드를 만들지 않는다. Repository는 도메인 모델을 그대로 다룬다.
 - 상위 레이어에는 기술 세부사항을 노출하지 않는다.
 - 필요한 경우 상위 레이어가 사용할 순수 인터페이스와 조회 결과 모델을 제공한다.
 - 외부 API 응답 DTO를 그대로 상위 레이어로 올리지 않는다.
-- DB 기술 변경이 service나 implement의 대규모 변경으로 번지지 않아야 한다.
+- 쿼리 방식 변경(Spring Data ↔ QueryDSL, 페이징·정렬 전략)은 service나 implement로 번지지 않아야 한다.
+
+> 도메인 모델이 JPA 엔티티를 겸하므로 **JPA 자체를 벗어나는 전환은 domain 수정을 수반한다.** 변환 코드와 클래스 중복을 없애는 대신 이 비용을 받아들인 선택이다.
+
+## **이벤트 발행 규약**
+
+메시징 기술은 로컬과 배포 환경에서 달라진다. 로컬은 Spring `ApplicationEvent`를 사용하고, 배포 환경에서는 외부 메시지 큐 어댑터로 교체하는 것을 전제한다. 상위 레이어가 이 차이를 알지 않도록 다음 규약을 따른다.
+
+### **배치**
+
+포트 인터페이스는 infra에 두고, 어댑터를 기술별 하위 패키지로 나눈다.
+
+```java
+common
+├── domain
+│   └── event
+│       └── DomainEvent          // 마커 인터페이스, 프레임워크 의존 없음
+└── infra
+    └── event
+        ├── EventPublisher       // 포트
+        └── InMemoryEventPublisher
+```
+
+- implement는 포트만 참조한다. `ApplicationEventPublisher` 같은 기술 객체를 직접 주입받지 않는다.
+- 배포용 어댑터는 같은 포트를 구현해 `infra` 하위에 기술별 패키지로 추가한다.
+- 어댑터 선택은 프로퍼티로 제어한다. 프로파일에 묶으면 테스트에서 어댑터만 따로 켤 수 없다.
+
+### **이벤트 페이로드**
+
+이벤트는 **직렬화 가능한 불변 record**로 정의한다.
+
+허용한다.
+
+- 식별자, 원시값, 값 객체, 시각 타입
+
+금지한다.
+
+- JPA Entity, 지연 로딩 프록시, 연관 컬렉션
+- 영속성 컨텍스트나 트랜잭션이 살아 있어야 읽을 수 있는 값
+- **도메인 모델.** 도메인 모델이 곧 JPA 엔티티이므로 위 금지에 포함된다. 이벤트에는 식별자·원시값·값 객체만 담고, 상태가 필요한 컨슈머는 식별자로 다시 조회한다.
+
+인메모리 어댑터는 객체 참조를 그대로 전달하므로 이 규칙을 어겨도 로컬에서는 동작한다. 외부 큐 어댑터로 바꾸는 순간 직렬화 실패나 `LazyInitializationException`으로 드러난다. **이 규약은 로컬에서 검증되지 않으므로 리뷰에서 확인한다.**
+
+> `@TransactionalEventListener(AFTER_COMMIT)`은 세션이 닫힌 뒤 실행된다. 이때 직렬화가 지연 필드를 건드리면 `LazyInitializationException`이 나고, 그 예외는 호출자에게 전파되지 않고 사라진다. 로컬은 초록불, 배포는 조용한 실패가 된다.
+
+```java
+// 금지 — 도메인 모델이 곧 엔티티다
+public record WorkspaceCreatedEvent(Workspace workspace) implements DomainEvent {}
+
+// 허용
+public record WorkspaceCreatedEvent(Long workspaceId, Long ownerId, OffsetDateTime occurredAt)
+        implements DomainEvent {}
+```
+
+### **핸들러**
+
+- 핸들러는 **멱등**하게 작성한다. 대부분의 메시지 큐는 at-least-once라 같은 이벤트가 두 번 도착할 수 있다.
+- 이벤트 순서에 의존하지 않는다.
+- 어댑터는 수신 애노테이션만 담당하고 처리 로직은 공용 핸들러에 위임한다. 인메모리와 외부 큐가 같은 핸들러를 호출해야 비즈니스 로직이 한 벌로 유지된다.
+
+### **실패 처리**
+
+`@TransactionalEventListener(AFTER_COMMIT)`에서 발생한 예외는 호출자에게 전파되지 않고 사라진다. `@Async`가 붙으면 더 확실히 묻힌다.
+
+- 외부 큐라면 재시도 후 DLQ로 갔을 실패가 로컬에서는 아무 흔적 없이 지나간다.
+- 인메모리 경로의 비동기 수신 실패는 `AsyncEventConfig`의 `AsyncUncaughtExceptionHandler`가 ERROR 로그로 남긴다. 리스너에서 예외를 삼키지 않는다.
 
 ## **Domain 작성 규칙**
 
@@ -151,7 +220,9 @@ domain은 프로젝트의 핵심 개념과 정책을 담는다.
 - 값 객체는 불변으로 설계한다.
 - 상태 전이 규칙은 도메인 객체 내부에 둔다.
 - 단순 데이터 컨테이너가 아니라 의미 있는 행위를 제공한다.
-- Spring, JPA, Web 같은 프레임워크 의존은 최소화한다.
+- **JPA 매핑 애노테이션은 허용한다.** `@Entity`, `@Table`, `@Id`, `@Column`, `@Embedded`, `@Embeddable`, `@Enumerated`, `@MappedSuperclass`, 연관 매핑, 그리고 Lombok `@Getter`·`@NoArgsConstructor(access = PROTECTED)`까지다.
+- **Spring과 Web 의존은 두지 않는다.** `@Component`, `@Transactional`, `ResponseEntity`, `HttpStatus`는 domain에 들어오지 않는다. 도메인 에러 코드는 `{domain}/exception`에 둔다.
+- `@Entity` 클래스는 record로 만들 수 없다. 기본 생성자와 가변 필드가 필요하므로 `@NoArgsConstructor(access = PROTECTED)` + setter 없는 일반 클래스로 둔다.
 
 ## **트랜잭션 경계**
 
@@ -165,6 +236,10 @@ domain은 프로젝트의 핵심 개념과 정책을 담는다.
 - service 메서드가 비즈니스 흐름으로 읽히는가?
 - service가 Repository나 외부 기술 객체를 직접 참조하지 않는가?
 - implement 클래스가 하나의 명확한 역할을 갖는가?
-- infra가 기술 의존성을 상위 레이어에 전파하지 않는가?
+- infra가 Repository·외부 클라이언트 기술을 상위 레이어에 전파하지 않는가? (엔티티는 domain이므로 여기 해당하지 않는다)
+- 도메인 모델이 presentation까지 그대로 올라가지 않는가? 응답이 result → 응답 DTO로만 나가는가?
+- domain에 Spring·Web 의존이 들어오지 않았는가?
 - 레이어를 건너뛰는 참조가 없는가?
 - 도메인 간 직접 참조가 무분별하게 늘어나지 않았는가?
+- 이벤트 페이로드가 직렬화 가능한 불변 record인가? Entity나 지연 로딩 대상이 섞이지 않았는가?
+- 이벤트 핸들러가 멱등하며 순서에 의존하지 않는가?

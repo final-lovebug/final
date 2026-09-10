@@ -5,6 +5,23 @@ services:
       - '3000:3000'
       - '4317'
       - '4318'
+  mongo:
+    image: 'mongo:8.0'
+    environment:
+      - 'MONGO_INITDB_DATABASE=ubidict'
+      - 'MONGO_INITDB_ROOT_PASSWORD=ubidict'
+      - 'MONGO_INITDB_ROOT_USERNAME=ubidict'
+    ports:
+      - '27017'
+  mysql:
+    image: 'mysql:8.4'
+    environment:
+      - 'MYSQL_DATABASE=ubidict'
+      - 'MYSQL_PASSWORD=ubidict'
+      - 'MYSQL_ROOT_PASSWORD=ubidict'
+      - 'MYSQL_USER=ubidict'
+    ports:
+      - '3306'
   redis:
     image: 'redis:latest'
     ports:
