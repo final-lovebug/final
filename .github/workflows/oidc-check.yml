@@ -9,19 +9,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Debug OIDC claims
-        run: |
-          echo "repository: ${{ github.repository }}"
-          echo "ref:        ${{ github.ref }}"
-          echo "expected sub: repo:${{ github.repository }}:ref:${{ github.ref }}"
-      - name: Dump OIDC sub
-        run: |
-          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq '.sub, .repository_id, .repository_owner_id'
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::416121583617:role/lovebug-github-actions
           aws-region: ap-northeast-2
-      - run: aws sts get-caller-identity
-      - run: aws ecr describe-repositories --repository-names lovebug/spring lovebug/fastapi
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
