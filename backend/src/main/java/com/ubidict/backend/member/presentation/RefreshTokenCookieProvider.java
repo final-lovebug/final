@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 /**
  * refresh token을 {@code Set-Cookie}(HttpOnly, Secure, SameSite)로 내려주기 위한 쿠키를
  * 만든다({@code docs/API.md}). {@code secure}는 로컬(http)에서는 꺼야 브라우저가 쿠키를
- * 돌려보내므로 프로필별로 다르다 — {@code application-local.properties} 참고.
+ * 돌려보내므로 프로필별로 다르다 — {@code application-local.yml} 참고.
  */
 @Component
 public class RefreshTokenCookieProvider {
