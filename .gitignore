@@ -7,3 +7,5 @@ compose.override.yml
 
 # IDE 설정 (IntelliJ)
 /.idea/
+
+deploy/IMAGE_TAG
