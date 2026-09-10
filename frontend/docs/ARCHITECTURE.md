@@ -157,7 +157,20 @@ features/{domain}/components -> features/{domain}/hooks (또는 model 타입만 
 | `reviewDoc` | 문서 검토(대조 결과) | `/workspaces/:workspaceId/documents/:documentId/review` | `review` |
 | `reviewThread` | 문서 개정안 리뷰(PR형) | `/workspaces/:workspaceId/documents/:documentId/review/:reviewId` | `review` |
 | `revision` | 사전집 개정안 리뷰(PR형) | `/workspaces/:workspaceId/dictionary/revisions/:revisionId` | `review` |
-| `settings` | 설정(멤버/룰셋/알림/라벨) | `/workspaces/:workspaceId/settings` | `member` / `workspace` |
+| `settings` | 설정 · 멤버 | `/workspaces/:workspaceId/settings/members` | `member` |
+| `settings` | 설정 · 룰셋 | `/workspaces/:workspaceId/settings/ruleset` | `workspace` |
+| `settings` | 설정 · 알림 | `/workspaces/:workspaceId/settings/notifications` | `notification` |
+| `settings` | 설정 · 라벨 | `/workspaces/:workspaceId/settings/labels` | `document` |
+
+`/settings`는 `SettingsLayout`(탭 네비게이션 + `Outlet`)이 감싸고, 위 4개 하위 라우트로
+연결된다(Phase 3에서 확정). 경로 상수는 `src/shared/config/routes.ts` 기준.
+
+**사이드바 퀵링크 관련 결정 (Phase 3)**: `ui/main.js`의 사이드바는 "문서" 그룹에
+초안(`reviewDoc`)·개정안(`reviewThread`), "사전집" 그룹에 개정안(`revision`)까지 직접 링크로
+뒀지만, 이 화면들은 위 표에서 보듯 특정 `:documentId`/`:revisionId`가 있어야 진입 가능하다.
+목록 없이 사이드바에서 바로 연결할 수 없으므로, 실제 구현에서는 사이드바에 목록형 화면
+(문서 목록/사전집/사전집 초안/사전집 리비전 이력)만 두고 리뷰류 화면은 그 목록에서
+드릴다운으로 진입하는 구조로 바꿨다 (`src/app/Sidebar.tsx` 참고).
 
 ## **디자인 시스템 컴포넌트 매핑 (`ui/style.css` → `shared/ui`)**
 
