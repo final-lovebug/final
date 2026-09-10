@@ -4,6 +4,10 @@ compose.override.yml
 
 # 개인 작업 추적용 (커밋 안 함)
 /task/
+/backend/task/
 
 # IDE 설정 (IntelliJ)
 /.idea/
+
+# 배포 번들 생성 산출물
+deploy/IMAGE_TAG

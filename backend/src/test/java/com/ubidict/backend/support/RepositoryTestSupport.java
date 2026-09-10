@@ -1,5 +1,6 @@
 package com.ubidict.backend.support;
 
+import com.ubidict.backend.common.infra.persistence.JpaAuditingConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -20,7 +21,7 @@ import org.testcontainers.utility.DockerImageName;
  * <p>스키마는 Flyway 마이그레이션이 만든다. 실제 운영 스키마와 같은 형태에서 매핑을 검증하기 위해 Hibernate 생성(ddl-auto)에 기대지 않는다.
  */
 @ActiveProfiles("test")
-@Import({DbCleaner.class, RepositoryTestSupport.MySqlContainerConfiguration.class})
+@Import({DbCleaner.class, JpaAuditingConfig.class, RepositoryTestSupport.MySqlContainerConfiguration.class})
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 @DataJpaTest
 public abstract class RepositoryTestSupport {
