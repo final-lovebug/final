@@ -99,6 +99,12 @@ public class ReviewRequest extends BaseEntity {
         status = ReviewRequestStatus.CANCELED;
     }
 
+    public void validateRevisionType(boolean documentRevision) {
+        if ((type == ReviewRequestType.DOCUMENT) != documentRevision) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_TYPE_MISMATCHED);
+        }
+    }
+
     private static String normalizeTitle(String title) {
         if (title == null) {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_TITLE_REQUIRED);
