@@ -47,6 +47,7 @@ class TermRepositoryTest extends RepositoryTestSupport {
         assertThat(found.getEnglishName()).isEqualTo("Member");
         assertThat(found.getDefinition()).isEqualTo("서비스에 가입해 인증받는 주체");
         assertThat(found.getCreatedAt()).isNotNull();
+        assertThat(found.getUpdatedAt()).isNotNull();
     }
 
     @DisplayName("사전집의 용어는 표준어 오름차순으로 조회된다.")

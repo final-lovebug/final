@@ -2,6 +2,7 @@ package com.ubidict.backend.dictionary.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.OffsetDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -46,7 +47,7 @@ class DictionaryTest {
      */
     @DisplayName("다음 버전을 만들어도 이전 버전은 그대로다.")
     @Test
-    void nextVersion_previousIsUntouched() {
+    void nextVersion_doesNotTouchPrevious() {
         // given
         Dictionary previous = Dictionary.createFirst(WORKSPACE_ID, CREATED_BY);
 
@@ -74,7 +75,7 @@ class DictionaryTest {
 
     @DisplayName("이미 보관된 사전집을 다시 보관해도 상태가 바뀌지 않는다.")
     @Test
-    void archive_alreadyArchived() {
+    void archive_isIdempotent() {
         // given
         Dictionary dictionary = Dictionary.createFirst(WORKSPACE_ID, CREATED_BY);
         dictionary.archive();
@@ -86,16 +87,16 @@ class DictionaryTest {
         assertThat(dictionary.getStatus()).isEqualTo(DictionaryStatus.ARCHIVED);
     }
 
-    /**
-     * 사전집은 삭제하지 않는다. 모든 행이 보존해야 할 버전 이력이다.
-     */
-    @DisplayName("사전집은 삭제 표시를 쓰지 않는다.")
+    @DisplayName("확정일시는 버전 값 객체의 값을 반환한다.")
     @Test
-    void createFirst_isNotDeleted() {
-        // when
+    void publishedAt_delegatesToVersion() {
+        // given
         Dictionary dictionary = Dictionary.createFirst(WORKSPACE_ID, CREATED_BY);
 
+        // when
+        OffsetDateTime publishedAt = dictionary.publishedAt();
+
         // then
-        assertThat(dictionary.isDeleted()).isFalse();
+        assertThat(publishedAt).isEqualTo(dictionary.getVersion().publishedAt());
     }
 }

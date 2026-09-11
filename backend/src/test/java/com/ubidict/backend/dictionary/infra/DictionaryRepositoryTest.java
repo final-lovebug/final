@@ -42,6 +42,8 @@ class DictionaryRepositoryTest extends RepositoryTestSupport {
         assertThat(found.getVersion().versionNo()).isEqualTo(1);
         assertThat(found.getVersion().publishedAt()).isNotNull();
         assertThat(found.getStatus()).isEqualTo(DictionaryStatus.ACTIVE);
+        assertThat(found.getCreatedAt()).isNotNull();
+        assertThat(found.getUpdatedAt()).isNotNull();
     }
 
     @DisplayName("워크스페이스의 활성 사전집만 조회한다.")

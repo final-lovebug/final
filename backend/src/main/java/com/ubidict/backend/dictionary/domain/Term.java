@@ -1,5 +1,6 @@
 package com.ubidict.backend.dictionary.domain;
 
+import com.ubidict.backend.common.domain.AuditableEntity;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.dictionary.exception.TermErrorCode;
 import jakarta.persistence.Column;
@@ -8,12 +9,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
-import java.time.OffsetDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 /**
  * 사전집에 등재된 표준 용어. 소속 사전집 버전과 함께 얼어붙는다.
@@ -22,12 +20,12 @@ import org.hibernate.annotations.UpdateTimestamp;
  * 없는데 상속하면 쓰지 않는 컬럼이 강제로 생긴다.
  *
  * <p>동의어·비권장어는 두지 않는다. 문서 대조는 저장된 표기 목록을 훑는 방식이 아니라 LLM이 문맥을 파악해 표준어·정의와 비교하는 방식이므로, definition이 판단 근거를
- * 대신한다.
+ * 대신한다. 삭제 경로가 없어 deletedAt이 필요하지 않으므로 AuditableEntity를 상속한다.
  */
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Term {
+public class Term extends AuditableEntity {
 
     private static final int FORM_MAX_LENGTH = 100;
 
@@ -50,14 +48,6 @@ public class Term {
 
     @Column(nullable = false, updatable = false)
     private Long createdBy;
-
-    @CreationTimestamp
-    @Column(nullable = false, updatable = false)
-    private OffsetDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(nullable = false)
-    private OffsetDateTime updatedAt;
 
     private Term(Long dictionaryId, String preferredForm, String englishName, String definition, Long createdBy) {
         this.dictionaryId = dictionaryId;
