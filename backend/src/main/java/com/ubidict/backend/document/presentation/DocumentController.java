@@ -5,6 +5,7 @@ import com.ubidict.backend.document.presentation.dto.DocumentResponse;
 import com.ubidict.backend.document.presentation.dto.DocumentSummaryResponse;
 import com.ubidict.backend.document.presentation.dto.DocumentVersionResponse;
 import com.ubidict.backend.document.presentation.dto.DocumentVersionSummaryResponse;
+import com.ubidict.backend.document.presentation.dto.EditDocumentContentRequest;
 import com.ubidict.backend.document.presentation.dto.UpdateDocumentRequest;
 import com.ubidict.backend.document.service.DocumentService;
 import jakarta.validation.Valid;
@@ -25,8 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 모든 경로가 워크스페이스 하위에 중첩된다. workspaceId가 URL에 강제되면 데이터 격리(NFR-WS-001) 검증이 모든 엔드포인트에서 같은 모양이 된다.
  *
- * <p>본문을 바꾸는 엔드포인트가 없다. 문서 편집은 대조를 실행해 초안을 만드는 별개의 유스케이스이며, draftdocument 도메인이
- * {@code POST /documents/{documentId}/drafts}로 연다(REQ-CHK-007). 아래 PATCH는 제목·라벨 전용이다.
+ * <p>제목·라벨 수정과 본문 편집은 경로를 분리한다. 본문 직접 편집은 기존 버전을 덮지 않고 새 확정 버전을 즉시 발행한다.
  *
  * <p>요청자 memberId를 요청 파라미터로 받는다. 인증 계층이 아직 없어 생긴 임시 방식이며 인증 도입 전까지 운영 배포 대상이 아니다.
  *
@@ -76,6 +76,16 @@ public class DocumentController {
         documentService.update(request.toCommand(workspaceId, documentId, memberId));
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{documentId}/content")
+    public ResponseEntity<DocumentResponse> editContent(
+            @PathVariable Long workspaceId,
+            @PathVariable Long documentId,
+            @RequestParam Long memberId,
+            @Valid @RequestBody EditDocumentContentRequest request) {
+        return ResponseEntity.ok(DocumentResponse.from(
+                documentService.editContent(request.toCommand(workspaceId, documentId, memberId))));
     }
 
     @DeleteMapping("/{documentId}")

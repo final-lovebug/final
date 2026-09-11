@@ -3,6 +3,7 @@ package com.ubidict.backend.document.service;
 import com.ubidict.backend.document.domain.Document;
 import com.ubidict.backend.document.domain.DocumentVersion;
 import com.ubidict.backend.document.domain.Label;
+import com.ubidict.backend.document.implement.DocumentAlignmentReader;
 import com.ubidict.backend.document.implement.DocumentAppender;
 import com.ubidict.backend.document.implement.DocumentLabelReader;
 import com.ubidict.backend.document.implement.DocumentLabelWriter;
@@ -19,6 +20,7 @@ import com.ubidict.backend.document.service.model.DocumentResult;
 import com.ubidict.backend.document.service.model.DocumentSummaryResult;
 import com.ubidict.backend.document.service.model.DocumentVersionResult;
 import com.ubidict.backend.document.service.model.DocumentVersionSummaryResult;
+import com.ubidict.backend.document.service.model.EditDocumentContentCommand;
 import com.ubidict.backend.document.service.model.LabelResult;
 import com.ubidict.backend.document.service.model.UpdateDocumentCommand;
 import com.ubidict.backend.workspace.domain.Permission;
@@ -32,8 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 문서 CRUD와 버전 이력 조회.
  *
- * <p>본문을 바꾸는 유스케이스가 없다. 본문은 확정 버전에만 있고, 바뀌는 경로는 대조 → 초안 → 리뷰 → 반영이다. 문서 편집도 그 경로를 타므로 draftdocument
- * 도메인이 담당한다.
+ * <p>본문은 확정 버전에만 있고, 직접 편집은 새 버전을 즉시 발행한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -50,6 +51,7 @@ public class DocumentService {
     private final LabelReader labelReader;
     private final LabelAppender labelAppender;
     private final WorkspaceAccessValidator workspaceAccessValidator;
+    private final DocumentAlignmentReader documentAlignmentReader;
 
     /**
      * 문서와 v1 버전을 한 트랜잭션에서 만든다. 본문이 버전에만 있으므로 v1이 빠지면 본문 없는 문서가 남는다.
@@ -109,6 +111,18 @@ public class DocumentService {
         Document document = documentReader.read(command.documentId(), command.workspaceId());
         documentUpdater.rename(document, command.title(), command.memberId());
         attachLabels(document, command.labels(), command.memberId());
+    }
+
+    @Transactional
+    public DocumentResult editContent(EditDocumentContentCommand command) {
+        workspaceAccessValidator.validateParticipant(command.workspaceId(), command.memberId());
+        Document document = documentReader.read(command.documentId(), command.workspaceId());
+        DocumentVersion previous = documentVersionReader.readCurrent(document);
+        document.publishNext(command.memberId());
+        DocumentVersion version =
+                documentVersionAppender.appendEdited(document, previous, command.content(), command.memberId());
+        return DocumentResult.of(
+                document, version, readLabelNames(document), activeDictionaryVersionNo(command.workspaceId()));
     }
 
     @Transactional
@@ -174,13 +188,7 @@ public class DocumentService {
         return labels.stream().map(Label::getName).sorted().toList();
     }
 
-    /**
-     * 활성 사전집의 버전 번호. outdated 판정의 기준값이다.
-     *
-     * <p>TODO(REQ-DIC-001): dictionary 도메인이 붙으면 DictionaryService.readActive로 교체한다. 사전집이 없는 동안은 null이
-     * 맞는 값이며, 이때 모든 문서의 outdated는 false다 — 갱신할 대상이 없기 때문이다.
-     */
     private Integer activeDictionaryVersionNo(Long workspaceId) {
-        return null;
+        return documentAlignmentReader.activeVersionNo(workspaceId).orElse(null);
     }
 }

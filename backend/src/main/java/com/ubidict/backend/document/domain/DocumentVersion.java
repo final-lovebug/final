@@ -54,14 +54,23 @@ public class DocumentVersion extends BaseEntity {
     private Integer dictionaryVersionNo;
 
     @Column(nullable = false, updatable = false)
+    private boolean edited;
+
+    @Column(nullable = false, updatable = false)
     private Long createdBy;
 
     private DocumentVersion(
-            Long documentId, PublishedVersion version, String body, Integer dictionaryVersionNo, Long createdBy) {
+            Long documentId,
+            PublishedVersion version,
+            String body,
+            Integer dictionaryVersionNo,
+            boolean edited,
+            Long createdBy) {
         this.documentId = documentId;
         this.version = version;
         this.body = body;
         this.dictionaryVersionNo = dictionaryVersionNo;
+        this.edited = edited;
         this.createdBy = createdBy;
     }
 
@@ -69,32 +78,34 @@ public class DocumentVersion extends BaseEntity {
      * 업로드본을 v1으로 발행한다. 대조를 거치지 않았으므로 기준 사전집 버전이 없다.
      */
     public static DocumentVersion publishFirst(Long documentId, String body, Long memberId) {
-        return new DocumentVersion(documentId, PublishedVersion.initial(), normalizeBody(body), null, memberId);
+        return new DocumentVersion(documentId, PublishedVersion.initial(), normalizeBody(body), null, false, memberId);
+    }
+
+    public static DocumentVersion publishEdited(
+            Long documentId, PublishedVersion version, String body, Integer dictionaryVersionNo, Long memberId) {
+        return new DocumentVersion(documentId, version, normalizeBody(body), dictionaryVersionNo, true, memberId);
     }
 
     /**
-     * 최신 사전집에 맞춰지지 않은 버전인지 판정한다.
-     *
-     * <p>기준은 「마지막으로 대조한 시점」이 아니라 「마지막으로 반영된 버전」이다. 대조만 실행하고 교정을 끝내지 않은 문서는 본문이 아직 사전집에 맞춰지지 않았으므로 여전히
-     * outdated다.
-     *
-     * <p>목록 조회는 본문을 빼고 읽으므로 엔티티가 아니라 조회 결과 모델이 같은 판정을 해야 한다. 규칙이 두 벌이 되지 않도록 static으로 두고 양쪽이 이것을 부른다.
+     * 활성 사전집이 없거나, 직접 편집되지 않았고 기준 사전집 버전이 활성 버전과 같으면 정렬된 상태다.
      *
      * @param publishedDictionaryVersionNo 그 버전이 통과한 사전집 버전. 대조 전이면 null
-     * @param activeDictionaryVersionNo 활성 사전집의 버전 번호. 사전집이 없으면 null
+     * @param edited 직접 편집본 여부
+     * @param activeDictionaryVersionNo 활성 사전집 버전. 사전집이 없으면 null
      */
-    public static boolean isOutdated(Integer publishedDictionaryVersionNo, Integer activeDictionaryVersionNo) {
-        if (activeDictionaryVersionNo == null) {
-            return false;
-        }
-
-        return !activeDictionaryVersionNo.equals(publishedDictionaryVersionNo);
+    public static boolean isAligned(
+            Integer publishedDictionaryVersionNo, boolean edited, Integer activeDictionaryVersionNo) {
+        return activeDictionaryVersionNo == null
+                || (!edited && activeDictionaryVersionNo.equals(publishedDictionaryVersionNo));
     }
 
-    public boolean isOutdated(Integer activeDictionaryVersionNo) {
-        return isOutdated(dictionaryVersionNo, activeDictionaryVersionNo);
+    public boolean isAligned(Integer activeDictionaryVersionNo) {
+        return isAligned(dictionaryVersionNo, edited, activeDictionaryVersionNo);
     }
 
+    /**
+     * 값 객체가 가진 버전 번호를 노출한다.
+     */
     public int versionNo() {
         return version.versionNo();
     }

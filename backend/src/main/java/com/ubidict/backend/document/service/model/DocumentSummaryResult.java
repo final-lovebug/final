@@ -12,12 +12,13 @@ public record DocumentSummaryResult(
         Long documentId,
         String title,
         int currentVersionNo,
-        boolean outdated,
+        boolean aligned,
+        boolean edited,
+        Integer dictionaryVersionNo,
         List<String> labels,
         Long uploaderId,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {
-
     public static DocumentSummaryResult of(
             Document document,
             DocumentVersionSummary currentVersion,
@@ -27,7 +28,9 @@ public record DocumentSummaryResult(
                 document.getId(),
                 document.getTitle(),
                 document.getCurrentVersionNo(),
-                currentVersion != null && currentVersion.isOutdated(activeDictionaryVersionNo),
+                currentVersion != null && currentVersion.isAligned(activeDictionaryVersionNo),
+                currentVersion != null && currentVersion.edited(),
+                currentVersion == null ? null : currentVersion.dictionaryVersionNo(),
                 labels,
                 document.getCreatedBy(),
                 document.getCreatedAt(),

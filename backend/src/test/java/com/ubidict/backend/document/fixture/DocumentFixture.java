@@ -51,7 +51,7 @@ public class DocumentFixture {
         }
 
         /**
-         * 반영(Revise) 경로가 아직 없으므로 v2 이상을 만들려면 주입해야 한다.
+         * 직접 편집 경로를 거치지 않고 특정 현재 버전 상태가 필요한 저장소 테스트에서만 주입한다.
          */
         public DocumentBuilder currentVersionNo(Integer currentVersionNo) {
             this.currentVersionNo = currentVersionNo;
