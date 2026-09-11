@@ -54,14 +54,23 @@ public class DocumentVersion extends AuditableEntity {
     private Integer dictionaryVersionNo;
 
     @Column(nullable = false, updatable = false)
+    private boolean edited;
+
+    @Column(nullable = false, updatable = false)
     private Long createdBy;
 
     private DocumentVersion(
-            Long documentId, PublishedVersion version, String body, Integer dictionaryVersionNo, Long createdBy) {
+            Long documentId,
+            PublishedVersion version,
+            String body,
+            Integer dictionaryVersionNo,
+            boolean edited,
+            Long createdBy) {
         this.documentId = documentId;
         this.version = version;
         this.body = body;
         this.dictionaryVersionNo = dictionaryVersionNo;
+        this.edited = edited;
         this.createdBy = createdBy;
     }
 
@@ -69,7 +78,22 @@ public class DocumentVersion extends AuditableEntity {
      * 업로드본을 v1으로 발행한다. 대조를 거치지 않았으므로 기준 사전집 버전이 없다.
      */
     public static DocumentVersion publishFirst(Long documentId, String body, Long memberId) {
-        return new DocumentVersion(documentId, PublishedVersion.initial(), normalizeBody(body), null, memberId);
+        return new DocumentVersion(documentId, PublishedVersion.initial(), normalizeBody(body), null, false, memberId);
+    }
+
+    public static DocumentVersion publishEdited(
+            Long documentId, PublishedVersion version, String body, Integer dictionaryVersionNo, Long memberId) {
+        return new DocumentVersion(documentId, version, normalizeBody(body), dictionaryVersionNo, true, memberId);
+    }
+
+    public static boolean isAligned(
+            Integer publishedDictionaryVersionNo, boolean edited, Integer activeDictionaryVersionNo) {
+        return activeDictionaryVersionNo == null
+                || (!edited && activeDictionaryVersionNo.equals(publishedDictionaryVersionNo));
+    }
+
+    public boolean isAligned(Integer activeDictionaryVersionNo) {
+        return isAligned(dictionaryVersionNo, edited, activeDictionaryVersionNo);
     }
 
     /**
@@ -83,18 +107,6 @@ public class DocumentVersion extends AuditableEntity {
      * @param publishedDictionaryVersionNo 그 버전이 통과한 사전집 버전. 대조 전이면 null
      * @param activeDictionaryVersionNo 활성 사전집의 버전 번호. 사전집이 없으면 null
      */
-    public static boolean isOutdated(Integer publishedDictionaryVersionNo, Integer activeDictionaryVersionNo) {
-        if (activeDictionaryVersionNo == null) {
-            return false;
-        }
-
-        return !activeDictionaryVersionNo.equals(publishedDictionaryVersionNo);
-    }
-
-    public boolean isOutdated(Integer activeDictionaryVersionNo) {
-        return isOutdated(dictionaryVersionNo, activeDictionaryVersionNo);
-    }
-
     public int versionNo() {
         return version.versionNo();
     }
