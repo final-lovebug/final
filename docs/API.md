@@ -347,6 +347,7 @@ POST /api/members
 | GET | `/api/workspaces` | — | `200` |
 | GET | `/api/workspaces/{workspaceId}` | 참여자 | `200` |
 | PATCH | `/api/workspaces/{workspaceId}` | ADMIN 이상 | `204` |
+| PATCH | `/api/workspaces/{workspaceId}/rule-set` | ADMIN 이상 | `200` |
 | DELETE | `/api/workspaces/{workspaceId}` | OWNER | `204` |
 
 ## **워크스페이스 생성**
@@ -377,6 +378,21 @@ POST /api/members
 ```
 
 > 생성·목록·상세가 같은 응답 형식을 쓴다. 생성 직후에는 요청자가 OWNER이고 룰셋이 `0 / 0`이다.
+
+## **워크스페이스 룰셋 수정**
+
+`PATCH /api/workspaces/{workspaceId}/rule-set?memberId={memberId}` → `200 OK`
+
+**ADMIN 이상**만 수정할 수 있다. 각 필수 리뷰어 수는 현재 참여자 수 이하만 허용된다.
+
+```json
+{
+  "requiredDocumentReviewerCount": 2,
+  "requiredDictionaryReviewerCount": 1
+}
+```
+
+응답은 저장된 실제 룰셋을 포함한 `WorkspaceResponse`다.
 
 ## **참여 중인 워크스페이스 목록 조회**
 
