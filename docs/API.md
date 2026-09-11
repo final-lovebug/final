@@ -1002,3 +1002,60 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---
+
+# **DraftDictionary API**
+
+사전집에 반영할 용어의 유래 문서를 관리하는 사전 초안을 생성·조회·수정·삭제한다. 관련 도메인은 `draftdictionary`다.
+
+## **요청자 식별 — 임시 방식**
+
+인증 계층(`NFR-USR-001`)이 없어 요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다. **인증 전까지 운영 배포 대상이 아니다.** Phase 1에서는 권한을 검사하지 않으며 Phase 4에서 워크스페이스 관리자 이상인지 검사한다.
+
+## **엔드포인트**
+
+| **Method** | **Path** | **성공** | **태그** |
+| --- | --- | --- | --- |
+| POST | `/api/draft-dictionaries` | `201` | **SHRINK** |
+| GET | `/api/draft-dictionaries/{draftDictionaryId}` | `200` | KEEP |
+| PUT | `/api/draft-dictionaries/{draftDictionaryId}/source-documents` | `200` | KEEP |
+| DELETE | `/api/draft-dictionaries/{draftDictionaryId}` | `204` | KEEP |
+
+`POST /api/draft-dictionaries?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
+
+```json
+{
+  "workspaceId": 1,
+  "dictionaryId": null,
+  "sourceDocumentIds": [10, 20]
+}
+```
+
+`dictionaryId`는 기존 사전집이 없는 첫 회차에 `null`이다. `sourceDocumentIds`는 최소 1건이어야 하며 중복을 허용하지 않는다. 추출 흐름이 연결되면 생성 진입점은 서버 내부로 옮겨지므로 **SHRINK** 대상이다.
+
+생성·조회·유래 문서 수정 응답은 다음 형식이다.
+
+```json
+{
+  "draftDictionaryId": 100,
+  "workspaceId": 1,
+  "dictionaryId": null,
+  "sourceDocumentIds": [10, 20],
+  "status": "EXAMINING",
+  "createdBy": 7,
+  "createdAt": "2026-09-11T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-11T10:00:00.000000+09:00"
+}
+```
+
+`PUT /api/draft-dictionaries/{draftDictionaryId}/source-documents?memberId={memberId}`는 `sourceDocumentIds`를 전체 교체한다.
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 사전 초안 | 404 | `DRAFT_DICTIONARY_NOT_FOUND` |
+| 유래 문서가 없음 | 400 | `DRAFT_DICTIONARY_SOURCE_DOCUMENT_REQUIRED` |
+| 유래 문서가 중복됨 | 400 | `DRAFT_DICTIONARY_DUPLICATE_SOURCE_DOCUMENT` |
+| 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
+
+---
