@@ -1,5 +1,6 @@
 package com.ubidict.backend.reviewrequest.service.model;
 
+import com.ubidict.backend.reviewrequest.domain.RevisionDictionary;
 import com.ubidict.backend.reviewrequest.domain.RevisionDocument;
 
 public record RevisionResult(
@@ -18,6 +19,17 @@ public record RevisionResult(
                 r.getBaseVersionNo(),
                 r.getDraftDocumentId(),
                 r.getProposedBody(),
+                r.getReexamineRound());
+    }
+
+    public static RevisionResult from(RevisionDictionary r) {
+        return new RevisionResult(
+                r.getId(),
+                r.getReviewRequestId(),
+                r.getDictionaryId(),
+                r.getBaseVersionNo(),
+                r.getDraftDictionaryId(),
+                null,
                 r.getReexamineRound());
     }
 }

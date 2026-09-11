@@ -1,9 +1,12 @@
 package com.ubidict.backend.reviewrequest.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.reviewrequest.domain.RevisionDictionary;
 import com.ubidict.backend.reviewrequest.domain.RevisionDocument;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
+import com.ubidict.backend.reviewrequest.implement.RevisionDictionaryReader;
+import com.ubidict.backend.reviewrequest.implement.RevisionDictionaryWriter;
 import com.ubidict.backend.reviewrequest.implement.RevisionDocumentReader;
 import com.ubidict.backend.reviewrequest.implement.RevisionDocumentWriter;
 import com.ubidict.backend.reviewrequest.implement.RevisionTypeValidator;
@@ -19,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class RevisionService {
     private final RevisionDocumentReader documents;
     private final RevisionDocumentWriter documentWriter;
+    private final RevisionDictionaryReader dictionaries;
+    private final RevisionDictionaryWriter dictionaryWriter;
     private final ReviewRequestReader requestReader;
     private final RevisionTypeValidator typeValidator;
 
@@ -40,6 +45,27 @@ public class RevisionService {
     @Transactional(readOnly = true)
     public List<RevisionResult> documents(Long requestId, Integer round) {
         return documents.read(requestId, round).stream()
+                .map(RevisionResult::from)
+                .toList();
+    }
+
+    @Transactional
+    public RevisionResult submitDictionary(SubmitRevisionCommand command) {
+        typeValidator.validate(requestReader.read(command.reviewRequestId()), false);
+        if (dictionaries.exists(command.reviewRequestId(), 0)) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_REVISION_ALREADY_EXISTS);
+        }
+        return RevisionResult.from(dictionaryWriter.write(RevisionDictionary.create(
+                command.reviewRequestId(),
+                command.targetId(),
+                command.baseVersionNo(),
+                command.draftId(),
+                command.actorId())));
+    }
+
+    @Transactional(readOnly = true)
+    public List<RevisionResult> dictionaries(Long requestId, Integer round) {
+        return dictionaries.read(requestId, round).stream()
                 .map(RevisionResult::from)
                 .toList();
     }

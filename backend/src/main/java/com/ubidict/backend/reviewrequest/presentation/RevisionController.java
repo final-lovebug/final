@@ -1,6 +1,7 @@
 package com.ubidict.backend.reviewrequest.presentation;
 
 import com.ubidict.backend.reviewrequest.presentation.dto.RevisionResponse;
+import com.ubidict.backend.reviewrequest.presentation.dto.SubmitRevisionDictionaryRequest;
 import com.ubidict.backend.reviewrequest.presentation.dto.SubmitRevisionDocumentRequest;
 import com.ubidict.backend.reviewrequest.service.RevisionService;
 import jakarta.validation.Valid;
@@ -35,6 +36,23 @@ public class RevisionController {
     public ResponseEntity<List<RevisionResponse>> documents(
             @PathVariable Long reviewRequestId, @RequestParam(required = false) Integer round) {
         return ResponseEntity.ok(service.documents(reviewRequestId, round).stream()
+                .map(RevisionResponse::from)
+                .toList());
+    }
+
+    @PostMapping("/revision-dictionaries")
+    public ResponseEntity<RevisionResponse> dictionary(
+            @PathVariable Long reviewRequestId,
+            @RequestParam Long memberId,
+            @Valid @RequestBody SubmitRevisionDictionaryRequest r) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(RevisionResponse.from(service.submitDictionary(r.toCommand(reviewRequestId, memberId))));
+    }
+
+    @GetMapping("/revision-dictionaries")
+    public ResponseEntity<List<RevisionResponse>> dictionaries(
+            @PathVariable Long reviewRequestId, @RequestParam(required = false) Integer round) {
+        return ResponseEntity.ok(service.dictionaries(reviewRequestId, round).stream()
                 .map(RevisionResponse::from)
                 .toList());
     }
