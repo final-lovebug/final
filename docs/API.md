@@ -86,6 +86,12 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 
 ---
 
+## DraftDictionary Phase 2 Candidate Terms
+
+`POST /api/draft-dictionaries/{id}/candidate-terms` registers a candidate (`form`, optional definition/name, occurrence count, source documents and context snippets) and returns `201`.
+`GET /api/draft-dictionaries/{id}/candidate-terms` returns `PageResponse`; supports `status`, partial `form`, `minOccurrenceCount`, `page`, `size`, and `sort=occurrenceCount,desc`.
+`GET/PATCH/DELETE /api/candidate-terms/{candidateTermId}` reads, edits, and physically removes a candidate. Blank form, invalid occurrence count, duplicate form, and unsupported sort are rejected.
+
 # **Auth API**
 
 로그인과 토큰 수명 관리를 담당한다. 관련 도메인은 `member`다.
