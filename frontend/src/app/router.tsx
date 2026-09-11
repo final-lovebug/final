@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { AppLayout } from './AppLayout'
 import { RequireAuth } from './RequireAuth'
 import { LoginPage } from '../pages/LoginPage'
+import { OAuthCallbackPage } from '../pages/OAuthCallbackPage'
 import { WorkspacesPage } from '../pages/WorkspacesPage'
 import { DocumentListPage } from '../pages/document/DocumentListPage'
 import { DocumentDraftListPage } from '../pages/document/DocumentDraftListPage'
@@ -30,6 +31,11 @@ import { SettingsLabelsPage } from '../pages/settings/SettingsLabelsPage'
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/login" replace /> },
   { path: '/login', element: <LoginPage />, handle: { title: '로그인' } },
+  {
+    path: '/oauth/callback',
+    element: <OAuthCallbackPage />,
+    handle: { title: '로그인 처리 중' },
+  },
   {
     element: <RequireAuth />,
     children: [
