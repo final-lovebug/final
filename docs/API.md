@@ -946,9 +946,21 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | **Method** | **Path** | **권한** | **성공** | **태그** |
 | --- | --- | --- | --- | --- |
 | POST | `/api/review-requests` | 참여자 | `201` | **INTERNALIZE** |
+| GET | `/api/review-requests` | 참여자 | `200` | KEEP |
 | GET | `/api/review-requests/{reviewRequestId}` | 참여자 | `200` | KEEP |
 | PATCH | `/api/review-requests/{reviewRequestId}` | 참여자 | `200` | KEEP |
 | POST | `/api/review-requests/{reviewRequestId}/cancellation` | 요청자 | `200` | KEEP |
+| POST | `/api/review-requests/{reviewRequestId}/reviewers` | 참여자 | `201` | KEEP |
+| GET | `/api/review-requests/{reviewRequestId}/reviewers` | 참여자 | `200` | KEEP |
+| DELETE | `/api/review-requests/{reviewRequestId}/reviewers/{reviewerId}` | 참여자 | `204` | KEEP |
+| POST | `/api/review-requests/{reviewRequestId}/revision-documents` | 참여자 | `201` | **INTERNALIZE** |
+| GET | `/api/review-requests/{reviewRequestId}/revision-documents` | 참여자 | `200` | KEEP |
+| POST | `/api/review-requests/{reviewRequestId}/revision-dictionaries` | 참여자 | `201` | **INTERNALIZE** |
+| GET | `/api/review-requests/{reviewRequestId}/revision-dictionaries` | 참여자 | `200` | KEEP |
+
+목록 조회는 `workspaceId`가 필수이며 `type`, `status`, `requesterId`, `reviewerMemberId`로 필터링한다. `page`는 0부터 시작하고 `size`는 1~100, `sort`는 `createdAt`, `updatedAt`, `id`와 `asc`/`desc` 조합만 허용한다.
+
+리비전 조회는 선택적인 `round` 파라미터로 재교정 회차를 지정할 수 있다. 첫 사전집의 사전 개정안은 `dictionaryId`를 생략하고 `baseVersionNo`를 `0`으로 보낸다.
 
 ## **리뷰 요청 생성**
 
@@ -1019,6 +1031,12 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 요청 유형이 올바르지 않음 | 400 | `REVIEW_REQUEST_INVALID_TYPE` |
 | 요청자가 아닌 참여자가 취소를 시도 | 403 | `REVIEW_REQUEST_NOT_REQUESTER` |
 | 현재 상태에서 취소할 수 없음 | 409 | `REVIEW_REQUEST_INVALID_STATUS_TRANSITION` |
+| 목록 조회에 `workspaceId`가 없음 | 400 | `REVIEW_REQUEST_WORKSPACE_ID_REQUIRED` |
+| 리뷰어를 찾을 수 없음 | 404 | `REVIEW_REQUEST_REVIEWER_NOT_FOUND` |
+| 리뷰어가 중복 지정됨 | 409 | `REVIEW_REQUEST_DUPLICATE_REVIEWER` |
+| 개정안을 찾을 수 없음 | 404 | `REVIEW_REQUEST_REVISION_NOT_FOUND` |
+| 같은 회차의 개정안이 이미 있음 | 409 | `REVIEW_REQUEST_REVISION_ALREADY_EXISTS` |
+| 요청 유형과 개정안 종류가 다름 | 400 | `REVIEW_REQUEST_TYPE_MISMATCHED` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---

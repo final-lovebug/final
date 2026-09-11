@@ -1,0 +1,2 @@
+create table reviewer (id bigint not null auto_increment, review_request_id bigint not null, member_id bigint not null, assigned_at datetime(6) not null, created_by bigint not null, created_at datetime(6) not null, updated_at datetime(6) not null, deleted_at datetime(6), primary key(id), constraint fk_reviewer_request foreign key(review_request_id) references review_request(id));
+create unique index uq_reviewer_request_member on reviewer(review_request_id, member_id);

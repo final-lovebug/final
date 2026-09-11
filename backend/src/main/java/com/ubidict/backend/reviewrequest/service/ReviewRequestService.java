@@ -1,5 +1,6 @@
 package com.ubidict.backend.reviewrequest.service;
 
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequest;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestRemover;
@@ -7,6 +8,7 @@ import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
 import com.ubidict.backend.reviewrequest.service.model.CancelReviewRequestCommand;
 import com.ubidict.backend.reviewrequest.service.model.CreateReviewRequestCommand;
 import com.ubidict.backend.reviewrequest.service.model.ReviewRequestResult;
+import com.ubidict.backend.reviewrequest.service.model.ReviewRequestSearchQuery;
 import com.ubidict.backend.reviewrequest.service.model.UpdateReviewRequestCommand;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,11 @@ public class ReviewRequestService {
     private final ReviewRequestWriter reviewRequestWriter;
     private final ReviewRequestRemover reviewRequestRemover;
     private final WorkspaceAccessValidator workspaceAccessValidator;
+
+    @Transactional(readOnly = true)
+    public PageResult<ReviewRequestResult> search(ReviewRequestSearchQuery query) {
+        return reviewRequestReader.search(query).map(ReviewRequestResult::from);
+    }
 
     @Transactional
     public ReviewRequestResult create(CreateReviewRequestCommand command) {
