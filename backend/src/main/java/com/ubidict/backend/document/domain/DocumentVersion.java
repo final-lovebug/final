@@ -1,6 +1,6 @@
 package com.ubidict.backend.document.domain;
 
-import com.ubidict.backend.common.domain.AuditableEntity;
+import com.ubidict.backend.common.domain.BaseEntity;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.document.exception.DocumentErrorCode;
 import jakarta.persistence.Column;
@@ -24,12 +24,12 @@ import lombok.NoArgsConstructor;
  * <p>버전 번호와 확정일시는 {@link PublishedVersion} 값 객체로 묶는다. 사전집의 Dictionary가 DictionaryVersion을 품는 것과 같은 구조다 —
  * 둘은 함께 파생되고 같은 불변식을 공유한다. 호출자가 체이닝하지 않도록 versionNo()·publishedAt() 위임 메서드를 둔다.
  *
- * <p>BaseEntity를 상속하지 않는다. 삭제 경로가 없어 deletedAt이 필요 없다.
+ * <p>공통 감사·삭제 시각 규약을 따르기 위해 {@link BaseEntity}를 상속한다. 현재 버전 삭제 유스케이스는 제공하지 않는다.
  */
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class DocumentVersion extends AuditableEntity {
+public class DocumentVersion extends BaseEntity {
 
     public static final int BODY_MAX_LENGTH = 10_000;
 

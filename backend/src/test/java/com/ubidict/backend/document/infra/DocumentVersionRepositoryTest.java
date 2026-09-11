@@ -56,6 +56,7 @@ class DocumentVersionRepositoryTest extends RepositoryTestSupport {
         DocumentVersion found =
                 documentVersionRepository.findById(saved.getId()).orElseThrow();
         assertThat(found.getBody()).hasSize(DocumentVersion.BODY_MAX_LENGTH);
+        assertThat(found.getDeletedAt()).isNull();
     }
 
     @DisplayName("같은 문서에 같은 버전 번호를 넣으면 유니크 제약에 걸린다.")
