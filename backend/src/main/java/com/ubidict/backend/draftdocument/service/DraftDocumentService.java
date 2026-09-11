@@ -1,14 +1,17 @@
 package com.ubidict.backend.draftdocument.service;
 
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.draftdocument.domain.DraftDocument;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentReader;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentRemover;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentWriter;
 import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
+import com.ubidict.backend.draftdocument.service.model.DraftDocumentSearchQuery;
 import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,5 +69,19 @@ public class DraftDocumentService {
                 "[DraftDocumentService.delete] Draft document deleted. draftDocumentId={}, memberId={}",
                 draftDocument.getId(),
                 memberId);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<DraftDocumentResult> search(DraftDocumentSearchQuery q) {
+        String[] p = q.sort().split(",");
+        Page<DraftDocument> r = draftDocumentReader.search(
+                q.documentId(),
+                q.status(),
+                PageRequest.of(q.page(), q.size(), Sort.by(Sort.Direction.fromString(p[1]), p[0])));
+        return new PageResult<>(
+                r.getContent().stream().map(DraftDocumentResult::from).toList(),
+                q.page(),
+                q.size(),
+                r.getTotalElements());
     }
 }

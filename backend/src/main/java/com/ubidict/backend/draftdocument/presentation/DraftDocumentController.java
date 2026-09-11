@@ -1,9 +1,12 @@
 package com.ubidict.backend.draftdocument.presentation;
 
+import com.ubidict.backend.common.presentation.PageResponse;
+import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.presentation.dto.CreateDraftDocumentRequest;
 import com.ubidict.backend.draftdocument.presentation.dto.DraftDocumentResponse;
 import com.ubidict.backend.draftdocument.presentation.dto.UpdateDraftBodyRequest;
 import com.ubidict.backend.draftdocument.service.DraftDocumentService;
+import com.ubidict.backend.draftdocument.service.model.DraftDocumentSearchQuery;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,6 +32,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class DraftDocumentController {
 
     private final DraftDocumentService draftDocumentService;
+
+    @GetMapping
+    public PageResponse<DraftDocumentResponse> search(
+            @RequestParam(required = false) Long documentId,
+            @RequestParam(required = false) DraftDocumentStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort) {
+        return PageResponse.from(draftDocumentService
+                .search(new DraftDocumentSearchQuery(documentId, status, page, size, sort))
+                .map(DraftDocumentResponse::from));
+    }
 
     @PostMapping
     public ResponseEntity<DraftDocumentResponse> create(
