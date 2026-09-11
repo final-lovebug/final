@@ -5,6 +5,7 @@ import com.ubidict.backend.document.domain.DocumentVersion;
 import com.ubidict.backend.document.domain.Label;
 import com.ubidict.backend.document.implement.DocumentAlignmentReader;
 import com.ubidict.backend.document.implement.DocumentAppender;
+import com.ubidict.backend.document.implement.DocumentEditGuard;
 import com.ubidict.backend.document.implement.DocumentLabelReader;
 import com.ubidict.backend.document.implement.DocumentLabelWriter;
 import com.ubidict.backend.document.implement.DocumentReader;
@@ -52,6 +53,7 @@ public class DocumentService {
     private final LabelAppender labelAppender;
     private final WorkspaceAccessValidator workspaceAccessValidator;
     private final DocumentAlignmentReader documentAlignmentReader;
+    private final DocumentEditGuard documentEditGuard;
 
     /**
      * 문서와 v1 버전을 한 트랜잭션에서 만든다. 본문이 버전에만 있으므로 v1이 빠지면 본문 없는 문서가 남는다.
@@ -117,6 +119,7 @@ public class DocumentService {
     public DocumentResult editContent(EditDocumentContentCommand command) {
         workspaceAccessValidator.validateParticipant(command.workspaceId(), command.memberId());
         Document document = documentReader.read(command.documentId(), command.workspaceId());
+        documentEditGuard.validate(document.getId());
         DocumentVersion previous = documentVersionReader.readCurrent(document);
         document.publishNext(command.memberId());
         DocumentVersion version =
