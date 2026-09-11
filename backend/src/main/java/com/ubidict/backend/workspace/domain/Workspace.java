@@ -56,6 +56,10 @@ public class Workspace extends BaseEntity {
         this.name = name;
     }
 
+    public void changeRuleSet(RuleSet ruleSet) {
+        this.ruleSet = ruleSet;
+    }
+
     private static void validateName(String name) {
         if (name == null || name.isBlank() || name.length() > NAME_MAX_LENGTH) {
             throw new BusinessException(WorkspaceErrorCode.WORKSPACE_INVALID_NAME);
