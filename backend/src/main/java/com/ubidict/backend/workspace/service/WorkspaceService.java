@@ -2,9 +2,11 @@ package com.ubidict.backend.workspace.service;
 
 import com.ubidict.backend.workspace.domain.Participant;
 import com.ubidict.backend.workspace.domain.Permission;
+import com.ubidict.backend.workspace.domain.RuleSet;
 import com.ubidict.backend.workspace.domain.Workspace;
 import com.ubidict.backend.workspace.implement.ParticipantAppender;
 import com.ubidict.backend.workspace.implement.ParticipantReader;
+import com.ubidict.backend.workspace.implement.RuleSetValidator;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import com.ubidict.backend.workspace.implement.WorkspaceAppender;
 import com.ubidict.backend.workspace.implement.WorkspaceReader;
@@ -28,6 +30,7 @@ public class WorkspaceService {
     private final ParticipantReader participantReader;
     private final ParticipantAppender participantAppender;
     private final WorkspaceAccessValidator workspaceAccessValidator;
+    private final RuleSetValidator ruleSetValidator;
 
     /**
      * 워크스페이스와 Owner 참여자를 한 트랜잭션에서 만든다. "Owner가 정확히 1명"을 이 경계가 보장한다.
@@ -67,6 +70,18 @@ public class WorkspaceService {
         Workspace workspace = workspaceReader.read(command.workspaceId());
 
         workspaceUpdater.rename(workspace, command.name());
+    }
+
+    @Transactional
+    public WorkspaceResult changeRuleSet(UpdateRuleSetCommand command) {
+        Permission permission = workspaceAccessValidator.validateParticipant(command.workspaceId(), command.memberId());
+        workspaceAccessValidator.validateAtLeast(command.workspaceId(), command.memberId(), Permission.ADMIN);
+        Workspace workspace = workspaceReader.read(command.workspaceId());
+        RuleSet ruleSet =
+                new RuleSet(command.requiredDocumentReviewerCount(), command.requiredDictionaryReviewerCount());
+        ruleSetValidator.validate(workspace, ruleSet);
+        workspaceUpdater.changeRuleSet(workspace, ruleSet);
+        return WorkspaceResult.of(workspace, permission);
     }
 
     @Transactional

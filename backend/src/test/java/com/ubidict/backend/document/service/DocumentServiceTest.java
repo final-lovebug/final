@@ -4,9 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.dictionary.fixture.DictionaryFixture;
+import com.ubidict.backend.dictionary.infra.DictionaryRepository;
+import com.ubidict.backend.document.domain.Document;
 import com.ubidict.backend.document.exception.DocumentErrorCode;
 import com.ubidict.backend.document.fixture.DocumentFixture;
 import com.ubidict.backend.document.fixture.DocumentVersionFixture;
+import com.ubidict.backend.document.infra.DocumentRepository;
 import com.ubidict.backend.document.infra.DocumentVersionRepository;
 import com.ubidict.backend.document.infra.LabelRepository;
 import com.ubidict.backend.document.service.model.CreateDocumentCommand;
@@ -14,6 +18,7 @@ import com.ubidict.backend.document.service.model.DocumentResult;
 import com.ubidict.backend.document.service.model.DocumentSummaryResult;
 import com.ubidict.backend.document.service.model.DocumentVersionResult;
 import com.ubidict.backend.document.service.model.DocumentVersionSummaryResult;
+import com.ubidict.backend.document.service.model.EditDocumentContentCommand;
 import com.ubidict.backend.document.service.model.LabelResult;
 import com.ubidict.backend.document.service.model.UpdateDocumentCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
@@ -29,7 +34,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.TestPropertySource;
 
+@TestPropertySource(properties = "app.crossdomain.dictionary.mode=real")
 class DocumentServiceTest extends IntegrationTestSupport {
 
     private static final Long OWNER_ID = 1L;
@@ -47,7 +54,13 @@ class DocumentServiceTest extends IntegrationTestSupport {
     private ParticipantRepository participantRepository;
 
     @Autowired
+    private DocumentRepository documentRepository;
+
+    @Autowired
     private DocumentVersionRepository documentVersionRepository;
+
+    @Autowired
+    private DictionaryRepository dictionaryRepository;
 
     @Autowired
     private LabelRepository labelRepository;
@@ -155,7 +168,7 @@ class DocumentServiceTest extends IntegrationTestSupport {
         assertThat(results).extracting(DocumentSummaryResult::title).containsExactly(TITLE);
     }
 
-    @DisplayName("사전집이 없으면 갱신할 대상이 없으므로 outdated가 false다.")
+    @DisplayName("활성 사전집이 없으면 정렬된 것으로 응답한다.")
     @Test
     void readAll_dictionaryIsAbsent() {
         // given
@@ -165,7 +178,39 @@ class DocumentServiceTest extends IntegrationTestSupport {
         List<DocumentSummaryResult> results = documentService.readAll(workspaceId, OWNER_ID, null);
 
         // then
-        assertThat(results).allMatch(result -> !result.outdated());
+        assertThat(results).allMatch(DocumentSummaryResult::aligned);
+    }
+
+    @DisplayName("사전집이 새 버전을 발행하면 문서가 정렬되지 않은 것으로 바뀐다.")
+    @Test
+    void readAll_alignedIsFalseWhenDictionaryIsRevised() {
+        // given
+        saveDocumentWithVersion(1, false);
+        saveActiveDictionary(2);
+
+        // when
+        List<DocumentSummaryResult> results = documentService.readAll(workspaceId, OWNER_ID, null);
+
+        // then
+        assertThat(results)
+                .singleElement()
+                .extracting(DocumentSummaryResult::aligned)
+                .isEqualTo(false);
+    }
+
+    @DisplayName("문서 상세는 활성 사전집과 같은 기준 버전을 정렬된 것으로 응답한다.")
+    @Test
+    void read_alignedWithActiveDictionary() {
+        // given
+        Document document = saveDocumentWithVersion(2, false);
+        saveActiveDictionary(2);
+
+        // when
+        DocumentResult result = documentService.read(workspaceId, document.getId(), OWNER_ID);
+
+        // then
+        assertThat(result.aligned()).isTrue();
+        assertThat(result.dictionaryVersionNo()).isEqualTo(2);
     }
 
     @DisplayName("라벨을 붙이면 목록에 함께 나온다.")
@@ -278,6 +323,43 @@ class DocumentServiceTest extends IntegrationTestSupport {
                 .containsExactly("설계");
     }
 
+    @DisplayName("본문을 편집하면 새 버전이 발행된다.")
+    @Test
+    void editContent_publishesNewVersion() {
+        // given
+        DocumentResult created = create(TITLE, "첫 본문", List.of());
+
+        // when
+        DocumentResult result = documentService.editContent(
+                new EditDocumentContentCommand(workspaceId, created.documentId(), "편집한 본문", REGULAR_ID));
+
+        // then
+        assertThat(result.currentVersionNo()).isEqualTo(2);
+        assertThat(result.content()).isEqualTo("편집한 본문");
+        assertThat(result.edited()).isTrue();
+        assertThat(documentVersionRepository.findByDocumentIdAndVersionVersionNo(created.documentId(), 2))
+                .isPresent();
+    }
+
+    @DisplayName("직접 편집본은 이전 버전의 기준 사전집 버전을 승계한다.")
+    @Test
+    void editContent_inheritsDictionaryVersionNo() {
+        // given
+        Document document = saveDocumentWithVersion(3, false);
+
+        // when
+        DocumentResult result = documentService.editContent(
+                new EditDocumentContentCommand(workspaceId, document.getId(), "편집한 본문", OWNER_ID));
+
+        // then
+        assertThat(result.dictionaryVersionNo()).isEqualTo(3);
+        assertThat(documentVersionRepository
+                        .findByDocumentIdAndVersionVersionNo(document.getId(), 2)
+                        .orElseThrow()
+                        .getDictionaryVersionNo())
+                .isEqualTo(3);
+    }
+
     @DisplayName("REGULAR는 문서를 삭제할 수 없다.")
     @Test
     void delete_permissionIsBelowAdmin() {
@@ -384,13 +466,31 @@ class DocumentServiceTest extends IntegrationTestSupport {
     }
 
     /**
-     * 반영(Revise) 경로가 아직 없으므로 v2는 리포지토리에 직접 넣는다.
+     * 특정 버전 이력 조회만 검증하므로 편집 유스케이스를 거치지 않고 v2를 저장한다.
      */
     private void publishSecondVersion(Long documentId) {
         documentVersionRepository.save(DocumentVersionFixture.documentVersion()
                 .documentId(documentId)
                 .versionNo(2)
                 .body("둘째 본문")
+                .build());
+    }
+
+    private Document saveDocumentWithVersion(int dictionaryVersionNo, boolean edited) {
+        Document document = documentRepository.save(
+                DocumentFixture.document().workspaceId(workspaceId).build());
+        documentVersionRepository.save(DocumentVersionFixture.documentVersion()
+                .documentId(document.getId())
+                .dictionaryVersionNo(dictionaryVersionNo)
+                .edited(edited)
+                .build());
+        return document;
+    }
+
+    private void saveActiveDictionary(int versionNo) {
+        dictionaryRepository.save(DictionaryFixture.dictionary()
+                .workspaceId(workspaceId)
+                .versionNo(versionNo)
                 .build());
     }
 

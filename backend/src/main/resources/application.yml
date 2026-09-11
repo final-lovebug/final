@@ -15,6 +15,9 @@ spring:
             client-secret: "${GOOGLE_CLIENT_SECRET}"
 
 app:
+  crossdomain:
+    dictionary:
+      mode: ${DICTIONARY_CROSSDOMAIN_MODE:stub}
   jwt:
     secret: "${JWT_SECRET:local-dev-only-jwt-secret-do-not-use-in-production-0123456789}"
     access-token-validity: 30m

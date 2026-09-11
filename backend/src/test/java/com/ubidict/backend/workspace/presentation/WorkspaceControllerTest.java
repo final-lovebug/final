@@ -205,4 +205,33 @@ class WorkspaceControllerTest {
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
+
+    @DisplayName("룰셋을 수정하면 200과 저장된 값을 응답한다.")
+    @Test
+    void changeRuleSet() {
+        given(workspaceService.changeRuleSet(any()))
+                .willReturn(new WorkspaceResult(WORKSPACE_ID, "개발팀", 2, 3, Permission.OWNER, OffsetDateTime.now()));
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("{\"requiredDocumentReviewerCount\":2,\"requiredDictionaryReviewerCount\":3}")
+                .when()
+                .patch("/api/workspaces/{workspaceId}/rule-set?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("requiredDocumentReviewerCount", equalTo(2))
+                .body("requiredDictionaryReviewerCount", equalTo(3));
+    }
+
+    @DisplayName("음수 리뷰어 수는 400으로 응답한다.")
+    @Test
+    void changeRuleSet_negativeCount() {
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("{\"requiredDocumentReviewerCount\":-1,\"requiredDictionaryReviewerCount\":0}")
+                .when()
+                .patch("/api/workspaces/{workspaceId}/rule-set?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .body("code", equalTo("COMMON_INVALID_REQUEST"));
+    }
 }

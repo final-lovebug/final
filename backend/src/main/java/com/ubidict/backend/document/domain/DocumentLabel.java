@@ -1,6 +1,6 @@
 package com.ubidict.backend.document.domain;
 
-import com.ubidict.backend.common.domain.AuditableEntity;
+import com.ubidict.backend.common.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class DocumentLabel extends AuditableEntity {
+public class DocumentLabel extends BaseEntity {
 
     /**
      * 문서당 라벨 개수 상한. 목록에서 한눈에 읽히는 수를 넘지 않게 한다.

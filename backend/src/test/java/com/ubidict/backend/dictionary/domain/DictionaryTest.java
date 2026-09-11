@@ -2,7 +2,6 @@ package com.ubidict.backend.dictionary.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.OffsetDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -87,16 +86,16 @@ class DictionaryTest {
         assertThat(dictionary.getStatus()).isEqualTo(DictionaryStatus.ARCHIVED);
     }
 
-    @DisplayName("확정일시는 버전 값 객체의 값을 반환한다.")
+    /**
+     * 사전집은 삭제하지 않는다. 모든 행이 보존해야 할 버전 이력이다.
+     */
+    @DisplayName("확정일시는 버전 값 객체에 위임한다.")
     @Test
     void publishedAt_delegatesToVersion() {
-        // given
+        // when
         Dictionary dictionary = Dictionary.createFirst(WORKSPACE_ID, CREATED_BY);
 
-        // when
-        OffsetDateTime publishedAt = dictionary.publishedAt();
-
         // then
-        assertThat(publishedAt).isEqualTo(dictionary.getVersion().publishedAt());
+        assertThat(dictionary.publishedAt()).isEqualTo(dictionary.getVersion().publishedAt());
     }
 }

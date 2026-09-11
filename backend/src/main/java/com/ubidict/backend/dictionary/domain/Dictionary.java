@@ -1,6 +1,6 @@
 package com.ubidict.backend.dictionary.domain;
 
-import com.ubidict.backend.common.domain.AuditableEntity;
+import com.ubidict.backend.common.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -23,12 +23,12 @@ import lombok.NoArgsConstructor;
  * <p>워크스페이스를 @ManyToOne으로 참조하지 않고 식별자로만 가리킨다. 애그리게잇 경계를 식별자로 넘어 지연 로딩 프록시가 상위 레이어로 새는 경로를 막는다. 같은 이유로 Term
  * 컬렉션도 매달지 않는다 — 용어 수백 개를 통째로 끌고 다니지 않기 위해 TermReader가 따로 읽는다.
  *
- * <p>삭제 경로가 없어 deletedAt이 필요하지 않으므로 AuditableEntity를 상속한다.
+ * <p>공통 감사·삭제 시각 규약을 따르기 위해 {@link BaseEntity}를 상속한다. 현재 사전집 삭제 유스케이스는 제공하지 않는다.
  */
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Dictionary extends AuditableEntity {
+public class Dictionary extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

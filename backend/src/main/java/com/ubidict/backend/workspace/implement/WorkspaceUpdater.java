@@ -1,5 +1,6 @@
 package com.ubidict.backend.workspace.implement;
 
+import com.ubidict.backend.workspace.domain.RuleSet;
 import com.ubidict.backend.workspace.domain.Workspace;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,11 @@ public class WorkspaceUpdater {
 
     public void rename(Workspace workspace, String name) {
         workspace.rename(name);
+        workspaceRepository.save(workspace);
+    }
+
+    public void changeRuleSet(Workspace workspace, RuleSet ruleSet) {
+        workspace.changeRuleSet(ruleSet);
         workspaceRepository.save(workspace);
     }
 }

@@ -34,7 +34,7 @@ public class DictionaryController {
     /**
      * 새 사전집 버전을 반영한다.
      *
-     * <p>TODO(REQ-REV-005): 사전집 버전은 원래 리뷰 승인의 산출물이다. 리뷰 도메인이 완성되면 승인 처리가 DictionaryService.revise를 직접
+     * <p>TODO(REQ-REV-005, DIC-1): 사전집 버전은 원래 리뷰 승인의 산출물이다. 리뷰 도메인이 완성되면 승인 처리가 DictionaryService.revise를 직접
      * 호출하도록 옮기고 이 엔드포인트를 제거한다.
      */
     @PostMapping("/versions")
