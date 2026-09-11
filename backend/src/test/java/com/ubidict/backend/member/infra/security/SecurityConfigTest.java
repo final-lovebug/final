@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
     GoogleOAuth2LoginSuccessHandler.class,
     GoogleOAuth2LoginFailureHandler.class
 })
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class})
 @WebMvcTest(controllers = SecurityConfigTest.TestController.class)
 class SecurityConfigTest {
 
@@ -158,6 +158,49 @@ class SecurityConfigTest {
                 .get("/api/admin/ping")
                 .then()
                 .statusCode(HttpStatus.OK.value());
+    }
+
+    @DisplayName("허용된 origin에서 preflight 요청을 보내면 CORS 헤더를 포함해 200을 응답한다.")
+    @Test
+    void corsPreflight_allowedOrigin() {
+        RestAssuredMockMvc.given()
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "GET")
+                .when()
+                .options("/api/protected/ping")
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .header("Access-Control-Allow-Origin", equalTo("http://localhost:5173"))
+                .header("Access-Control-Allow-Credentials", equalTo("true"));
+    }
+
+    @DisplayName("허용되지 않은 origin에서 preflight 요청을 보내면 403을 응답한다.")
+    @Test
+    void corsPreflight_disallowedOrigin() {
+        RestAssuredMockMvc.given()
+                .header("Origin", "http://evil.example.com")
+                .header("Access-Control-Request-Method", "GET")
+                .when()
+                .options("/api/protected/ping")
+                .then()
+                .statusCode(HttpStatus.FORBIDDEN.value());
+    }
+
+    @DisplayName("허용된 origin에서 인증된 실제 요청을 보내면 Access-Control-Allow-Origin 헤더를 포함해 응답한다.")
+    @Test
+    void corsActualRequest_allowedOrigin() {
+        // given
+        String accessToken = jwtProvider.issueAccessToken(1L, MemberRole.REGULAR);
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .header("Origin", "http://localhost:5173")
+                .header("Authorization", "Bearer " + accessToken)
+                .when()
+                .get("/api/protected/ping")
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .header("Access-Control-Allow-Origin", equalTo("http://localhost:5173"));
     }
 
     @RequestMapping

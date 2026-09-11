@@ -11,8 +11,10 @@ export interface Member {
   displayName: string
   status: MemberStatus
   role: MemberSiteRole
-  provider: SocialProvider
-  providerId: string
-  createdAt: string
-  updatedAt: string
+  // GET /api/members/me(docs/API.md "내 정보 조회")는 이 네 필드를 내려주지 않는다 — 실 로그인
+  // 연동(features/member/api/fetchCurrentMember.ts)에서는 비워두므로 옵셔널로 둔다.
+  provider?: SocialProvider
+  providerId?: string
+  createdAt?: string
+  updatedAt?: string
 }

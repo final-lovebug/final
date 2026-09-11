@@ -24,9 +24,11 @@ app:
     access-token-validity: 30m
     refresh-token-validity: 7d
   oauth:
-    frontend-redirect-uri: "${OAUTH_FRONTEND_REDIRECT_URI:http://localhost:3000/oauth/callback}"
+    frontend-redirect-uri: "${OAUTH_FRONTEND_REDIRECT_URI:http://localhost:5173/oauth/callback}"
   auth:
     cookie:
       secure: true
+  cors:
+    allowed-origins: "${CORS_ALLOWED_ORIGINS:http://localhost:5173}"
   worker:
     enabled: false

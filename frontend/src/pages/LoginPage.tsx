@@ -1,17 +1,13 @@
-import { useNavigate } from 'react-router-dom'
 import { Button, Card } from '../shared/ui'
-import { useAuthStore } from '../shared/stores/authStore'
-import { routes } from '../shared/config/routes'
+import { API_BASE_URL } from '../shared/config/env'
 
-// AppLayout(사이드바/탑바) 밖의 비인증 라우트. 실제 Google OAuth 연동은 이번 작업 범위 밖
-// (frontend/docs/SPEC.md "백엔드 연동 범위" 참고) — 지금은 Zustand 목업 로그인만 있다.
+// AppLayout(사이드바/탑바) 밖의 비인증 라우트. 버튼을 누르면 백엔드의 Google OAuth2 로그인
+// 시작 엔드포인트로 전체 페이지 리다이렉트한다(docs/API.md "로그인 시작",
+// GET /oauth2/authorization/google). 로그인 완료 후 백엔드가 /oauth/callback으로 되돌려보내면
+// OAuthCallbackPage가 나머지(코드 교환·세션 시작)를 처리한다.
 export function LoginPage() {
-  const navigate = useNavigate()
-  const loginAsMock = useAuthStore((state) => state.loginAsMock)
-
   function handleLogin() {
-    loginAsMock()
-    navigate(routes.workspaces())
+    window.location.href = `${API_BASE_URL}/oauth2/authorization/google`
   }
 
   return (
@@ -29,7 +25,7 @@ export function LoginPage() {
           </p>
         </div>
         <Button variant="outline" className="w-full" onClick={handleLogin}>
-          Google로 계속하기 (목업)
+          Google로 계속하기
         </Button>
       </Card>
     </div>
