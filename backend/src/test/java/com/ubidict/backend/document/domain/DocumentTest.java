@@ -123,6 +123,26 @@ class DocumentTest {
         assertThat(document.getUpdaterId()).isEqualTo(OTHER_MEMBER_ID);
     }
 
+    @DisplayName("다음 버전을 발행하면 현재 버전이 증가한다.")
+    @Test
+    void publishNext_increasesVersionNo() {
+        Document document = Document.create(WORKSPACE_ID, "제목", MEMBER_ID);
+
+        document.publishNext(OTHER_MEMBER_ID);
+
+        assertThat(document.getCurrentVersionNo()).isEqualTo(2);
+    }
+
+    @DisplayName("다음 버전을 발행하면 최종수정자가 갱신된다.")
+    @Test
+    void publishNext_updatesUpdaterId() {
+        Document document = Document.create(WORKSPACE_ID, "제목", MEMBER_ID);
+
+        document.publishNext(OTHER_MEMBER_ID);
+
+        assertThat(document.getUpdaterId()).isEqualTo(OTHER_MEMBER_ID);
+    }
+
     @DisplayName("다른 워크스페이스의 문서인지 판별한다.")
     @Test
     void belongsTo() {

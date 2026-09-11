@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * v2 이상과 「대조를 거친 버전」은 반영(Revise)으로만 생기는데 그 경로가 아직 없다(reviewrequest 도메인). 그래서 리플렉션으로 주입한다.
+ * 직접 편집·교정 반영 경로를 거치지 않고 특정 버전 상태가 필요한 저장소 테스트에서 리플렉션으로 값을 주입한다.
  */
 public class DocumentVersionFixture {
 
@@ -22,6 +22,7 @@ public class DocumentVersionFixture {
         private Integer versionNo;
         private String body = DocumentFixture.DEFAULT_BODY;
         private Integer dictionaryVersionNo;
+        private boolean edited;
         private Long createdBy = 1L;
 
         public DocumentVersionBuilder id(Long id) {
@@ -54,6 +55,11 @@ public class DocumentVersionFixture {
             return this;
         }
 
+        public DocumentVersionBuilder edited(boolean edited) {
+            this.edited = edited;
+            return this;
+        }
+
         public DocumentVersion build() {
             DocumentVersion version = DocumentVersion.publishFirst(documentId, body, createdBy);
             if (id != null) {
@@ -68,6 +74,7 @@ public class DocumentVersionFixture {
             if (dictionaryVersionNo != null) {
                 ReflectionTestUtils.setField(version, "dictionaryVersionNo", dictionaryVersionNo);
             }
+            ReflectionTestUtils.setField(version, "edited", edited);
 
             return version;
         }
