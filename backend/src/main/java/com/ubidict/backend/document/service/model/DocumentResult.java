@@ -14,13 +14,13 @@ public record DocumentResult(
         String title,
         String content,
         int currentVersionNo,
-        boolean outdated,
+        boolean aligned,
+        boolean edited,
         Integer dictionaryVersionNo,
         List<String> labels,
         Long uploaderId,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {
-
     public static DocumentResult of(
             Document document, DocumentVersion currentVersion, List<String> labels, Integer activeDictionaryVersionNo) {
         return new DocumentResult(
@@ -29,7 +29,8 @@ public record DocumentResult(
                 document.getTitle(),
                 currentVersion.getBody(),
                 document.getCurrentVersionNo(),
-                currentVersion.isOutdated(activeDictionaryVersionNo),
+                currentVersion.isAligned(activeDictionaryVersionNo),
+                currentVersion.isEdited(),
                 currentVersion.getDictionaryVersionNo(),
                 labels,
                 document.getCreatedBy(),

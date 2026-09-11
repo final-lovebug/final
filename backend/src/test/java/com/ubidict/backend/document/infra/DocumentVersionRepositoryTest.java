@@ -122,6 +122,28 @@ class DocumentVersionRepositoryTest extends RepositoryTestSupport {
         assertThat(summaries).extracting(DocumentVersionSummary::versionNo).containsExactly(2);
     }
 
+    @DisplayName("최신 버전 요약은 직접 편집 여부를 포함한다.")
+    @Test
+    void findCurrentSummaries_includesEdited() {
+        // given
+        Long documentId = saveDocument();
+        documentVersionRepository.save(DocumentVersionFixture.documentVersion()
+                .documentId(documentId)
+                .edited(true)
+                .build());
+        em.flush();
+        em.clear();
+
+        // when
+        List<DocumentVersionSummary> summaries = documentVersionRepository.findCurrentSummaries(List.of(documentId));
+
+        // then
+        assertThat(summaries)
+                .singleElement()
+                .extracting(DocumentVersionSummary::edited)
+                .isEqualTo(true);
+    }
+
     private Long saveDocument() {
         return saveDocument(1);
     }

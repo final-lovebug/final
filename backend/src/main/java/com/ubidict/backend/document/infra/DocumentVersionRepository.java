@@ -17,7 +17,7 @@ public interface DocumentVersionRepository extends JpaRepository<DocumentVersion
 
     @Query("""
             select new com.ubidict.backend.document.infra.DocumentVersionSummary(
-                v.documentId, v.version.versionNo, v.dictionaryVersionNo, v.version.publishedAt, v.createdBy)
+                v.documentId, v.version.versionNo, v.dictionaryVersionNo, v.edited, v.version.publishedAt, v.createdBy)
             from DocumentVersion v
             where v.documentId = :documentId
             order by v.version.versionNo desc
@@ -29,7 +29,7 @@ public interface DocumentVersionRepository extends JpaRepository<DocumentVersion
      */
     @Query("""
             select new com.ubidict.backend.document.infra.DocumentVersionSummary(
-                v.documentId, v.version.versionNo, v.dictionaryVersionNo, v.version.publishedAt, v.createdBy)
+                v.documentId, v.version.versionNo, v.dictionaryVersionNo, v.edited, v.version.publishedAt, v.createdBy)
             from DocumentVersion v, Document d
             where d.id = v.documentId
               and v.version.versionNo = d.currentVersionNo
