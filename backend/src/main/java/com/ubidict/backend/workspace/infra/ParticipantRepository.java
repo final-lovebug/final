@@ -11,5 +11,7 @@ public interface ParticipantRepository extends JpaRepository<Participant, Long> 
 
     List<Participant> findAllByMemberIdAndDeletedAtIsNull(Long memberId);
 
+    List<Participant> findAllByWorkspaceIdAndDeletedAtIsNull(Long workspaceId);
+
     long countByWorkspaceIdAndDeletedAtIsNull(Long workspaceId);
 }

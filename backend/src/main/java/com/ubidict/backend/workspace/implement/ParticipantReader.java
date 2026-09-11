@@ -20,4 +20,8 @@ public class ParticipantReader {
     public List<Participant> readAllByMember(Long memberId) {
         return participantRepository.findAllByMemberIdAndDeletedAtIsNull(memberId);
     }
+
+    public List<Participant> readAllByWorkspace(Long workspaceId) {
+        return participantRepository.findAllByWorkspaceIdAndDeletedAtIsNull(workspaceId);
+    }
 }

@@ -6,6 +6,8 @@ import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 워크스페이스 접근 검증의 단일 지점(NFR-WS-001, NFR-USR-006).
@@ -18,6 +20,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class WorkspaceAccessValidator {
+
+    private static final Logger log = LoggerFactory.getLogger(WorkspaceAccessValidator.class);
 
     private final WorkspaceReader workspaceReader;
     private final ParticipantReader participantReader;
@@ -37,6 +41,7 @@ public class WorkspaceAccessValidator {
     public void validateAtLeast(Long workspaceId, Long memberId, Permission required) {
         Permission permission = validateParticipant(workspaceId, memberId);
         if (!permission.isAtLeast(required)) {
+            log.warn("[WorkspaceAccessValidator.validateAtLeast] Insufficient permission workspaceId={}, memberId={}, required={}", workspaceId, memberId, required);
             throw new BusinessException(insufficientPermissionCode(required));
         }
     }
