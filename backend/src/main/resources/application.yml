@@ -20,9 +20,13 @@ app:
     access-token-validity: 30m
     refresh-token-validity: 7d
   oauth:
-    # 프론트엔드가 아직 정해지지 않아 임시값이다 - 프론트 개발 시작 시 실제 값으로 교체한다.
-    frontend-redirect-uri: "${OAUTH_FRONTEND_REDIRECT_URI:http://localhost:3000/oauth/callback}"
+    # 프론트 dev 서버(Vite, WLSH-92) 주소. 배포 시 실제 프론트 도메인으로 교체한다.
+    frontend-redirect-uri: "${OAUTH_FRONTEND_REDIRECT_URI:http://localhost:5173/oauth/callback}"
   auth:
     cookie:
       # refresh token 쿠키의 Secure 플래그. 로컬(http)에서는 application-local.yml이 false로 덮어쓴다.
       secure: true
+  cors:
+    # 프론트 dev 서버 origin. refresh token이 쿠키 기반이라 자격증명 포함 요청엔 "*"를 못 쓰고
+    # origin을 명시해야 한다. 배포 시 실제 프론트 도메인으로 교체(콤마로 여러 개 지정 가능).
+    allowed-origins: "${CORS_ALLOWED_ORIGINS:http://localhost:5173}"

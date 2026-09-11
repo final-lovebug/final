@@ -105,7 +105,8 @@
 | `GOOGLE_CLIENT_ID` | Google OAuth2 클라이언트 ID (Google Cloud Console에서 발급) | 없음 — 반드시 설정해야 함 |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth2 클라이언트 시크릿 | 없음 — 반드시 설정해야 함 |
 | `JWT_SECRET` | JWT 서명 키 (HMAC-SHA, 최소 256비트/32바이트 이상 필요) | `application.yml`에 로컬 전용 기본값이 있어 설정 안 해도 `bootRun`/테스트가 동작함 |
-| `OAUTH_FRONTEND_REDIRECT_URI` | Google 로그인 성공/실패 후 서버가 리다이렉트할 프론트엔드 URL(교환 코드를 쿼리 파라미터로 붙임) | `http://localhost:3000/oauth/callback` — 프론트 미확정이라 임시값. 실제 프론트 주소가 정해지면 교체 |
+| `OAUTH_FRONTEND_REDIRECT_URI` | Google 로그인 성공/실패 후 서버가 리다이렉트할 프론트엔드 URL(교환 코드를 쿼리 파라미터로 붙임) | `http://localhost:5173/oauth/callback` — 프론트 dev 서버(Vite) 주소. 배포 시 실제 프론트 도메인으로 교체 |
+| `CORS_ALLOWED_ORIGINS` | CORS 허용 origin(콤마로 여러 개 지정 가능). refresh token이 쿠키 기반이라 `*` 불가 | `http://localhost:5173` — 프론트 dev 서버 주소. 배포 시 실제 프론트 도메인으로 교체 |
 
 - `JWT_SECRET`은 값을 아예 안 정해도 테스트가 깨지지 않도록 `application.yml`에
   `${JWT_SECRET:로컬 전용 기본값}` 형태의 기본값을 뒀다. 이 기본값은 공개돼 있어
