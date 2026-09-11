@@ -838,3 +838,67 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 > 권한 부족에 dictionary 전용 코드를 두지 않고 `WORKSPACE_ADMIN_REQUIRED`를 그대로 쓴다. 검증 주체가 `WorkspaceAccessValidator`이므로 같은 뜻의 코드를 도메인마다 늘리지 않는다.
 
 ---
+
+# **DraftDocument API**
+
+사전집 대조 결과로 만들어진 문서 초안 한 건을 생성·조회·수정·삭제한다. 관련 도메인은 `draftdocument`다.
+
+## **요청자 식별 — 임시 방식**
+
+인증 계층(`NFR-USR-001`)이 없어 요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다. **인증 전까지 운영 배포 대상이 아니다.** Phase 1에서는 권한을 검사하지 않으며 Phase 4에서 문서가 속한 워크스페이스의 참여 여부를 검사한다.
+
+## **엔드포인트**
+
+| **Method** | **Path** | **성공** | **태그** |
+| --- | --- | --- | --- |
+| POST | `/api/draft-documents` | `201` | **SHRINK** |
+| GET | `/api/draft-documents/{draftDocumentId}` | `200` | KEEP |
+| PATCH | `/api/draft-documents/{draftDocumentId}` | `200` | KEEP |
+| DELETE | `/api/draft-documents/{draftDocumentId}` | `204` | KEEP |
+
+`POST /api/draft-documents?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
+
+```json
+{
+  "documentId": 10,
+  "baseVersionNo": 1,
+  "draftBody": "회원은 결제할 수 있다."
+}
+```
+
+`draftBody`는 현재 수동 생성 경로에서만 받는 임시 필드다. Phase 4에 문서 조회가 연결되면 요청에서 제거하고 `documentId`와 `baseVersionNo`에 해당하는 본문을 서버가 채운다.
+
+생성·조회·수정 응답은 다음 형식이다.
+
+```json
+{
+  "draftDocumentId": 100,
+  "documentId": 10,
+  "baseVersionNo": 1,
+  "draftBody": "회원은 결제할 수 있다.",
+  "status": "EXAMINING",
+  "requestedBy": 7,
+  "createdBy": 7,
+  "createdAt": "2026-09-11T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-11T10:00:00.000000+09:00"
+}
+```
+
+`PATCH /api/draft-documents/{draftDocumentId}?memberId={memberId}`는 다음 JSON으로 초안 본문을 바꾼다.
+
+```json
+{
+  "draftBody": "수정한 초안 본문"
+}
+```
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 문서 초안 | 404 | `DRAFT_DOCUMENT_NOT_FOUND` |
+| 초안 본문이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_BODY` |
+| 기준 문서 버전이 1보다 작음 | 400 | `DRAFT_DOCUMENT_INVALID_BASE_VERSION` |
+| 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
+
+---
