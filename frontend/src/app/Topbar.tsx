@@ -1,5 +1,8 @@
-import { useMatches } from 'react-router-dom'
-import { Avatar, Pill } from '../shared/ui'
+import { useMatches, useNavigate } from 'react-router-dom'
+import { logout as logoutRequest } from '../features/auth/api/logout'
+import { useAuthStore } from '../shared/stores/authStore'
+import { routes } from '../shared/config/routes'
+import { Avatar, Button, Pill } from '../shared/ui'
 
 interface RouteHandle {
   title?: string
@@ -10,10 +13,24 @@ interface RouteHandle {
 // 어긋날 일이 없다. 알림 패널(bell)과 아바타 스택은 실제 데이터가 붙는 Phase 5~6에서 채운다.
 export function Topbar() {
   const matches = useMatches()
+  const navigate = useNavigate()
+  const clearAuth = useAuthStore((state) => state.logout)
   const handle = [...matches]
     .reverse()
     .map((match) => match.handle as RouteHandle | undefined)
     .find((h) => h?.title)
+
+  async function handleLogout() {
+    try {
+      await logoutRequest()
+    } catch {
+      // 서버 로그아웃 요청이 실패해도(네트워크 오류 등) 로컬 세션은 정리한다 — 다시
+      // 로그인하면 되고, 어차피 서버 refresh token은 7일 뒤 만료된다.
+    } finally {
+      clearAuth()
+      navigate(routes.login(), { replace: true })
+    }
+  }
 
   return (
     <div className="flex h-16 shrink-0 items-center justify-between border-b border-border-soft bg-surface px-7">
@@ -35,6 +52,9 @@ export function Topbar() {
           <span className="block h-4 w-4 rounded-[50%_50%_50%_4px] border-[1.6px] border-text-tertiary" />
           <span className="absolute right-[7px] top-[6px] h-[7px] w-[7px] rounded-full border-[1.5px] border-surface bg-red-500" />
         </button>
+        <Button variant="dangerText" size="sm" onClick={handleLogout}>
+          로그아웃
+        </Button>
       </div>
     </div>
   )
