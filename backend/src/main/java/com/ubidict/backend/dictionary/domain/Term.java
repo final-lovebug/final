@@ -1,6 +1,6 @@
 package com.ubidict.backend.dictionary.domain;
 
-import com.ubidict.backend.common.domain.AuditableEntity;
+import com.ubidict.backend.common.domain.BaseEntity;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.dictionary.exception.TermErrorCode;
 import jakarta.persistence.Column;
@@ -16,8 +16,8 @@ import lombok.NoArgsConstructor;
 /**
  * 사전집에 등재된 표준 용어. 소속 사전집 버전과 함께 얼어붙는다.
  *
- * <p>개별 용어를 고치거나 지우는 경로가 없어 전 필드를 updatable = false로 못 박는다. 삭제 경로가 없으므로 삭제 시각을 두지 않는
- * {@code AuditableEntity}를 상속한다.
+ * <p>개별 용어를 고치거나 지우는 경로가 없어 전 필드를 updatable = false로 못 박는다. 공통 감사·삭제 시각 규약을 따르기 위해
+ * {@link BaseEntity}를 상속하며, 현재 삭제 유스케이스는 제공하지 않는다.
  *
  * <p>동의어·비권장어는 두지 않는다. 문서 대조는 저장된 표기 목록을 훑는 방식이 아니라 LLM이 문맥을 파악해 표준어·정의와 비교하는 방식이므로, definition이 판단 근거를
  * 대신한다.
@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Term extends AuditableEntity {
+public class Term extends BaseEntity {
 
     private static final int FORM_MAX_LENGTH = 100;
 
