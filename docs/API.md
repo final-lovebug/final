@@ -838,3 +838,95 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 > 권한 부족에 dictionary 전용 코드를 두지 않고 `WORKSPACE_ADMIN_REQUIRED`를 그대로 쓴다. 검증 주체가 `WorkspaceAccessValidator`이므로 같은 뜻의 코드를 도메인마다 늘리지 않는다.
 
 ---
+
+# **ReviewRequest API**
+
+초안에서 만든 개정안의 검토 흐름을 관리한다. Phase 1에서는 리뷰 요청 한 건의 생성·조회·수정·취소를 제공한다. 관련 도메인은 `reviewrequest`다.
+
+## **요청자 식별 — 임시 방식**
+
+Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다. **인증 전까지 운영 배포 대상이 아니다.**
+
+## **알아 둘 것 둘**
+
+- 리뷰 요청은 `DOCUMENT` 또는 `DICTIONARY` 유형을 갖고 `PENDING_REVIEW` 상태로 시작한다. 리뷰어 지정과 개정안 등록은 후속 Phase에서 제공한다.
+- `POST /api/review-requests`는 초안 흐름이 완성되기 전까지만 쓰는 **INTERNALIZE** 엔드포인트다. 최종 흐름에서는 초안의 리뷰 요청 API가 요청과 개정안을 한 트랜잭션에서 함께 만든다.
+
+## **엔드포인트**
+
+| **Method** | **Path** | **권한** | **성공** | **태그** |
+| --- | --- | --- | --- | --- |
+| POST | `/api/review-requests` | 참여자 | `201` | **INTERNALIZE** |
+| GET | `/api/review-requests/{reviewRequestId}` | 참여자 | `200` | KEEP |
+| PATCH | `/api/review-requests/{reviewRequestId}` | 참여자 | `200` | KEEP |
+| POST | `/api/review-requests/{reviewRequestId}/cancellation` | 요청자 | `200` | KEEP |
+
+## **리뷰 요청 생성**
+
+`POST /api/review-requests?memberId={memberId}` → `201 Created`
+
+```json
+{
+  "workspaceId": 10,
+  "type": "DOCUMENT",
+  "title": "결제 문서 리뷰",
+  "description": "결제 문서의 개정안을 검토합니다."
+}
+```
+
+`type`은 `DOCUMENT` 또는 `DICTIONARY`다. 제목은 필수이고 255자 이하다. 설명은 생략할 수 있다.
+
+```json
+{
+  "reviewRequestId": 100,
+  "workspaceId": 10,
+  "type": "DOCUMENT",
+  "title": "결제 문서 리뷰",
+  "description": "결제 문서의 개정안을 검토합니다.",
+  "requesterId": 7,
+  "status": "PENDING_REVIEW",
+  "approvedAt": null,
+  "revisedAt": null,
+  "createdAt": "2026-09-11T10:00:00.000000Z",
+  "updatedAt": "2026-09-11T10:00:00.000000Z"
+}
+```
+
+## **리뷰 요청 상세 조회**
+
+`GET /api/review-requests/{reviewRequestId}?memberId={memberId}` → `200 OK`
+
+응답 형식은 생성 응답과 같다. 요청이 속한 워크스페이스의 참여자만 조회할 수 있다.
+
+## **리뷰 요청 수정**
+
+`PATCH /api/review-requests/{reviewRequestId}?memberId={memberId}` → `200 OK`
+
+```json
+{
+  "title": "정산 문서 리뷰",
+  "description": "정산 문서의 개정안을 검토합니다."
+}
+```
+
+`title`과 `description`은 각각 생략할 수 있고, 전달한 필드만 바뀐다. 응답 형식은 생성 응답과 같다.
+
+## **리뷰 요청 취소**
+
+`POST /api/review-requests/{reviewRequestId}/cancellation?memberId={memberId}` → `200 OK`
+
+요청자만 취소할 수 있다. 반영 완료 또는 이미 취소된 요청은 다시 취소할 수 없다. 응답의 `status`는 `CANCELED`다.
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
+| 없거나 삭제된 리뷰 요청 | 404 | `REVIEW_REQUEST_NOT_FOUND` |
+| 제목이 비어 있음 | 400 | `REVIEW_REQUEST_TITLE_REQUIRED` |
+| 요청 유형이 올바르지 않음 | 400 | `REVIEW_REQUEST_INVALID_TYPE` |
+| 요청자가 아닌 참여자가 취소를 시도 | 403 | `REVIEW_REQUEST_NOT_REQUESTER` |
+| 현재 상태에서 취소할 수 없음 | 409 | `REVIEW_REQUEST_INVALID_STATUS_TRANSITION` |
+| 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
+
+---
