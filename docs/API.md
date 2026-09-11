@@ -908,6 +908,20 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 }
 ```
 
+## Phase 2 제안어 API
+
+| Method | Path | 성공 |
+| --- | --- | --- |
+| GET | `/api/draft-documents?documentId=&status=&page=0&size=20&sort=createdAt,desc` | 200 |
+| POST | `/api/draft-documents/{id}/suggestion-terms?memberId=` | 201 |
+| GET | `/api/draft-documents/{id}/suggestion-terms?status=&page=0&size=20&sort=createdAt,desc` | 200 |
+| PATCH | `/api/suggestion-terms/{suggestionTermId}?memberId=` | 200 |
+| DELETE | `/api/suggestion-terms/{suggestionTermId}` | 204 |
+
+목록 응답은 `content`, `page`, `size`, `totalElements`, `totalPages`를 포함한다. `size`는 1~100, `page`는 0 이상이며 sort 필드는 `createdAt`, `updatedAt`, `id`, 방향은 `asc` 또는 `desc`만 허용한다.
+
+제안어 등록 요청은 `anchor { startOffset, endOffset }`, `originTerm`, `suggestionTerm`을 사용한다. 수정 요청은 각 필드를 선택적으로 포함한다. 잘못된 요청은 `COMMON_INVALID_REQUEST`, `DRAFT_DOCUMENT_INVALID_ANCHOR`, `DRAFT_DOCUMENT_ANCHOR_OUT_OF_BODY`, `DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM`을 반환하며, 존재하지 않는 제안어는 `DRAFT_DOCUMENT_SUGGESTION_TERM_NOT_FOUND`, 소유 초안이 다르면 `DRAFT_DOCUMENT_SUGGESTION_TERM_MISMATCHED`를 반환한다.
+
 # **ReviewRequest API**
 
 초안에서 만든 개정안의 검토 흐름을 관리한다. Phase 1에서는 리뷰 요청 한 건의 생성·조회·수정·취소를 제공한다. 관련 도메인은 `reviewrequest`다.
