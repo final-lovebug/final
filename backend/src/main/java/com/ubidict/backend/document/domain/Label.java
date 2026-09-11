@@ -1,6 +1,6 @@
 package com.ubidict.backend.document.domain;
 
-import com.ubidict.backend.common.domain.AuditableEntity;
+import com.ubidict.backend.common.domain.BaseEntity;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.document.exception.LabelErrorCode;
 import jakarta.persistence.Column;
@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Label extends AuditableEntity {
+public class Label extends BaseEntity {
 
     public static final int NAME_MAX_LENGTH = 20;
 

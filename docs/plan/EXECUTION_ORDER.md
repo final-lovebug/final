@@ -177,7 +177,7 @@
 
 ### 아무도 수정하지 않는 파일
 
-`common/**`(위 3건 제외), `common/domain/BaseEntity`, `common/domain/AuditableEntity`, `backend/src/test/java/.../support/**`, `application.properties`, `build.gradle`, 그리고 **다른 도메인의 패키지 전체**.
+`common/**`(위 3건 제외), `common/domain/BaseEntity`, `backend/src/test/java/.../support/**`, `application.properties`, `build.gradle`, 그리고 **다른 도메인의 패키지 전체**.
 
 필요하면 통합 태스크(`T-*`)로 넘기고 PR에 이유를 적는다.
 
