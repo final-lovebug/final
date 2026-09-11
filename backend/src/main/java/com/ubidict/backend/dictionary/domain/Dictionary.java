@@ -1,6 +1,6 @@
 package com.ubidict.backend.dictionary.domain;
 
-import com.ubidict.backend.common.domain.BaseEntity;
+import com.ubidict.backend.common.domain.AuditableEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -9,6 +9,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import java.time.OffsetDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,12 +23,12 @@ import lombok.NoArgsConstructor;
  * <p>워크스페이스를 @ManyToOne으로 참조하지 않고 식별자로만 가리킨다. 애그리게잇 경계를 식별자로 넘어 지연 로딩 프록시가 상위 레이어로 새는 경로를 막는다. 같은 이유로 Term
  * 컬렉션도 매달지 않는다 — 용어 수백 개를 통째로 끌고 다니지 않기 위해 TermReader가 따로 읽는다.
  *
- * <p>BaseEntity의 deletedAt은 쓰지 않는다. 모든 행이 보존해야 할 버전 이력이라 삭제 경로가 없다.
+ * <p>사전집은 모든 행이 보존해야 할 버전 이력이라 삭제 경로가 없다.
  */
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Dictionary extends BaseEntity {
+public class Dictionary extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -83,5 +84,9 @@ public class Dictionary extends BaseEntity {
 
     public int versionNo() {
         return version.versionNo();
+    }
+
+    public OffsetDateTime publishedAt() {
+        return version.publishedAt();
     }
 }
