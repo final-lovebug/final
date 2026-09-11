@@ -19,11 +19,8 @@ spring:
             client-id: ${oauth.google.client-id}
             client-secret: ${oauth.google.client-secret}
 
-  # MongoDB·Redis 운영 엔드포인트가 정해지면 파라미터를 만들고 아래 주석을 해제한다.
   # 지금 상태로는 두 클라이언트가 localhost 기본값을 쓰므로 운영에서 반드시 채워야 한다.
   data:
-#     mongodb:
-  #     uri: ${mongodb.uri}
      redis:
        host: ${redis.host}
        port: ${redis.port}
@@ -35,3 +32,10 @@ app:
   oauth:
     # 프론트엔드 주소가 미확정이라 파라미터로 빼둔다 - 값이 정해지면 파라미터만 교체한다.
     frontend-redirect-uri: ${oauth.frontend-redirect-uri}
+
+management:
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
