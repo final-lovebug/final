@@ -21,6 +21,8 @@ import com.ubidict.backend.document.service.model.DocumentVersionSummaryResult;
 import com.ubidict.backend.document.service.model.EditDocumentContentCommand;
 import com.ubidict.backend.document.service.model.LabelResult;
 import com.ubidict.backend.document.service.model.UpdateDocumentCommand;
+import com.ubidict.backend.draftdocument.fixture.DraftDocumentFixture;
+import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.domain.Workspace;
@@ -36,7 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 
-@TestPropertySource(properties = "app.crossdomain.dictionary.mode=real")
+@TestPropertySource(properties = {"app.crossdomain.dictionary.mode=real", "app.crossdomain.draft-document.mode=real"})
 class DocumentServiceTest extends IntegrationTestSupport {
 
     private static final Long OWNER_ID = 1L;
@@ -64,6 +66,9 @@ class DocumentServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private LabelRepository labelRepository;
+
+    @Autowired
+    private DraftDocumentRepository draftDocumentRepository;
 
     private Long workspaceId;
 
@@ -358,6 +363,24 @@ class DocumentServiceTest extends IntegrationTestSupport {
                         .orElseThrow()
                         .getDictionaryVersionNo())
                 .isEqualTo(3);
+    }
+
+    @DisplayName("진행 중인 문서 초안이 있으면 본문을 편집할 수 없다.")
+    @Test
+    void editContent_ongoingDraftExists() {
+        // given
+        DocumentResult created = create(TITLE, "첫 본문", List.of());
+        draftDocumentRepository.save(DraftDocumentFixture.draftDocument()
+                .documentId(created.documentId())
+                .baseVersionNo(created.currentVersionNo())
+                .build());
+
+        // when & then
+        assertThatThrownBy(() -> documentService.editContent(
+                        new EditDocumentContentCommand(workspaceId, created.documentId(), "편집한 본문", OWNER_ID)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(DocumentErrorCode.DOCUMENT_DRAFT_IN_PROGRESS);
     }
 
     @DisplayName("REGULAR는 문서를 삭제할 수 없다.")
