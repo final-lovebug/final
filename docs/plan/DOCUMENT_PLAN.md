@@ -63,7 +63,7 @@
 | **D-26** | `originRevisionId`를 두지 않는다 | `DOMAIN.md` `DocumentVersion` 표 |
 | **판정 규칙 한 곳** | `aligned` 판정을 **`DocumentVersion`의 static 메서드**에 두고 `DocumentVersionSummary`가 그것을 재호출한다. `isOutdated`가 「목록 조회는 본문을 빼고 읽으므로 엔티티가 아니라 조회 결과 모델이 같은 판정을 해야 한다. 규칙이 두 벌이 되지 않도록」이라며 택한 구조를 **그대로 이어받는다** | — |
 | **본문 저장 위치** | 본문은 `DocumentVersion.body`에만 있다. `Document`에 본문 컬럼을 두지 않는다 — as-built이며 큰 흐름도 바꾸지 않았다 | — |
-| **소프트 삭제** | `Document`만 소프트 삭제한다. `DocumentVersion`·`Label`·`DocumentLabel`은 삭제 경로가 없어 `AuditableEntity`를 상속한다 — as-built | — |
+| **소프트 삭제** | 모든 엔티티가 `BaseEntity`를 상속한다. 실제 삭제 유스케이스는 `Document`에만 제공하고 나머지 엔티티의 `deletedAt`은 null로 유지한다 | — |
 | **D-18** | 도메인 레벨 패키지 구조만 지키고 하위 디렉터리는 `presentation/dto/`·`service/model/`, ErrorCode는 `{domain}/exception/` — as-built가 이미 준수 | — |
 
 **`G-9`가 이 도메인의 가장 중요한 결정이다.** 지금까지 `Document`는 "본문을 바꾸는 메서드가 없다"를 설계 원칙으로 삼았고 javadoc·`API.md`·`REQ-DOC-008`이 그것을 네 곳에서 못박고 있었다(`R-1`·`R-6`·`R-7`). 직접 편집이 들어오면 **`Document`가 버전을 전진시키는 주체가 된다** — 미사용 상태인 `PublishedVersion.next()`의 첫 호출자가 여기다.
@@ -104,7 +104,7 @@
 | **`edited`** | **`boolean`** | **`edited`** | **X** | **추가** | **기본 `false`, `updatable = false`.** 직접 편집 발행이면 `true`(`G-10`) |
 | ~~`originRevisionId`~~ | — | — | — | **대기** | `D-26` — 두지 않는다 |
 | `createdBy` | `Long` | `created_by` | X | as-built | |
-| `createdAt`/`updatedAt` | `OffsetDateTime` | — | — | as-built | `AuditableEntity` 상속. **삭제 경로가 없어 `deletedAt`을 두지 않는다** |
+| `createdAt`/`updatedAt`/`deletedAt` | `OffsetDateTime` | — | — | **변경** | `BaseEntity` 상속. 삭제 유스케이스는 제공하지 않는다 |
 
 전 필드가 `updatable = false`다 — 확정 후 불변이다.
 
@@ -116,7 +116,7 @@
 | `workspaceId` | `Long` | `workspace_id` | X | as-built | 라벨은 워크스페이스가 소유한다 |
 | `name` | `String` | `name` | X | as-built | `varchar(20)`. **워크스페이스 안에서 유일.** 앞뒤 공백 제거 후 대소문자 구분 |
 | `createdBy` | `Long` | `created_by` | X | as-built | |
-| `createdAt`/`updatedAt` | `OffsetDateTime` | — | — | as-built | `AuditableEntity` |
+| `createdAt`/`updatedAt`/`deletedAt` | `OffsetDateTime` | — | — | **변경** | `BaseEntity`. 삭제 유스케이스는 제공하지 않는다 |
 
 ### DocumentLabel
 
@@ -126,7 +126,7 @@
 | `documentId` | `Long` | `document_id` | X | as-built | |
 | `labelId` | `Long` | `label_id` | X | as-built | `(document_id, label_id)` 유일 |
 | `createdBy` | `Long` | `created_by` | X | as-built | |
-| `createdAt`/`updatedAt` | `OffsetDateTime` | — | — | as-built | `AuditableEntity` |
+| `createdAt`/`updatedAt`/`deletedAt` | `OffsetDateTime` | — | — | **변경** | `BaseEntity`. 삭제 유스케이스는 제공하지 않는다 |
 
 `MAX_LABELS_PER_DOCUMENT = 5`가 이 클래스의 `public static final` 상수다.
 
@@ -221,6 +221,8 @@ static DocumentLabel of(Long documentId, Long labelId, Long memberId);   // as-b
 | `V200__create_document_and_version.sql` | `document`, `document_version` | as-built | — |
 | `V201__create_label.sql` | `label`, `document_label` | as-built | — |
 | `V210__add_document_version_edited.sql` | `document_version.edited` 추가 | **추가** | `DOC-2` |
+| `V220__add_document_version_deleted_at.sql` | `document_version.deleted_at` 추가 | **추가** | Phase 1 후속 |
+| `V900__add_base_entity_deleted_at.sql` | `label.deleted_at`, `document_label.deleted_at` 추가 | **추가** | 공통 후속 |
 
 ```sql
 -- V210
@@ -475,7 +477,7 @@ com.ubidict.backend.document
 
 ### 수정 금지 파일
 
-`common/**`(위 2건 제외), `common/domain/BaseEntity`, `common/domain/AuditableEntity`, `backend/src/test/java/.../support/**`, `application.properties`, `build.gradle`, 그리고 **다른 도메인의 패키지 전체**.
+`common/**`(위 2건 제외), `common/domain/BaseEntity`, `backend/src/test/java/.../support/**`, `application.properties`, `build.gradle`, 그리고 **다른 도메인의 패키지 전체**.
 
 필요하면 통합 태스크(`T-*`)로 넘기고 PR에 이유를 적는다.
 
