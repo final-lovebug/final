@@ -350,6 +350,18 @@ POST /api/members
 | PATCH | `/api/workspaces/{workspaceId}/rule-set` | ADMIN 이상 | `200` |
 | DELETE | `/api/workspaces/{workspaceId}` | OWNER | `204` |
 
+### **워크스페이스 참여자 관리**
+
+| **Method** | **Path** | **권한** | **성공** |
+| --- | --- | --- | --- |
+| GET | `/api/workspaces/{workspaceId}/participants` | 참여자 | `200` (배열) |
+| PATCH | `/api/workspaces/{workspaceId}/participants/{participantId}/permission` | OWNER | `204` |
+| PATCH | `/api/workspaces/{workspaceId}/participants/{participantId}/ownership` | OWNER | `204` |
+| DELETE | `/api/workspaces/{workspaceId}/participants/{participantId}` | ADMIN 이상 | `204` |
+
+모든 요청은 임시 요청자 식별자인 `memberId` 쿼리 파라미터를 사용한다. Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 있다.
+권한 변경의 `permission`에는 `ADMIN` 또는 `REGULAR`만 허용하며, 소유권 이전은 별도 엔드포인트를 사용한다.
+
 ## **워크스페이스 생성**
 
 `POST /api/workspaces?memberId={memberId}` → `201 Created`
@@ -461,6 +473,8 @@ POST /api/members
 | 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
 | 참여자지만 ADMIN 미만이 이름 수정을 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
 | 참여자지만 OWNER가 아닌 사용자가 삭제를 시도 | 403 | `WORKSPACE_OWNER_REQUIRED` |
+| 없는 참여자 또는 다른 워크스페이스의 참여자 | 404 | `WORKSPACE_PARTICIPANT_NOT_FOUND` |
+| 소유자를 내보내려고 시도 | 409 | `WORKSPACE_OWNER_CANNOT_BE_REMOVED` |
 | 이름이 비었거나 50자 초과(도메인 검증) | 400 | `WORKSPACE_INVALID_NAME` |
 | 필수 리뷰어 수가 0 미만(도메인 검증) | 400 | `WORKSPACE_INVALID_REVIEWER_COUNT` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |

@@ -11,9 +11,9 @@ import org.springframework.stereotype.Component;
 public class ParticipantUpdater {
     private final ParticipantRepository participantRepository;
 
-    public Participant changePermission(Participant participant, Permission permission) {
+    public void changePermission(Participant participant, Permission permission) {
         participant.changePermission(permission);
-        return participantRepository.save(participant);
+        participantRepository.save(participant);
     }
 
     public void transferOwnership(Participant owner, Participant target) {

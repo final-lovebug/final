@@ -10,13 +10,13 @@ import org.springframework.stereotype.Component;
 public class ParticipantPolicyValidator {
     public void validateManageable(Participant target, Permission actor) {
         if (!target.canBeManagedBy(actor)) {
-            throw new BusinessException(WorkspaceErrorCode.WORKSPACE_PARTICIPANT_NOT_MANAGEABLE);
+            throw new BusinessException(WorkspaceErrorCode.WORKSPACE_OWNER_REQUIRED);
         }
     }
 
     public void validateRemovable(Participant target, Permission actor) {
         if (target.isOwner()) {
-            throw new BusinessException(WorkspaceErrorCode.WORKSPACE_OWNER_NOT_REMOVABLE);
+            throw new BusinessException(WorkspaceErrorCode.WORKSPACE_OWNER_CANNOT_BE_REMOVED);
         }
         validateManageable(target, actor);
     }

@@ -1,2 +1,3 @@
 package com.ubidict.backend.workspace.service;
-public record TransferOwnershipCommand(Long workspaceId, Long targetMemberId, Long actorId) {}
+
+public record TransferOwnershipCommand(Long workspaceId, Long participantId, Long actorId) {}

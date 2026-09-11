@@ -88,6 +88,24 @@ class ParticipantRepositoryTest extends RepositoryTestSupport {
         assertThat(found).isEmpty();
     }
 
+    @DisplayName("참여자 식별자는 해당 워크스페이스 안에서만 조회된다.")
+    @Test
+    void findByIdAndWorkspaceIdAndDeletedAtIsNull_workspaceDiffers() {
+        Long workspaceId = saveWorkspace();
+        Long otherWorkspaceId = saveWorkspace();
+        Participant participant = participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspaceId)
+                .memberId(MEMBER_ID)
+                .build());
+        em.flush();
+        em.clear();
+
+        Optional<Participant> found =
+                participantRepository.findByIdAndWorkspaceIdAndDeletedAtIsNull(participant.getId(), otherWorkspaceId);
+
+        assertThat(found).isEmpty();
+    }
+
     @DisplayName("회원이 참여한 워크스페이스의 참여자 행만 조회된다.")
     @Test
     void findAllByMemberIdAndDeletedAtIsNull() {
@@ -161,11 +179,18 @@ class ParticipantRepositoryTest extends RepositoryTestSupport {
     @Test
     void findAllByWorkspaceId() {
         Long workspaceId = saveWorkspace();
-        participantRepository.save(ParticipantFixture.participant().workspaceId(workspaceId).memberId(1L).build());
-        participantRepository.save(ParticipantFixture.participant().workspaceId(workspaceId).memberId(2L).build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspaceId)
+                .memberId(1L)
+                .build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspaceId)
+                .memberId(2L)
+                .build());
         em.flush();
         em.clear();
-        assertThat(participantRepository.findAllByWorkspaceIdAndDeletedAtIsNull(workspaceId)).hasSize(2);
+        assertThat(participantRepository.findAllByWorkspaceIdAndDeletedAtIsNull(workspaceId))
+                .hasSize(2);
     }
 
     private Long saveWorkspace() {

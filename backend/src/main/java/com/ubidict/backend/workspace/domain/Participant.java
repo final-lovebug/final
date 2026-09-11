@@ -81,6 +81,6 @@ public class Participant extends BaseEntity {
     }
 
     public boolean canBeManagedBy(Permission actorPermission) {
-        return actorPermission.isAtLeast(Permission.OWNER) || !permission.isAtLeast(actorPermission);
+        return !permission.isAtLeast(actorPermission);
     }
 }

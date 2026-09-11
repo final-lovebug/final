@@ -15,11 +15,15 @@ import com.ubidict.backend.workspace.infra.ParticipantRepository;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
  * 워크스페이스를 읽지 않는 도메인(사전집·문서)이 이 검증에만 올라타므로, 검증기 자체를 대상으로 확인한다.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class WorkspaceAccessValidatorTest extends IntegrationTestSupport {
 
     private static final Long MEMBER_ID = 1L;
@@ -113,6 +117,21 @@ class WorkspaceAccessValidatorTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_ADMIN_REQUIRED);
+    }
+
+    @DisplayName("서열이 모자라면 감사 로그를 남긴다.")
+    @Test
+    void validateAtLeast_logsWarnOnInsufficientPermission(CapturedOutput output) {
+        Long workspaceId = createWorkspaceWith(MEMBER_ID, Permission.REGULAR);
+
+        assertThatThrownBy(() -> workspaceAccessValidator.validateAtLeast(workspaceId, MEMBER_ID, Permission.ADMIN))
+                .isInstanceOf(BusinessException.class);
+
+        assertThat(output)
+                .contains("[WorkspaceAccessValidator.validateAtLeast] Insufficient permission")
+                .contains("workspaceId=" + workspaceId)
+                .contains("memberId=" + MEMBER_ID)
+                .contains("required=ADMIN");
     }
 
     /**

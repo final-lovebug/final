@@ -9,6 +9,8 @@ public interface ParticipantRepository extends JpaRepository<Participant, Long> 
 
     Optional<Participant> findByWorkspaceIdAndMemberIdAndDeletedAtIsNull(Long workspaceId, Long memberId);
 
+    Optional<Participant> findByIdAndWorkspaceIdAndDeletedAtIsNull(Long id, Long workspaceId);
+
     List<Participant> findAllByMemberIdAndDeletedAtIsNull(Long memberId);
 
     List<Participant> findAllByWorkspaceIdAndDeletedAtIsNull(Long workspaceId);
