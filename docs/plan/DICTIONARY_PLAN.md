@@ -58,8 +58,8 @@
 | **D-26** | 유래 리비전을 두지 않는다 | `DOMAIN.md` `DictionaryVersion` 각주 |
 | **D-19** | **접근 검증은 포트를 만들지 않고 `WorkspaceAccessValidator`를 직접 주입한다.** as-built가 이미 그 방식이므로 **`DictionaryService`를 고치지 않는다** | `ARCHITECTURE.md` 예외 조항 |
 | **D-25** | **`DictionaryId`·`TermId`와 `DictionaryIdTest`·`TermIdTest`를 제거하고 `Long`으로 통일한다** | `DOMAIN.md` 속성 표 각주 |
-| **Y-07** | **`Dictionary`가 `AuditableEntity`를 상속하도록 바꾼다.** 엔티티 javadoc과 `V300` 주석이 모두 「deletedAt은 쓰지 않는다. 모든 행이 보존해야 할 버전 이력이라 삭제 경로가 없다」인데 `BaseEntity`를 상속해 `dictionary.deleted_at`이 항상 null로 존재한다. `AuditableEntity` javadoc이 정확히 이 경우("항상 null인 컬럼을 테이블마다 끌고 다니게 된다")를 위해 분리됐다 | — |
-| **Y-08** | **`Term`이 `AuditableEntity`를 상속하도록 바꾼다.** 지금은 `@CreationTimestamp`/`@UpdateTimestamp`를 직접 선언한다 — `AuditableEntity` 분리 이전에 작성됐다 | — |
+| **Y-07** | **감사 상위 클래스를 `BaseEntity` 하나로 통일한다.** `AuditableEntity`는 제거하고 삭제 경로가 없는 엔티티도 nullable `deletedAt`을 공통 규약으로 가진다 | — |
+| **Y-08** | **`Term`이 `BaseEntity`를 상속하도록 바꾼다.** 지금은 `@CreationTimestamp`/`@UpdateTimestamp`를 직접 선언하므로 공통 감사 규약을 타지 않는다 | — |
 | **활성 유일성은 DB가 지킨다** | `active_flag` 생성 컬럼(`case when status = 'ACTIVE' then 1 else null end`) + `uk_dictionary_workspace_active`. MySQL이 UNIQUE에서 NULL을 서로 다른 값으로 보므로 보관 행은 몇 개든 쌓이고 활성 행은 두 개째가 막힌다 — as-built | — |
 | **보관 전환은 명시적 flush** | `DictionaryUpdater.archive`가 `saveAndFlush`를 쓴다. Hibernate가 INSERT를 UPDATE보다 먼저 실행하므로 보관 전환을 미루면 활성 사전집이 순간 둘이 되어 유니크 제약에 걸린다 — as-built이며 근거를 javadoc이 갖고 있다 | — |
 | **용어 0개 버전 금지** | `TermAppender.appendAll`이 빈 목록을 `DICTIONARY_EMPTY_TERMS`로 거절한다 — as-built | — |
@@ -91,7 +91,7 @@
 | `version` | `DictionaryVersion` | `version_no`, `published_at` | X | as-built | `@Embedded` 값 객체 |
 | `status` | `DictionaryStatus` | `status` | X | as-built | `@Enumerated(STRING)`, `varchar(20)` |
 | `createdBy` | `Long` | `created_by` | X | as-built | `updatable = false`. 반영을 수행한 사람 |
-| `createdAt`/`updatedAt` | `OffsetDateTime` | — | — | **변경** | **`BaseEntity` → `AuditableEntity`**(`Y-07`). `deletedAt`을 버린다 |
+| `createdAt`/`updatedAt`/`deletedAt` | `OffsetDateTime` | — | — | as-built | `BaseEntity` 상속. 삭제 유스케이스는 제공하지 않는다 |
 
 `Term` 컬렉션을 매달지 않는다 — 용어 수백 개를 통째로 끌고 다니지 않기 위해 `TermReader`가 따로 읽는다. 「이름(`name`)」도 두지 않는다 — 워크스페이스에 활성 사전집이 정확히 1개이므로 구분해 부를 이름이 필요 없다.
 
@@ -105,7 +105,7 @@
 | `englishName` | `String` | `english_name` | O | as-built | `varchar(100)`. 코드·DB 네이밍 기준. 빈 문자열은 `null`로 모은다 |
 | `definition` | `String` | `definition` | X | as-built | `@Lob`, `text`. **대조 시 LLM의 판단 근거** |
 | `createdBy` | `Long` | `created_by` | X | as-built | |
-| `createdAt`/`updatedAt` | `OffsetDateTime` | — | — | **변경** | **직접 선언 → `AuditableEntity` 상속**(`Y-08`) |
+| `createdAt`/`updatedAt`/`deletedAt` | `OffsetDateTime` | — | — | **변경** | **직접 선언 → `BaseEntity` 상속**(`Y-08`). 삭제 유스케이스는 제공하지 않는다 |
 
 전 필드가 `updatable = false`다. 개별 용어를 고치거나 지우는 경로가 없고, 용어를 바꾸려면 **새 버전을 발행**해야 한다.
 
@@ -207,15 +207,14 @@ Term toTerm(Long dictionaryId, Long createdBy);                                 
 | 파일 | 내용 | 상태 | 태스크 |
 | --- | --- | --- | --- |
 | `V300__create_dictionary_and_term.sql` | `dictionary`, `term` | as-built | — |
-| `V310__drop_dictionary_deleted_at.sql` | `dictionary.deleted_at` 제거 | **추가** | `DIC-2` |
+| `V310__add_term_deleted_at.sql` | `term.deleted_at` 추가 | **추가** | `DIC-2` |
 
 ```sql
 -- V310
--- 사전집은 삭제하지 않는다. 모든 행이 보존해야 할 버전 이력이고 상태 전환만 예외다.
--- BaseEntity를 상속해 만들어진 컬럼이지만 항상 null이라, AuditableEntity로 바꾸면서 함께 지운다.
--- (AuditableEntity는 "항상 null인 컬럼을 테이블마다 끌고 다니지 않는다"를 위해 분리된 상위 클래스다)
-alter table dictionary
-    drop column deleted_at;
+-- Term이 공통 BaseEntity 규약을 따르도록 삭제 시각 컬럼을 추가한다.
+-- 현재 삭제 경로는 없으므로 기존 행과 신규 행의 기본값은 null이다.
+alter table term
+    add column deleted_at datetime(6);
 ```
 
 **`V300`은 고치지 않는다.** `active_flag` 생성 컬럼 기법과 그 주석은 이 스키마의 핵심 근거이므로 원문을 보존한다.
@@ -228,7 +227,7 @@ constraint uk_dictionary_workspace_active unique (workspace_id, active_flag)
 
 `status`를 그대로 유니크에 넣으면 보관 행끼리 충돌한다. MySQL은 UNIQUE에서 NULL을 서로 다른 값으로 보므로 **보관 행은 NULL이라 몇 개든 쌓이고 활성 행은 1이라 두 개째가 막힌다.**
 
-`term`에는 `deleted_at`이 처음부터 없다 — 개별 수정·삭제 경로가 없기 때문이다(`V300` 주석).
+`term.deleted_at`은 공통 `BaseEntity` 규약을 위해 `V310`에서 추가하지만, 개별 삭제 유스케이스는 제공하지 않는다.
 
 **검색·정렬(`DIC-6`)에 인덱스가 필요해지면 `V320`으로 추가한다.** `uk_term_dictionary_preferred_form`이 `(dictionary_id, preferred_form)`을 덮으므로 표준어 접두 검색은 그 인덱스를 탄다. 정의 본문 검색은 `text` 컬럼이라 별도 판단이 필요하다 — `DIC-6`에서 결정한다.
 
@@ -271,10 +270,10 @@ com.ubidict.backend.dictionary
 │       ├── DraftDocumentTermQueryAdapter        DIC-4   — 같은 스냅샷, 소비자만 다르다
 │       └── DictionaryVersionPublishAdapter      DIC-3   — reviewrequest의 발행 위임 구현
 ├── domain
-│   ├── Dictionary                               as-built (BaseEntity → AuditableEntity: DIC-2)
+│   ├── Dictionary                               as-built (BaseEntity 유지: DIC-2)
 │   ├── DictionaryVersion                        as-built
 │   ├── DictionaryStatus                         as-built
-│   ├── Term                                     as-built (감사 필드 → AuditableEntity: DIC-2)
+│   ├── Term                                     as-built (감사 필드 → BaseEntity: DIC-2)
 │   ├── NewTerm                                  as-built
 │   ├── ~~DictionaryId~~                         제거 D-25
 │   ├── ~~TermId~~                               제거 D-25
@@ -429,7 +428,7 @@ com.ubidict.backend.dictionary
 
 ### 수정 금지 파일
 
-`common/**`(위 2건 제외), `common/domain/BaseEntity`, `common/domain/AuditableEntity`, `backend/src/test/java/.../support/**`, `application.properties`, `build.gradle`, 그리고 **다른 도메인의 패키지 전체**.
+`common/**`(위 2건 제외), `common/domain/BaseEntity`, `backend/src/test/java/.../support/**`, `application.properties`, `build.gradle`, 그리고 **다른 도메인의 패키지 전체**.
 
 > **`V300`은 고치지 않는다.** `active_flag` 생성 컬럼과 그 주석이 이 스키마의 핵심 근거다. 변경은 `V310` 이후로 쌓는다.
 
@@ -497,7 +496,7 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 
 | Phase | 목표 | 명시적 제외 |
 | --- | --- | --- |
-| 1 | **문서화와 감사 엔티티 정합** — `API.md` 절 신설, `AuditableEntity` 전환 | 발행 경로 변경(리뷰 도메인이 없다) |
+| 1 | **문서화와 감사 엔티티 정합** — `API.md` 절 신설, `BaseEntity` 통일 | 발행 경로 변경(리뷰 도메인이 없다) |
 | 2 | 다른 도메인이 우리를 보는 창구 — 제공 어댑터 3종 | — |
 | 3 | 조회·검색·정렬 + 페이징 | 버전 간 비교(`REQ-DIC-007`, MVP2) |
 | 4 | 임시 API 제거 + 이벤트·로그 | — |
@@ -516,7 +515,7 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 
 **`DIC-1`이 `T-DOC-1`에 의존하는 이유** — `API.md`의 공통 규칙 절(`X-09`의 `INVALID_INPUT` 문구)이 먼저 정리돼야 새 절의 에러 표가 그것과 어긋나지 않는다.
 
-**`DIC-2`를 가장 먼저 하는 이유** — `AuditableEntity` 전환이 엔티티 시그니처를 바꾸므로, 어댑터 3종(`DIC-3`~`DIC-5`)보다 앞서야 두 번 고치지 않는다.
+**`DIC-2`를 가장 먼저 하는 이유** — `BaseEntity` 통일이 엔티티 시그니처를 바꾸므로, 어댑터 3종(`DIC-3`~`DIC-5`)보다 앞서야 두 번 고치지 않는다.
 
 **`DIC-3`·`DIC-7`은 리뷰 도메인의 발행(`RR-4b`)이 develop에 있어야** 착수할 수 있다.
 
@@ -543,8 +542,9 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 
 **DIC-2**
 
-- [ ] `Dictionary`가 `AuditableEntity`를 상속하고 `V310`이 `deleted_at`을 지운다
-- [ ] `Term`이 `AuditableEntity`를 상속하고 `@CreationTimestamp`/`@UpdateTimestamp` 직접 선언이 사라졌다
+- [ ] `Dictionary`가 `BaseEntity`를 상속하고 기존 `deleted_at`을 유지한다
+- [ ] `Term`이 `BaseEntity`를 상속하고 `@CreationTimestamp`/`@UpdateTimestamp` 직접 선언이 사라졌다
+- [ ] `V310`이 `term.deleted_at`을 추가한다
 - [ ] `DictionaryRepository`의 조회 조건에 `deletedAt`이 없다(as-built 유지)
 - [ ] **`save_activeDictionaryIsDuplicated`가 여전히 통과한다** — `active_flag`를 건드리지 않았다
 
@@ -618,7 +618,7 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 | **통합 모델이 발행 목록을 크게 만든다** | `G-1`로 초안이 차기 버전 전체를 들므로 발행 시 넘어오는 `NewTermSnapshot`이 수백 건이 된다. 한 트랜잭션에서 `saveAll`한다 | `TermAppender.appendAll`이 이미 `saveAll` 한 번이다. 배치 크기가 문제가 되면 `hibernate.jdbc.batch_size`로 대응한다 — **코드 구조는 바꾸지 않는다** |
 | **버전마다 용어가 복제되어 행이 선형 증가한다** | 용어 300개 × 버전 20개 = 6,000행. 의도된 설계(각 버전의 스냅샷)지만 무한히 늘어난다 | MVP1 규모에서는 문제가 아니다. `uk_term_dictionary_preferred_form`이 `(dictionary_id, preferred_form)`이라 조회는 항상 한 버전으로 좁혀진다 |
 | **정의 본문 검색 수단이 없다** | `definition`이 `text`라 `keyword` 검색이 표준어·영문명에 한정된다(`REQ-DIC-002`) | `DIC-6`에서 표준어·영문명 접두 검색까지만 한다. 정의 검색이 필요해지면 전문 검색 인덱스를 별건으로 검토한다 |
-| **`BaseEntity` → `AuditableEntity` 전환이 감사 메커니즘을 바꾼다** | `BaseEntity`는 Spring Data Auditing(`@CreatedDate`)을, `AuditableEntity`는 Hibernate(`@CreationTimestamp`)를 쓴다. 시각 생성 주체가 달라진다 | `JpaAuditingConfig`가 UTC + 마이크로초 절삭 provider를 두는데 Hibernate 경로는 그것을 타지 않는다. **`DIC-2`에서 저장 전후 값이 달라지지 않는지 Repository 테스트로 확인한다** — `Term`이 이미 Hibernate 경로였으므로 선례가 있다 |
+| **`Term`의 감사 메커니즘이 바뀐다** | 직접 선언한 Hibernate 감사 애노테이션 대신 `BaseEntity`의 Spring Data Auditing을 쓴다 | `JpaAuditingConfig`의 UTC + 마이크로초 절삭 provider를 타는지 **`DIC-2` Repository 테스트로 저장 전후 값을 확인한다** |
 
 ### 열린 질문
 
@@ -628,9 +628,9 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 
 ### DOMAIN.md 수정 (`T-DOC-1`이 반영)
 
-1. `Dictionary` 표의 감사 필드 설명에 **`AuditableEntity` 상속**을 반영(`Y-07`)
+1. `Dictionary` 표의 감사 필드 설명에 **`BaseEntity` 상속 유지**를 반영(`Y-07`)
 2. `DictionaryVersion` 각주의 「유래 리비전은 지금 두지 않는다 — 리뷰 도메인 작업에서 되살릴 후보」를 **「두지 않는다(`D-26`)」로 확정**
-3. `Term` 표의 감사 필드 설명에 `AuditableEntity` 상속 반영(`Y-08`)
+3. `Term` 표의 감사 필드 설명에 `BaseEntity` 상속 반영(`Y-08`)
 4. 속성 표의 `DictionaryId`·`TermId`에 **「개념 표기」 각주**(`D-25`)
 5. «사전집» 정책의 「생성·반영은 Admin 이상」에 **발행이 리뷰 승인의 위임임을 명시**(`G-3`)
 

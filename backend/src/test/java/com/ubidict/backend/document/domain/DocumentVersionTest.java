@@ -74,54 +74,54 @@ class DocumentVersionTest {
     }
 
     /**
-     * 이 네 케이스가 「outdated를 저장하지 않고 파생 판정한다」는 결정의 전부다.
+     * 정렬 상태를 저장하지 않고 현재 활성 사전집과 버전 상태로 파생한다.
      */
     @Nested
-    @DisplayName("outdated 판정은")
-    class IsOutdated {
+    @DisplayName("aligned 판정은")
+    class IsAligned {
 
-        @DisplayName("사전집이 없으면 갱신할 대상이 없으므로 false다.")
+        @DisplayName("활성 사전집이 없으면 정렬된 것으로 본다.")
         @Test
-        void isOutdated_dictionaryIsAbsent() {
+        void isAligned_dictionaryIsAbsent() {
             // given
             DocumentVersion version = versionOf(null);
 
             // when & then
-            assertThat(version.isOutdated(null)).isFalse();
+            assertThat(version.isAligned(null)).isTrue();
         }
 
-        @DisplayName("대조를 거치지 않은 버전이면 true다.")
+        @DisplayName("대조를 거치지 않은 버전은 정렬되지 않은 것으로 본다.")
         @Test
-        void isOutdated_versionIsNotContrasted() {
+        void isAligned_dictionaryVersionIsAbsent() {
             // given
             DocumentVersion version = versionOf(null);
 
             // when & then
-            assertThat(version.isOutdated(1)).isTrue();
+            assertThat(version.isAligned(1)).isFalse();
         }
 
-        @DisplayName("기준 사전집 버전이 활성 버전과 다르면 true다.")
+        @DisplayName("기준 사전집 버전이 활성 버전과 다르면 정렬되지 않은 것으로 본다.")
         @Test
-        void isOutdated_dictionaryVersionIsStale() {
+        void isAligned_dictionaryVersionDiffers() {
             // given
             DocumentVersion version = versionOf(1);
 
             // when & then
-            assertThat(version.isOutdated(2)).isTrue();
+            assertThat(version.isAligned(2)).isFalse();
         }
 
-        @DisplayName("기준 사전집 버전이 활성 버전과 같으면 false다.")
+        @DisplayName("기준 사전집 버전이 활성 버전과 같으면 정렬된 것으로 본다.")
         @Test
-        void isOutdated_dictionaryVersionIsCurrent() {
+        void isAligned_dictionaryVersionMatches() {
             // given
             DocumentVersion version = versionOf(2);
 
             // when & then
-            assertThat(version.isOutdated(2)).isFalse();
+            assertThat(version.isAligned(2)).isTrue();
         }
 
         /**
-         * 대조를 거친 버전은 반영으로만 생기는데 그 경로가 아직 없어(reviewrequest 도메인) 리플렉션으로 주입한다.
+         * 교정 반영 경로를 거치지 않고 정렬 판정만 검증하기 위해 기준 버전을 주입한다.
          */
         private DocumentVersion versionOf(Integer dictionaryVersionNo) {
             DocumentVersion version = DocumentVersion.publishFirst(DOCUMENT_ID, "회원은 결제할 수 있다.", MEMBER_ID);
@@ -129,5 +129,32 @@ class DocumentVersionTest {
 
             return version;
         }
+    }
+
+    @DisplayName("직접 편집한 버전은 사전집 버전이 같아도 정렬되지 않은 것으로 본다.")
+    @Test
+    void isAligned_edited() {
+        DocumentVersion version = DocumentVersion.publishEdited(
+                DOCUMENT_ID, PublishedVersion.initial().next(), "본문", 1, MEMBER_ID);
+
+        assertThat(version.isAligned(1)).isFalse();
+    }
+
+    @DisplayName("직접 편집본은 edited다.")
+    @Test
+    void publishEdited_marksEdited() {
+        DocumentVersion version = DocumentVersion.publishEdited(
+                DOCUMENT_ID, PublishedVersion.initial().next(), "본문", 1, MEMBER_ID);
+
+        assertThat(version.isEdited()).isTrue();
+    }
+
+    @DisplayName("직접 편집본은 이전 사전집 버전을 승계한다.")
+    @Test
+    void publishEdited_inheritsDictionaryVersionNo() {
+        DocumentVersion version = DocumentVersion.publishEdited(
+                DOCUMENT_ID, PublishedVersion.initial().next(), "본문", 3, MEMBER_ID);
+
+        assertThat(version.getDictionaryVersionNo()).isEqualTo(3);
     }
 }

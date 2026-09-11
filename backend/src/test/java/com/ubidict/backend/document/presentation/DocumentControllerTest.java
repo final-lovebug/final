@@ -2,7 +2,9 @@ package com.ubidict.backend.document.presentation;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -77,7 +79,7 @@ class DocumentControllerTest {
                 .statusCode(HttpStatus.CREATED.value())
                 .body("documentId", equalTo(DOCUMENT_ID.intValue()))
                 .body("currentVersionNo", equalTo(1))
-                .body("outdated", equalTo(false))
+                .body("aligned", equalTo(true))
                 .body("labels", contains("설계"));
     }
 
@@ -167,6 +169,39 @@ class DocumentControllerTest {
                 .body("[0].content", nullValue());
     }
 
+    @DisplayName("문서 목록은 정렬 여부와 직접 편집 여부를 담는다.")
+    @Test
+    void readAll_containsAlignedAndEdited() {
+        // given
+        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq(null)))
+                .willReturn(List.of(summaryResult()));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("[0].aligned", equalTo(true))
+                .body("[0].edited", equalTo(false));
+    }
+
+    @DisplayName("문서 목록은 폐기된 outdated 필드를 담지 않는다.")
+    @Test
+    void readAll_doesNotContainOutdated() {
+        // given
+        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq(null)))
+                .willReturn(List.of(summaryResult()));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("[0]", not(hasKey("outdated")));
+    }
+
     @DisplayName("라벨 필터를 넘기면 서비스로 전달된다.")
     @Test
     void readAll_filterByLabel() {
@@ -242,6 +277,50 @@ class DocumentControllerTest {
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
 
+    @DisplayName("본문을 직접 편집하면 새 버전의 상세를 응답한다.")
+    @Test
+    void editContent() {
+        // given
+        given(documentService.editContent(any())).willReturn(editedDocumentResult());
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"content": "편집한 본문"}
+                        """)
+                .when()
+                .patch(
+                        "/api/workspaces/{workspaceId}/documents/{documentId}/content?memberId={memberId}",
+                        WORKSPACE_ID,
+                        DOCUMENT_ID,
+                        MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("currentVersionNo", equalTo(2))
+                .body("content", equalTo("편집한 본문"))
+                .body("edited", equalTo(true));
+    }
+
+    @DisplayName("직접 편집할 본문이 비어 있으면 400을 응답한다.")
+    @Test
+    void editContent_contentIsBlank() {
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"content": "  "}
+                        """)
+                .when()
+                .patch(
+                        "/api/workspaces/{workspaceId}/documents/{documentId}/content?memberId={memberId}",
+                        WORKSPACE_ID,
+                        DOCUMENT_ID,
+                        MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .body("code", equalTo("COMMON_INVALID_REQUEST"));
+    }
+
     @DisplayName("문서를 삭제하면 204를 응답한다.")
     @Test
     void delete() {
@@ -262,7 +341,7 @@ class DocumentControllerTest {
     void readVersions() {
         // given
         given(documentService.readVersions(WORKSPACE_ID, DOCUMENT_ID, MEMBER_ID))
-                .willReturn(List.of(new DocumentVersionSummaryResult(1, OffsetDateTime.now(), null, MEMBER_ID)));
+                .willReturn(List.of(new DocumentVersionSummaryResult(1, OffsetDateTime.now(), null, false, MEMBER_ID)));
 
         // when & then
         RestAssuredMockMvc.given()
@@ -283,7 +362,7 @@ class DocumentControllerTest {
     void readVersion() {
         // given
         given(documentService.readVersion(WORKSPACE_ID, DOCUMENT_ID, 1, MEMBER_ID))
-                .willReturn(new DocumentVersionResult(1, "첫 본문", OffsetDateTime.now(), null, MEMBER_ID));
+                .willReturn(new DocumentVersionResult(1, "첫 본문", OffsetDateTime.now(), null, false, MEMBER_ID));
 
         // when & then
         RestAssuredMockMvc.given()
@@ -305,6 +384,7 @@ class DocumentControllerTest {
                 "결제 도메인 설계",
                 "회원은 결제할 수 있다.",
                 1,
+                true,
                 false,
                 null,
                 List.of("설계"),
@@ -318,7 +398,25 @@ class DocumentControllerTest {
                 DOCUMENT_ID,
                 "결제 도메인 설계",
                 1,
+                true,
                 false,
+                null,
+                List.of("설계"),
+                MEMBER_ID,
+                OffsetDateTime.now(),
+                OffsetDateTime.now());
+    }
+
+    private static DocumentResult editedDocumentResult() {
+        return new DocumentResult(
+                DOCUMENT_ID,
+                WORKSPACE_ID,
+                "결제 도메인 설계",
+                "편집한 본문",
+                2,
+                false,
+                true,
+                1,
                 List.of("설계"),
                 MEMBER_ID,
                 OffsetDateTime.now(),

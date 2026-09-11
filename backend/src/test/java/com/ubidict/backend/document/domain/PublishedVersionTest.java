@@ -27,7 +27,7 @@ class PublishedVersionTest {
      */
     @DisplayName("다음 버전은 번호를 하나 올리고 확정일시를 새로 찍는다.")
     @Test
-    void next() {
+    void next_increasesVersionNoAndStampsNewTime() {
         // given
         PublishedVersion first = PublishedVersion.initial();
 

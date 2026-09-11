@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
  * <p>본문을 들고 있지 않다. 본문은 {@link DocumentVersion#getBody()}에만 있고, 현재 본문은 {@code currentVersionNo}가
  * 가리키는 버전이다. 두 곳에 저장하면 반영(Revise) 때 둘을 함께 갱신해야 하고 어긋난다.
  *
- * <p>그래서 이 엔티티에는 본문을 바꾸는 메서드가 없다. 본문이 바뀌는 유일한 경로는 대조 → 초안 → 리뷰 → 반영이며, 업로드(v1)만 예외다.
+ * <p>본문은 버전 발행으로만 바뀐다. 업로드와 직접 편집은 이 엔티티가 다음 버전 번호를 발행한다.
  */
 @Getter
 @Entity
@@ -73,6 +73,12 @@ public class Document extends BaseEntity {
      */
     public void touch(Long memberId) {
         this.updaterId = memberId;
+    }
+
+    public int publishNext(Long memberId) {
+        currentVersionNo++;
+        updaterId = memberId;
+        return currentVersionNo;
     }
 
     public boolean belongsTo(Long workspaceId) {

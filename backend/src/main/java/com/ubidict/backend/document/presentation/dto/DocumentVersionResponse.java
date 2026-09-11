@@ -4,7 +4,12 @@ import com.ubidict.backend.document.service.model.DocumentVersionResult;
 import java.time.OffsetDateTime;
 
 public record DocumentVersionResponse(
-        int versionNo, String body, OffsetDateTime publishedAt, Integer dictionaryVersionNo, Long publishedBy) {
+        int versionNo,
+        String body,
+        OffsetDateTime publishedAt,
+        Integer dictionaryVersionNo,
+        boolean edited,
+        Long publishedBy) {
 
     public static DocumentVersionResponse from(DocumentVersionResult result) {
         return new DocumentVersionResponse(
@@ -12,6 +17,7 @@ public record DocumentVersionResponse(
                 result.body(),
                 result.publishedAt(),
                 result.dictionaryVersionNo(),
+                result.edited(),
                 result.publishedBy());
     }
 }
