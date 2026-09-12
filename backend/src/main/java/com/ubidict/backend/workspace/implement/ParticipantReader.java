@@ -27,6 +27,10 @@ public class ParticipantReader {
         return participantRepository.findAllByWorkspaceIdAndDeletedAtIsNull(workspaceId);
     }
 
+    public long countByWorkspace(Long workspaceId) {
+        return participantRepository.countByWorkspaceIdAndDeletedAtIsNull(workspaceId);
+    }
+
     public Participant readById(Long participantId, Long workspaceId) {
         return participantRepository
                 .findByIdAndWorkspaceIdAndDeletedAtIsNull(participantId, workspaceId)

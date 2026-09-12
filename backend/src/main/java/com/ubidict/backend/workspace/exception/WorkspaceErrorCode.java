@@ -16,6 +16,7 @@ public enum WorkspaceErrorCode implements ErrorCode {
     WORKSPACE_ADMIN_REQUIRED(HttpStatus.FORBIDDEN, "워크스페이스 관리자 이상만 수행할 수 있습니다."),
     WORKSPACE_OWNER_REQUIRED(HttpStatus.FORBIDDEN, "워크스페이스 소유자만 수행할 수 있습니다."),
     WORKSPACE_PARTICIPANT_NOT_FOUND(HttpStatus.NOT_FOUND, "참여자를 찾을 수 없습니다."),
+    WORKSPACE_PARTICIPANT_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "워크스페이스 참여자는 최대 5명입니다."),
     WORKSPACE_OWNER_CANNOT_BE_REMOVED(HttpStatus.CONFLICT, "소유자는 내보낼 수 없습니다.");
 
     private final HttpStatus status;

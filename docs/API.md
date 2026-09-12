@@ -349,6 +349,10 @@ POST /api/members
 | PATCH | `/api/workspaces/{workspaceId}` | ADMIN 이상 | `204` |
 | PATCH | `/api/workspaces/{workspaceId}/rule-set` | ADMIN 이상 | `200` |
 | DELETE | `/api/workspaces/{workspaceId}` | OWNER | `204` |
+| POST | `/api/workspaces/{workspaceId}/invitations` | ADMIN 이상 | `201` |
+| GET | `/api/workspaces/{workspaceId}/invitations` | ADMIN 이상 | `200` (배열) |
+| DELETE | `/api/workspaces/{workspaceId}/invitations/{invitationId}` | 발급자 또는 ADMIN 이상 | `204` |
+| POST | `/api/invitations/{token}/accept` | 로그인 | `201` |
 
 ### **워크스페이스 참여자 관리**
 
@@ -361,6 +365,19 @@ POST /api/members
 
 모든 요청은 임시 요청자 식별자인 `memberId` 쿼리 파라미터를 사용한다. Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 있다.
 권한 변경의 `permission`에는 `ADMIN` 또는 `REGULAR`만 허용하며, 소유권 이전은 별도 엔드포인트를 사용한다.
+
+### **워크스페이스 초대**
+
+| **Method** | **Path** | **요청** | **응답** |
+| --- | --- | --- | --- |
+| POST | `/api/workspaces/{workspaceId}/invitations` | `IssueInvitationRequest` | `InvitationResponse` |
+| GET | `/api/workspaces/{workspaceId}/invitations?status={status}` | — | `InvitationResponse[]` |
+| DELETE | `/api/workspaces/{workspaceId}/invitations/{invitationId}` | — | — |
+| POST | `/api/invitations/{token}/accept` | — | `WorkspaceResponse` |
+
+발급 요청의 `inviteeEmail`은 선택이며, 링크 복사 방식에서는 생략한다. `permission`은 `ADMIN` 또는 `REGULAR`만 허용한다. 초대는 7일 뒤 만료되고 조회·수락 시점에 만료 여부를 판정한다.
+
+발급 응답에만 링크 복사용 `token`을 담고, 목록 응답에서는 노출하지 않는다. 수락 경로는 워크스페이스를 모른 채 토큰으로 진입하므로 워크스페이스 하위가 아니다. 수락 직후 화면 진입에 필요한 `myPermission`을 전달하기 위해 `WorkspaceResponse`를 반환한다.
 
 ## **워크스페이스 생성**
 
@@ -475,6 +492,12 @@ POST /api/members
 | 참여자지만 OWNER가 아닌 사용자가 삭제를 시도 | 403 | `WORKSPACE_OWNER_REQUIRED` |
 | 없는 참여자 또는 다른 워크스페이스의 참여자 | 404 | `WORKSPACE_PARTICIPANT_NOT_FOUND` |
 | 소유자를 내보내려고 시도 | 409 | `WORKSPACE_OWNER_CANNOT_BE_REMOVED` |
+| 워크스페이스 참여자가 이미 5명인 초대를 수락 | 409 | `WORKSPACE_PARTICIPANT_LIMIT_EXCEEDED` |
+| 초대를 찾을 수 없음 | 404 | `INVITATION_NOT_FOUND` |
+| 만료되거나 이미 처리된 초대를 수락·취소 | 409 | `INVITATION_NOT_ACCEPTABLE` |
+| 이미 참여 중인 회원에게 초대를 발급하거나 해당 회원이 초대를 수락 | 409 | `INVITATION_ALREADY_PARTICIPANT` |
+| 같은 대상에게 대기 중인 초대를 중복 발급 | 409 | `INVITATION_DUPLICATE_PENDING` |
+| 초대로 OWNER 권한을 부여 | 400 | `INVITATION_OWNER_NOT_ALLOWED` |
 | 이름이 비었거나 50자 초과(도메인 검증) | 400 | `WORKSPACE_INVALID_NAME` |
 | 필수 리뷰어 수가 0 미만(도메인 검증) | 400 | `WORKSPACE_INVALID_REVIEWER_COUNT` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
