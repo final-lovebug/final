@@ -18,7 +18,7 @@ class PublishStubTest {
     void documentVersionPublishStub_throws() {
         DocumentVersionPublishStub stub = new DocumentVersionPublishStub();
 
-        assertThatThrownBy(() -> stub.publish(1L, 1, "본문", 1))
+        assertThatThrownBy(() -> stub.publish(1L, 1, "본문", 1, 1L))
                 .isInstanceOf(UnsupportedOperationException.class)
                 .hasMessageContaining("DOC-6")
                 .hasMessageContaining("app.crossdomain.document-publish.mode");

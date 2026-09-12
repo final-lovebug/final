@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class DocumentVersionPublishStub implements DocumentVersionPublishPort {
 
     @Override
-    public int publish(Long documentId, int baseVersionNo, String body, int dictionaryVersionNo) {
+    public int publish(Long documentId, int baseVersionNo, String body, int dictionaryVersionNo, Long publishedBy) {
         throw new UnsupportedOperationException(
                 "문서 버전 발행 어댑터가 아직 없다. DOC-6을 머지하고 app.crossdomain.document-publish.mode를 real로 바꾼다.");
     }

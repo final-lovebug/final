@@ -10,5 +10,5 @@ package com.ubidict.backend.reviewrequest.infra.port;
  * @return 새로 발행된 버전 번호
  */
 public interface DocumentVersionPublishPort {
-    int publish(Long documentId, int baseVersionNo, String body, int dictionaryVersionNo);
+    int publish(Long documentId, int baseVersionNo, String body, int dictionaryVersionNo, Long publishedBy);
 }

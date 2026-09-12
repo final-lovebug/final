@@ -17,6 +17,7 @@ public enum DocumentErrorCode implements ErrorCode {
     DOCUMENT_INVALID_CONTENT(HttpStatus.BAD_REQUEST, "문서 본문은 1자 이상 10,000자 이하여야 합니다."),
     DOCUMENT_INVALID_VERSION(HttpStatus.BAD_REQUEST, "문서 버전 정보가 올바르지 않습니다."),
     DOCUMENT_VERSION_NOT_FOUND(HttpStatus.NOT_FOUND, "문서 버전을 찾을 수 없습니다."),
+    DOCUMENT_VERSION_CONFLICT(HttpStatus.CONFLICT, "문서 버전이 현재 버전과 일치하지 않습니다."),
     DOCUMENT_LABEL_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "문서에 붙일 수 있는 라벨은 최대 5개입니다."),
     DOCUMENT_DRAFT_IN_PROGRESS(HttpStatus.CONFLICT, "진행 중인 초안이 있어 본문을 편집할 수 없습니다."),
     DOCUMENT_SOURCE_OF_DICTIONARY_DRAFT(HttpStatus.CONFLICT, "사전 초안의 원천 문서라 본문을 편집할 수 없습니다.");

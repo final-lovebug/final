@@ -23,4 +23,10 @@ public class DocumentVersionAppender {
         return documentVersionRepository.save(DocumentVersion.publishEdited(
                 document.getId(), previous.getVersion().next(), body, previous.getDictionaryVersionNo(), memberId));
     }
+
+    public DocumentVersion appendRevised(
+            Document document, DocumentVersion previous, String body, int dictionaryVersionNo, Long memberId) {
+        return documentVersionRepository.save(DocumentVersion.publishRevised(
+                document.getId(), previous.getVersion().next(), body, dictionaryVersionNo, memberId));
+    }
 }

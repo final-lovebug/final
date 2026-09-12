@@ -1,8 +1,10 @@
 package com.ubidict.backend.document.service;
 
+import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.document.domain.Document;
 import com.ubidict.backend.document.domain.DocumentVersion;
 import com.ubidict.backend.document.domain.Label;
+import com.ubidict.backend.document.exception.DocumentErrorCode;
 import com.ubidict.backend.document.implement.DocumentAlignmentReader;
 import com.ubidict.backend.document.implement.DocumentAppender;
 import com.ubidict.backend.document.implement.DocumentEditGuard;
@@ -126,6 +128,22 @@ public class DocumentService {
                 documentVersionAppender.appendEdited(document, previous, command.content(), command.memberId());
         return DocumentResult.of(
                 document, version, readLabelNames(document), activeDictionaryVersionNo(command.workspaceId()));
+    }
+
+    /** 리뷰 승인이 확정한 교정 본문을 다음 문서 버전으로 발행한다. */
+    @Transactional
+    public int publishRevised(
+            Long documentId, int baseVersionNo, String body, int dictionaryVersionNo, Long publishedBy) {
+        Document document = documentReader.read(documentId);
+        workspaceAccessValidator.validateAtLeast(document.getWorkspaceId(), publishedBy, Permission.ADMIN);
+        if (document.getCurrentVersionNo() != baseVersionNo) {
+            throw new BusinessException(DocumentErrorCode.DOCUMENT_VERSION_CONFLICT);
+        }
+
+        DocumentVersion previous = documentVersionReader.read(document, baseVersionNo);
+        int resultVersionNo = document.publishNext(publishedBy);
+        documentVersionAppender.appendRevised(document, previous, body, dictionaryVersionNo, publishedBy);
+        return resultVersionNo;
     }
 
     @Transactional
