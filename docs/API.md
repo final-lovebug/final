@@ -1056,6 +1056,10 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 상태는 `PENDING`·`RUNNING`·`SUCCEEDED`·`FAILED`다. 성공하면 `draftDocumentId`, 실패하면 `failureReason`이 채워진다.
 
+접수 트랜잭션이 커밋된 뒤 비동기 이벤트 리스너가 작업을 `RUNNING`으로 바꾸고 최신 문서 스냅샷과 활성 사전집 용어를 `TermCheckerPort`에 전달한다. 대조 결과의 원문 위치가 실제 본문과 일치할 때만 문서 초안과 제안어를 한 트랜잭션으로 저장하고 작업을 `SUCCEEDED`로 마친다. 처리 중 오류가 발생하면 초안 생성 트랜잭션을 롤백하고 작업을 `FAILED`로 기록한다.
+
+현재 `app.ai.checker.mode=stub`은 빈 고정 결과를 반환한다. 따라서 실제 AI 모델이 연결되기 전에도 비동기 접수·상태 전이·초안 생성 흐름은 검증할 수 있지만, 생성된 초안에 자동 제안어는 포함되지 않는다.
+
 ## **에러**
 
 | **상황** | **status** | **code** |
@@ -1081,6 +1085,7 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 같은 문서의 대조 작업이 이미 진행 중임 | 409 | `DRAFT_DOCUMENT_CHECK_ALREADY_RUNNING` |
 | 문서 대조 요청이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_CHECK_INVALID_REQUEST` |
 | 문서 대조 작업 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_CHECK_INVALID_STATUS` |
+| 대조 결과의 위치·원문이 현재 본문과 일치하지 않음 | 500 | `DRAFT_DOCUMENT_CHECK_INVALID_RESULT` |
 | 초안 또는 제안어가 속한 워크스페이스의 비참여자 | 404 | 대상 리소스의 `NOT_FOUND` 코드 |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 

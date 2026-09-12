@@ -23,6 +23,7 @@ public enum DraftDocumentErrorCode implements ErrorCode {
     DRAFT_DOCUMENT_CHECK_ALREADY_RUNNING(HttpStatus.CONFLICT, "이미 문서 대조 작업이 진행 중입니다."),
     DRAFT_DOCUMENT_CHECK_INVALID_REQUEST(HttpStatus.BAD_REQUEST, "문서 대조 요청이 올바르지 않습니다."),
     DRAFT_DOCUMENT_CHECK_INVALID_STATUS(HttpStatus.CONFLICT, "문서 대조 작업 상태를 변경할 수 없습니다."),
+    DRAFT_DOCUMENT_CHECK_INVALID_RESULT(HttpStatus.INTERNAL_SERVER_ERROR, "문서 대조 결과가 올바르지 않습니다."),
     DRAFT_DOCUMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "문서 초안을 찾을 수 없습니다."),
     DRAFT_DOCUMENT_INVALID_BODY(HttpStatus.BAD_REQUEST, "초안 본문은 비어 있을 수 없습니다."),
     DRAFT_DOCUMENT_INVALID_BASE_VERSION(HttpStatus.BAD_REQUEST, "기준 문서 버전이 올바르지 않습니다.");
