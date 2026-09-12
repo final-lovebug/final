@@ -16,7 +16,9 @@ public enum ReviewRequestErrorCode implements ErrorCode {
     REVIEW_REQUEST_DUPLICATE_REVIEWER(HttpStatus.CONFLICT, "이미 지정된 리뷰어입니다."),
     REVIEW_REQUEST_REVISION_NOT_FOUND(HttpStatus.NOT_FOUND, "개정안을 찾을 수 없습니다."),
     REVIEW_REQUEST_REVISION_ALREADY_EXISTS(HttpStatus.CONFLICT, "해당 회차의 개정안이 이미 있습니다."),
-    REVIEW_REQUEST_TYPE_MISMATCHED(HttpStatus.BAD_REQUEST, "요청 유형과 개정안 종류가 맞지 않습니다.");
+    REVIEW_REQUEST_TYPE_MISMATCHED(HttpStatus.BAD_REQUEST, "요청 유형과 개정안 종류가 맞지 않습니다."),
+    REVIEW_REQUEST_STALE_TARGET_ROUND(HttpStatus.BAD_REQUEST, "대상 회차가 올바르지 않습니다."),
+    REVIEW_REQUEST_REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "리뷰를 찾을 수 없습니다.");
 
     private final HttpStatus status;
     private final String message;
