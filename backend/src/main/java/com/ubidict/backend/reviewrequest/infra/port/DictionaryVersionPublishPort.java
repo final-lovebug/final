@@ -14,5 +14,5 @@ import java.util.List;
  * @return 새로 발행된 사전집 버전 번호
  */
 public interface DictionaryVersionPublishPort {
-    int publish(Long workspaceId, int baseVersionNo, List<NewTermSnapshot> terms);
+    int publish(Long workspaceId, int baseVersionNo, List<NewTermSnapshot> terms, Long publishedBy);
 }

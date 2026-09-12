@@ -1,7 +1,9 @@
 package com.ubidict.backend.dictionary.service;
 
+import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.dictionary.domain.Dictionary;
 import com.ubidict.backend.dictionary.domain.NewTerm;
+import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
 import com.ubidict.backend.dictionary.implement.DictionaryAppender;
 import com.ubidict.backend.dictionary.implement.DictionaryReader;
 import com.ubidict.backend.dictionary.implement.DictionaryUpdater;
@@ -48,13 +50,22 @@ public class DictionaryService {
     public DictionaryResult revise(ReviseDictionaryCommand command) {
         workspaceAccessValidator.validateAtLeast(command.workspaceId(), command.memberId(), Permission.ADMIN);
 
-        List<NewTerm> newTerms = command.toNewTerms();
-        termFormValidator.validateUnique(newTerms);
+        return revise(command.workspaceId(), command.memberId(), command.toNewTerms());
+    }
 
-        Dictionary next = appendNextVersion(command.workspaceId(), command.memberId());
-        termAppender.appendAll(next.getId(), newTerms, command.memberId());
+    /** 리뷰 승인이 확정한 전체 용어 목록을 현재 활성 버전 다음 버전으로 발행한다. */
+    @Transactional
+    public int publish(Long workspaceId, int baseVersionNo, List<NewTerm> terms, Long publishedBy) {
+        workspaceAccessValidator.validateAtLeast(workspaceId, publishedBy, Permission.ADMIN);
+        int activeVersionNo = dictionaryReader
+                .readActiveOptional(workspaceId)
+                .map(Dictionary::versionNo)
+                .orElse(0);
+        if (activeVersionNo != baseVersionNo) {
+            throw new BusinessException(DictionaryErrorCode.DICTIONARY_VERSION_CONFLICT);
+        }
 
-        return DictionaryResult.of(next, termReader.readAll(next.getId()));
+        return revise(workspaceId, publishedBy, terms).versionNo();
     }
 
     /**
@@ -100,5 +111,13 @@ public class DictionaryService {
                     return dictionaryAppender.appendNext(current, memberId);
                 })
                 .orElseGet(() -> dictionaryAppender.appendFirst(workspaceId, memberId));
+    }
+
+    private DictionaryResult revise(Long workspaceId, Long memberId, List<NewTerm> newTerms) {
+        termFormValidator.validateUnique(newTerms);
+        Dictionary next = appendNextVersion(workspaceId, memberId);
+        termAppender.appendAll(next.getId(), newTerms, memberId);
+
+        return DictionaryResult.of(next, termReader.readAll(next.getId()));
     }
 }

@@ -1,6 +1,9 @@
 package com.ubidict.backend.dictionary.fixture;
 
 import com.ubidict.backend.dictionary.domain.Term;
+import com.ubidict.backend.reviewrequest.infra.port.NewTermSnapshot;
+import java.util.Arrays;
+import java.util.List;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
@@ -10,6 +13,12 @@ public class TermFixture {
 
     public static TermBuilder term() {
         return new TermBuilder();
+    }
+
+    public static List<NewTermSnapshot> snapshots(String... preferredForms) {
+        return Arrays.stream(preferredForms)
+                .map(form -> new NewTermSnapshot(form, null, form + "에 대한 정의"))
+                .toList();
     }
 
     public static class TermBuilder {

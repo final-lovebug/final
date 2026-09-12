@@ -29,7 +29,7 @@ class PublishStubTest {
     void dictionaryVersionPublishStub_throws() {
         DictionaryVersionPublishStub stub = new DictionaryVersionPublishStub();
 
-        assertThatThrownBy(() -> stub.publish(1L, 1, List.of()))
+        assertThatThrownBy(() -> stub.publish(1L, 1, List.of(), 1L))
                 .isInstanceOf(UnsupportedOperationException.class)
                 .hasMessageContaining("DIC-3")
                 .hasMessageContaining("app.crossdomain.dictionary-publish.mode");
