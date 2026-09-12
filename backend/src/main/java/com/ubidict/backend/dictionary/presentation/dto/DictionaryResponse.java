@@ -1,9 +1,9 @@
 package com.ubidict.backend.dictionary.presentation.dto;
 
+import com.ubidict.backend.common.presentation.PageResponse;
 import com.ubidict.backend.dictionary.domain.DictionaryStatus;
 import com.ubidict.backend.dictionary.service.model.DictionaryResult;
 import java.time.OffsetDateTime;
-import java.util.List;
 
 public record DictionaryResponse(
         Long dictionaryId,
@@ -12,7 +12,7 @@ public record DictionaryResponse(
         DictionaryStatus status,
         OffsetDateTime publishedAt,
         Long createdBy,
-        List<TermResponse> terms) {
+        PageResponse<TermResponse> terms) {
 
     public static DictionaryResponse from(DictionaryResult result) {
         return new DictionaryResponse(
@@ -22,6 +22,6 @@ public record DictionaryResponse(
                 result.status(),
                 result.publishedAt(),
                 result.createdBy(),
-                result.terms().stream().map(TermResponse::from).toList());
+                PageResponse.from(result.terms().map(TermResponse::from)));
     }
 }

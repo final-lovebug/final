@@ -1,7 +1,11 @@
 package com.ubidict.backend.dictionary.service;
 
+import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.exception.CommonErrorCode;
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.dictionary.domain.Dictionary;
 import com.ubidict.backend.dictionary.domain.NewTerm;
+import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
 import com.ubidict.backend.dictionary.implement.DictionaryAppender;
 import com.ubidict.backend.dictionary.implement.DictionaryReader;
 import com.ubidict.backend.dictionary.implement.DictionaryUpdater;
@@ -9,8 +13,10 @@ import com.ubidict.backend.dictionary.implement.TermAppender;
 import com.ubidict.backend.dictionary.implement.TermFormValidator;
 import com.ubidict.backend.dictionary.implement.TermReader;
 import com.ubidict.backend.dictionary.service.model.DictionaryResult;
+import com.ubidict.backend.dictionary.service.model.DictionarySearchQuery;
 import com.ubidict.backend.dictionary.service.model.DictionaryVersionResult;
 import com.ubidict.backend.dictionary.service.model.ReviseDictionaryCommand;
+import com.ubidict.backend.dictionary.service.model.TermResult;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import java.util.List;
@@ -48,48 +54,65 @@ public class DictionaryService {
     public DictionaryResult revise(ReviseDictionaryCommand command) {
         workspaceAccessValidator.validateAtLeast(command.workspaceId(), command.memberId(), Permission.ADMIN);
 
-        List<NewTerm> newTerms = command.toNewTerms();
-        termFormValidator.validateUnique(newTerms);
+        return revise(command.workspaceId(), command.memberId(), command.toNewTerms());
+    }
 
-        Dictionary next = appendNextVersion(command.workspaceId(), command.memberId());
-        termAppender.appendAll(next.getId(), newTerms, command.memberId());
+    /** 리뷰 승인이 확정한 전체 용어 목록을 현재 활성 버전 다음 버전으로 발행한다. */
+    @Transactional
+    public int publish(Long workspaceId, int baseVersionNo, List<NewTerm> terms, Long publishedBy) {
+        workspaceAccessValidator.validateAtLeast(workspaceId, publishedBy, Permission.ADMIN);
+        int activeVersionNo = dictionaryReader
+                .readActiveOptional(workspaceId)
+                .map(Dictionary::versionNo)
+                .orElse(0);
+        if (activeVersionNo != baseVersionNo) {
+            throw new BusinessException(DictionaryErrorCode.DICTIONARY_VERSION_CONFLICT);
+        }
 
-        return DictionaryResult.of(next, termReader.readAll(next.getId()));
+        return revise(workspaceId, publishedBy, terms).versionNo();
     }
 
     /**
      * 현재 확정본을 읽는다. 문서 대조가 기준으로 삼는 사전집이다.
      */
     @Transactional(readOnly = true)
-    public DictionaryResult readActive(Long workspaceId, Long memberId) {
+    public DictionaryResult readActive(Long workspaceId, Long memberId, DictionarySearchQuery query) {
         workspaceAccessValidator.validateParticipant(workspaceId, memberId);
         Dictionary dictionary = dictionaryReader.readActive(workspaceId);
 
-        return DictionaryResult.of(dictionary, termReader.readAll(dictionary.getId()));
+        return DictionaryResult.of(
+                dictionary,
+                termReader
+                        .readPage(dictionary.getId(), query)
+                        .map(item -> new TermResult(item.termId(), item.preferredForm(), item.englishName(), null)));
     }
 
     /**
      * 버전 이력을 최신순으로 읽는다. 사전집을 만든 적 없는 워크스페이스는 빈 목록이다 — 조회의 빈 결과는 실패가 아니다.
      */
     @Transactional(readOnly = true)
-    public List<DictionaryVersionResult> readVersions(Long workspaceId, Long memberId) {
+    public PageResult<DictionaryVersionResult> readVersions(Long workspaceId, Long memberId, int page, int size) {
+        validatePagination(page, size);
         workspaceAccessValidator.validateParticipant(workspaceId, memberId);
 
-        List<Dictionary> versions = dictionaryReader.readAllVersions(workspaceId);
+        PageResult<Dictionary> versions = dictionaryReader.readVersions(workspaceId, page, size);
         Map<Long, Long> termCounts = termReader.countByDictionaryIds(
-                versions.stream().map(Dictionary::getId).toList());
+                versions.content().stream().map(Dictionary::getId).toList());
 
-        return versions.stream()
-                .map(version -> DictionaryVersionResult.of(version, termCounts.getOrDefault(version.getId(), 0L)))
-                .toList();
+        return versions.map(
+                version -> DictionaryVersionResult.of(version, termCounts.getOrDefault(version.getId(), 0L)));
     }
 
     @Transactional(readOnly = true)
-    public DictionaryResult readVersion(Long workspaceId, int versionNo, Long memberId) {
+    public DictionaryResult readVersion(Long workspaceId, int versionNo, Long memberId, DictionarySearchQuery query) {
         workspaceAccessValidator.validateParticipant(workspaceId, memberId);
         Dictionary dictionary = dictionaryReader.readByVersionNo(workspaceId, versionNo);
 
-        return DictionaryResult.of(dictionary, termReader.readAll(dictionary.getId()));
+        return DictionaryResult.of(
+                dictionary,
+                termReader
+                        .readPage(dictionary.getId(), query)
+                        .map(item -> new TermResult(item.termId(), item.preferredForm(), item.englishName(), null)));
     }
 
     private Dictionary appendNextVersion(Long workspaceId, Long memberId) {
@@ -100,5 +123,21 @@ public class DictionaryService {
                     return dictionaryAppender.appendNext(current, memberId);
                 })
                 .orElseGet(() -> dictionaryAppender.appendFirst(workspaceId, memberId));
+    }
+
+    private DictionaryResult revise(Long workspaceId, Long memberId, List<NewTerm> newTerms) {
+        termFormValidator.validateUnique(newTerms);
+        Dictionary next = appendNextVersion(workspaceId, memberId);
+        termAppender.appendAll(next.getId(), newTerms, memberId);
+
+        List<TermResult> terms =
+                termReader.readAll(next.getId()).stream().map(TermResult::from).toList();
+        return DictionaryResult.of(next, new PageResult<>(terms, 0, terms.size(), terms.size()));
+    }
+
+    private static void validatePagination(int page, int size) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw new BusinessException(CommonErrorCode.COMMON_INVALID_REQUEST);
+        }
     }
 }

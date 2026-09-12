@@ -841,7 +841,7 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | `sort` | `preferredForm,asc` | 화이트리스트는 `preferredForm`·`createdAt`. 밖이면 `400` |
 | `keyword` | — | `preferredForm`·`englishName` 접두 검색(`REQ-DIC-002`) |
 
-응답은 반영과 같은 형식이다. **사전집 메타(버전·상태·확정일시)는 페이징 밖에 있고 `terms`만 페이징된다** — 용어가 수백 건까지 늘 수 있다.
+응답 구조는 반영과 같다. **사전집 메타(버전·상태·확정일시)는 페이징 밖에 있고 `terms`만 페이징된다** — 용어가 수백 건까지 늘 수 있다. 조회 목록은 `TermSummary`로 읽어 `definition` 본문을 싣지 않는다. 정의 미리보기가 필요해지면 별도 필드로 추가한다(`D-41`).
 
 ## **버전 이력 조회**
 
@@ -866,9 +866,9 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 ## **특정 버전 조회**
 
-`GET /api/workspaces/{workspaceId}/dictionary/versions/{versionNo}?memberId={memberId}&page=0&size=20` → `200 OK`
+`GET /api/workspaces/{workspaceId}/dictionary/versions/{versionNo}?memberId={memberId}&page=0&size=20&sort=preferredForm,asc&keyword=회원` → `200 OK`
 
-활성 사전집 조회와 같은 형식이며 보관 버전도 읽을 수 있다. **버전마다 용어가 복제되므로 그 버전에 매달린 용어가 곧 그 시점의 스냅샷이다.**
+활성 사전집 조회와 같은 페이징·정렬·접두 검색을 제공하며 보관 버전도 읽을 수 있다. 조회 목록에는 `definition` 본문을 싣지 않는다. **버전마다 용어가 복제되므로 그 버전에 매달린 용어가 곧 그 시점의 스냅샷이다.**
 
 ## **에러**
 
@@ -877,6 +877,7 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
 | 워크스페이스에 사전집이 없음, 없는 버전 번호 | 404 | `DICTIONARY_NOT_FOUND` |
 | 참여자지만 ADMIN 미만이 반영을 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
+| 발행 기준 버전이 현재 활성 버전과 다름 | 409 | `DICTIONARY_VERSION_CONFLICT` |
 | `terms`가 비어 있음 | 400 | `DICTIONARY_EMPTY_TERMS` |
 | 버전 정보가 올바르지 않음(도메인 검증) | 400 | `DICTIONARY_INVALID_VERSION` |
 | 표준어가 비었거나 100자 초과 | 400 | `TERM_INVALID_PREFERRED_FORM` |

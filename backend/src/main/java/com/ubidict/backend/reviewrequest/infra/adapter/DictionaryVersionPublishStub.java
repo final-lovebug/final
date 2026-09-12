@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
 public class DictionaryVersionPublishStub implements DictionaryVersionPublishPort {
 
     @Override
-    public int publish(Long workspaceId, int baseVersionNo, List<NewTermSnapshot> terms) {
+    public int publish(Long workspaceId, int baseVersionNo, List<NewTermSnapshot> terms, Long publishedBy) {
         throw new UnsupportedOperationException(
                 "사전집 버전 발행 어댑터가 아직 없다. DIC-3을 머지하고 app.crossdomain.dictionary-publish.mode를 real로 바꾼다.");
     }

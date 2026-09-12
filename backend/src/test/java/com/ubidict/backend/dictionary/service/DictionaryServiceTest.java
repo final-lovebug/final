@@ -8,6 +8,7 @@ import com.ubidict.backend.dictionary.domain.DictionaryStatus;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
 import com.ubidict.backend.dictionary.exception.TermErrorCode;
 import com.ubidict.backend.dictionary.service.model.DictionaryResult;
+import com.ubidict.backend.dictionary.service.model.DictionarySearchQuery;
 import com.ubidict.backend.dictionary.service.model.DictionaryVersionResult;
 import com.ubidict.backend.dictionary.service.model.ReviseDictionaryCommand;
 import com.ubidict.backend.dictionary.service.model.TermCommand;
@@ -26,6 +27,29 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 class DictionaryServiceTest extends IntegrationTestSupport {
+
+    @Test
+    @DisplayName("표준어 접두어로 활성 사전집의 용어를 검색한다.")
+    void readActive_searchByKeyword() {
+        Long workspaceId = createWorkspace();
+        dictionaryService.revise(command(workspaceId, term("사전"), term("문서")));
+        DictionaryResult result = dictionaryService.readActive(
+                workspaceId, ADMIN_ID, new DictionarySearchQuery(0, 20, "preferredForm,asc", "사전"));
+        assertThat(result.terms().content())
+                .extracting(TermResult::preferredForm)
+                .containsExactly("사전");
+    }
+
+    @Test
+    @DisplayName("활성 사전집의 용어 목록을 페이지 단위로 조회한다.")
+    void readActive_termsArePaged() {
+        Long workspaceId = createWorkspace();
+        dictionaryService.revise(command(workspaceId, term("사전"), term("문서")));
+        DictionaryResult result = dictionaryService.readActive(
+                workspaceId, ADMIN_ID, new DictionarySearchQuery(0, 1, "preferredForm,asc", null));
+        assertThat(result.terms().content()).hasSize(1);
+        assertThat(result.terms().totalElements()).isEqualTo(2);
+    }
 
     private static final Long ADMIN_ID = 1L;
     private static final Long REGULAR_ID = 2L;
@@ -53,7 +77,9 @@ class DictionaryServiceTest extends IntegrationTestSupport {
         assertThat(result.versionNo()).isEqualTo(1);
         assertThat(result.status()).isEqualTo(DictionaryStatus.ACTIVE);
         assertThat(result.publishedAt()).isNotNull();
-        assertThat(result.terms()).extracting(TermResult::preferredForm).containsExactly("문서", "회원");
+        assertThat(result.terms().content())
+                .extracting(TermResult::preferredForm)
+                .containsExactly("문서", "회원");
     }
 
     /**
@@ -72,7 +98,7 @@ class DictionaryServiceTest extends IntegrationTestSupport {
         // then
         assertThat(result.versionNo()).isEqualTo(2);
         assertThat(result.status()).isEqualTo(DictionaryStatus.ACTIVE);
-        assertThat(dictionaryService.readVersions(workspaceId, ADMIN_ID))
+        assertThat(dictionaryService.readVersions(workspaceId, ADMIN_ID, 0, 20).content())
                 .filteredOn(version -> version.status() == DictionaryStatus.ACTIVE)
                 .hasSize(1);
     }
@@ -91,9 +117,11 @@ class DictionaryServiceTest extends IntegrationTestSupport {
         dictionaryService.revise(command(workspaceId, term("회원")));
 
         // then
-        DictionaryResult first = dictionaryService.readVersion(workspaceId, 1, ADMIN_ID);
+        DictionaryResult first = dictionaryService.readVersion(workspaceId, 1, ADMIN_ID, defaultQuery());
         assertThat(first.status()).isEqualTo(DictionaryStatus.ARCHIVED);
-        assertThat(first.terms()).extracting(TermResult::preferredForm).containsExactly("문서", "회원");
+        assertThat(first.terms().content())
+                .extracting(TermResult::preferredForm)
+                .containsExactly("문서", "회원");
     }
 
     @DisplayName("버전 이력은 최신 버전이 먼저 나오고 용어 수를 함께 담는다.")
@@ -105,7 +133,8 @@ class DictionaryServiceTest extends IntegrationTestSupport {
         dictionaryService.revise(command(workspaceId, term("회원"), term("문서")));
 
         // when
-        List<DictionaryVersionResult> versions = dictionaryService.readVersions(workspaceId, ADMIN_ID);
+        List<DictionaryVersionResult> versions =
+                dictionaryService.readVersions(workspaceId, ADMIN_ID, 0, 20).content();
 
         // then
         assertThat(versions).extracting(DictionaryVersionResult::versionNo).containsExactly(2, 1);
@@ -119,7 +148,8 @@ class DictionaryServiceTest extends IntegrationTestSupport {
         Long workspaceId = createWorkspace();
 
         // when & then
-        assertThat(dictionaryService.readVersions(workspaceId, ADMIN_ID)).isEmpty();
+        assertThat(dictionaryService.readVersions(workspaceId, ADMIN_ID, 0, 20).content())
+                .isEmpty();
     }
 
     @DisplayName("사전집이 없으면 현재 확정본을 조회할 수 없다.")
@@ -129,7 +159,7 @@ class DictionaryServiceTest extends IntegrationTestSupport {
         Long workspaceId = createWorkspace();
 
         // when & then
-        assertThatThrownBy(() -> dictionaryService.readActive(workspaceId, ADMIN_ID))
+        assertThatThrownBy(() -> dictionaryService.readActive(workspaceId, ADMIN_ID, defaultQuery()))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DictionaryErrorCode.DICTIONARY_NOT_FOUND);
@@ -143,7 +173,7 @@ class DictionaryServiceTest extends IntegrationTestSupport {
         dictionaryService.revise(command(workspaceId, term("회원")));
 
         // when & then
-        assertThatThrownBy(() -> dictionaryService.readVersion(workspaceId, 2, ADMIN_ID))
+        assertThatThrownBy(() -> dictionaryService.readVersion(workspaceId, 2, ADMIN_ID, defaultQuery()))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DictionaryErrorCode.DICTIONARY_NOT_FOUND);
@@ -217,7 +247,7 @@ class DictionaryServiceTest extends IntegrationTestSupport {
         dictionaryService.revise(command(workspaceId, term("회원")));
 
         // when & then
-        assertThatThrownBy(() -> dictionaryService.readActive(workspaceId, OUTSIDER_ID))
+        assertThatThrownBy(() -> dictionaryService.readActive(workspaceId, OUTSIDER_ID, defaultQuery()))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
@@ -237,7 +267,7 @@ class DictionaryServiceTest extends IntegrationTestSupport {
         workspaceRepository.save(workspace);
 
         // when & then
-        assertThatThrownBy(() -> dictionaryService.readActive(workspaceId, ADMIN_ID))
+        assertThatThrownBy(() -> dictionaryService.readActive(workspaceId, ADMIN_ID, defaultQuery()))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
@@ -245,6 +275,10 @@ class DictionaryServiceTest extends IntegrationTestSupport {
 
     private ReviseDictionaryCommand command(Long workspaceId, TermCommand... terms) {
         return new ReviseDictionaryCommand(workspaceId, ADMIN_ID, List.of(terms));
+    }
+
+    private DictionarySearchQuery defaultQuery() {
+        return new DictionarySearchQuery(0, 20, "preferredForm,asc", null);
     }
 
     private TermCommand term(String preferredForm) {

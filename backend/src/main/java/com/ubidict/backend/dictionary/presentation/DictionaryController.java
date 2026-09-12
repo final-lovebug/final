@@ -1,11 +1,12 @@
 package com.ubidict.backend.dictionary.presentation;
 
+import com.ubidict.backend.common.presentation.PageResponse;
 import com.ubidict.backend.dictionary.presentation.dto.DictionaryResponse;
 import com.ubidict.backend.dictionary.presentation.dto.DictionaryVersionResponse;
 import com.ubidict.backend.dictionary.presentation.dto.ReviseDictionaryRequest;
 import com.ubidict.backend.dictionary.service.DictionaryService;
+import com.ubidict.backend.dictionary.service.model.DictionarySearchQuery;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,24 +50,39 @@ public class DictionaryController {
     }
 
     @GetMapping
-    public ResponseEntity<DictionaryResponse> readActive(@PathVariable Long workspaceId, @RequestParam Long memberId) {
-        return ResponseEntity.ok(DictionaryResponse.from(dictionaryService.readActive(workspaceId, memberId)));
+    public ResponseEntity<DictionaryResponse> readActive(
+            @PathVariable Long workspaceId,
+            @RequestParam Long memberId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "preferredForm,asc") String sort,
+            @RequestParam(required = false) String keyword) {
+        var result = dictionaryService.readActive(
+                workspaceId, memberId, new DictionarySearchQuery(page, size, sort, keyword));
+        return ResponseEntity.ok(DictionaryResponse.from(result));
     }
 
     @GetMapping("/versions")
-    public ResponseEntity<List<DictionaryVersionResponse>> readVersions(
-            @PathVariable Long workspaceId, @RequestParam Long memberId) {
-        List<DictionaryVersionResponse> responses = dictionaryService.readVersions(workspaceId, memberId).stream()
-                .map(DictionaryVersionResponse::from)
-                .toList();
-
-        return ResponseEntity.ok(responses);
+    public ResponseEntity<PageResponse<DictionaryVersionResponse>> readVersions(
+            @PathVariable Long workspaceId,
+            @RequestParam Long memberId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        var result = dictionaryService.readVersions(workspaceId, memberId, page, size);
+        return ResponseEntity.ok(PageResponse.from(result.map(DictionaryVersionResponse::from)));
     }
 
     @GetMapping("/versions/{versionNo}")
     public ResponseEntity<DictionaryResponse> readVersion(
-            @PathVariable Long workspaceId, @PathVariable int versionNo, @RequestParam Long memberId) {
-        return ResponseEntity.ok(
-                DictionaryResponse.from(dictionaryService.readVersion(workspaceId, versionNo, memberId)));
+            @PathVariable Long workspaceId,
+            @PathVariable int versionNo,
+            @RequestParam Long memberId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "preferredForm,asc") String sort,
+            @RequestParam(required = false) String keyword) {
+        var result = dictionaryService.readVersion(
+                workspaceId, versionNo, memberId, new DictionarySearchQuery(page, size, sort, keyword));
+        return ResponseEntity.ok(DictionaryResponse.from(result));
     }
 }

@@ -1,6 +1,7 @@
 package com.ubidict.backend.dictionary.implement;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.dictionary.domain.Dictionary;
 import com.ubidict.backend.dictionary.domain.DictionaryStatus;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
@@ -8,6 +9,8 @@ import com.ubidict.backend.dictionary.infra.DictionaryRepository;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 /**
@@ -39,5 +42,12 @@ public class DictionaryReader {
      */
     public List<Dictionary> readAllVersions(Long workspaceId) {
         return dictionaryRepository.findAllByWorkspaceIdOrderByVersionVersionNoDesc(workspaceId);
+    }
+
+    public PageResult<Dictionary> readVersions(Long workspaceId, int page, int size) {
+        var versions = dictionaryRepository.findAllByWorkspaceId(
+                workspaceId, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "version.versionNo")));
+        return new PageResult<>(
+                versions.getContent(), versions.getNumber(), versions.getSize(), versions.getTotalElements());
     }
 }
