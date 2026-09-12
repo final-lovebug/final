@@ -14,6 +14,8 @@ import org.springframework.data.repository.query.Param;
  */
 public interface DocumentRepository extends JpaRepository<Document, Long> {
 
+    Optional<Document> findByIdAndDeletedAtIsNull(Long id);
+
     Optional<Document> findByIdAndWorkspaceIdAndDeletedAtIsNull(Long id, Long workspaceId);
 
     List<Document> findAllByWorkspaceIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long workspaceId);
