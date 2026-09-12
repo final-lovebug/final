@@ -1,5 +1,6 @@
 package com.ubidict.backend.reviewrequest.presentation;
 
+import com.ubidict.backend.reviewrequest.presentation.dto.ReviewProgressResponse;
 import com.ubidict.backend.reviewrequest.presentation.dto.ReviewResponse;
 import com.ubidict.backend.reviewrequest.presentation.dto.SubmitReviewRequest;
 import com.ubidict.backend.reviewrequest.service.ReviewService;
@@ -45,4 +46,9 @@ public class ReviewController {
                 .toList());
     }
 
+    @GetMapping("/api/review-requests/{reviewRequestId}/review-progress")
+    public ResponseEntity<ReviewProgressResponse> progress(
+            @PathVariable Long reviewRequestId, @RequestParam Long memberId) {
+        return ResponseEntity.ok(ReviewProgressResponse.from(reviewService.progress(reviewRequestId, memberId)));
+    }
 }

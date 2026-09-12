@@ -29,4 +29,11 @@ public class RevisionDocumentReader {
     public boolean exists(Long id, int round) {
         return repository.findByReviewRequestIdAndReexamineRound(id, round).isPresent();
     }
+
+    public int currentRound(Long reviewRequestId) {
+        return repository.findByReviewRequestId(reviewRequestId).stream()
+                .mapToInt(RevisionDocument::getReexamineRound)
+                .max()
+                .orElse(0);
+    }
 }
