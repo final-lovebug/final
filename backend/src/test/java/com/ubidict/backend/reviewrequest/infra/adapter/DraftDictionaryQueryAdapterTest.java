@@ -75,7 +75,7 @@ class DraftDictionaryQueryAdapterTest extends RepositoryTestSupport {
     void readFinalTerms_publishedStatusesOnly() {
         Long draftId = saveDraft();
         saveCandidate(draftId, "등재어", CandidateTermStatus.REGISTRATION_APPROVED);
-        candidateTermRepository.save(CandidateTerm.createExisting(draftId, 100L, "유지어", "Kept", 2L));
+        candidateTermRepository.save(CandidateTerm.createExisting(draftId, 100L, "유지어", "유지 정의", "Kept", 2L));
         saveCandidate(draftId, "기각어", CandidateTermStatus.REJECTED);
         saveCandidate(draftId, "미처리어", CandidateTermStatus.PENDING);
         saveCandidate(draftId, "편입어", CandidateTermStatus.MERGED_AS_SYNONYM);
@@ -85,8 +85,8 @@ class DraftDictionaryQueryAdapterTest extends RepositoryTestSupport {
         List<NewTermSnapshot> terms = adapter.readFinalTerms(draftId);
 
         assertThat(terms)
-                .extracting(NewTermSnapshot::preferredForm, NewTermSnapshot::englishName)
-                .containsExactly(tuple("등재어", "Approved"), tuple("유지어", "Kept"));
+                .extracting(NewTermSnapshot::preferredForm, NewTermSnapshot::englishName, NewTermSnapshot::definition)
+                .containsExactly(tuple("등재어", "Approved", "정의"), tuple("유지어", "Kept", "유지 정의"));
     }
 
     @DisplayName("다른 초안의 후보어는 실리지 않는다.")

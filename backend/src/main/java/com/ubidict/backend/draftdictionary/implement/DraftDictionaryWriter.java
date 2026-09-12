@@ -25,7 +25,12 @@ public class DraftDictionaryWriter {
         dictionaryTermQueryPort
                 .readActiveTerms(workspaceId)
                 .forEach(term -> candidateTermRepository.save(CandidateTerm.createExisting(
-                        saved.getId(), term.termId(), term.preferredForm(), term.englishName(), memberId)));
+                        saved.getId(),
+                        term.termId(),
+                        term.preferredForm(),
+                        term.definition(),
+                        term.englishName(),
+                        memberId)));
         return saved;
     }
 

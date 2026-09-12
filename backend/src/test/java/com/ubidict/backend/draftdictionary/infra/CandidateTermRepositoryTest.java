@@ -48,7 +48,7 @@ class CandidateTermRepositoryTest extends RepositoryTestSupport {
     void search_minOccurrenceCountExcludesExistingTerm() {
         Long draftDictionaryId = saveDraftDictionary();
         candidateTermRepository.save(candidate(draftDictionaryId, "추출어", 3));
-        candidateTermRepository.save(CandidateTerm.createExisting(draftDictionaryId, 100L, "기존어", null, 2L));
+        candidateTermRepository.save(CandidateTerm.createExisting(draftDictionaryId, 100L, "기존어", "기존 정의", null, 2L));
         em.flush();
         em.clear();
 
@@ -91,7 +91,7 @@ class CandidateTermRepositoryTest extends RepositoryTestSupport {
     void save_existingTerm() {
         Long draftDictionaryId = saveDraftDictionary();
         CandidateTerm saved = candidateTermRepository.save(
-                CandidateTerm.createExisting(draftDictionaryId, 100L, "기존어", "existingTerm", 2L));
+                CandidateTerm.createExisting(draftDictionaryId, 100L, "기존어", "기존 정의", "existingTerm", 2L));
         em.flush();
         em.clear();
 

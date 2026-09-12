@@ -17,6 +17,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>판정 규칙은 {@link DocumentVersion#isAligned(Integer)} 하나만 쓴다. 같은 규칙이 두 벌이 되지 않게
  * document 도메인이 static으로 둔 것을 그대로 호출한다.
+ *
+ * <p><b>프로퍼티 키는 {@code document}지만 dictionary의 Repository도 읽는다.</b> 판정에 활성 사전집 버전이 필요하기 때문이다.
+ * 키는 「이 포트를 real로 쓸지」를 고르는 것이고 「그 제공 도메인을 차단할지」가 아니다.
  */
 // 빈 이름을 명시한다 — 소비 도메인마다 같은 이름의 포트·어댑터를 각자 정의하므로
 // Spring 기본 빈 이름(단순 클래스명)이 전역에서 충돌한다.

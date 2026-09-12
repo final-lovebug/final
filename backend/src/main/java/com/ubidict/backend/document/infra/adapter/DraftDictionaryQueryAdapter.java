@@ -15,9 +15,6 @@ public class DraftDictionaryQueryAdapter implements DraftDictionaryQueryPort {
 
     @Override
     public boolean isSourceOfOngoingDraft(Long documentId) {
-        return draftDictionaryRepository.findAll().stream()
-                .filter(draft -> draft.getDeletedAt() == null)
-                .filter(draft -> draft.getStatus() != DraftDictionaryStatus.REVISED)
-                .anyMatch(draft -> draft.getSourceDocumentIds().contains(documentId));
+        return draftDictionaryRepository.existsOngoingBySourceDocumentId(documentId, DraftDictionaryStatus.REVISED);
     }
 }
