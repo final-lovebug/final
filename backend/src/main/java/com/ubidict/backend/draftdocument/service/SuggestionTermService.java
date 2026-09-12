@@ -7,29 +7,36 @@ import com.ubidict.backend.draftdocument.domain.DraftDocument;
 import com.ubidict.backend.draftdocument.domain.SuggestionTerm;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentReader;
+import com.ubidict.backend.draftdocument.implement.SuggestionTermProcessor;
 import com.ubidict.backend.draftdocument.implement.SuggestionTermReader;
 import com.ubidict.backend.draftdocument.implement.SuggestionTermWriter;
+import com.ubidict.backend.draftdocument.service.model.AcceptSuggestionTermCommand;
 import com.ubidict.backend.draftdocument.service.model.AddSuggestionTermCommand;
 import com.ubidict.backend.draftdocument.service.model.EditSuggestionTermCommand;
+import com.ubidict.backend.draftdocument.service.model.RejectSuggestionTermCommand;
 import com.ubidict.backend.draftdocument.service.model.SuggestionTermResult;
 import com.ubidict.backend.draftdocument.service.model.SuggestionTermSearchQuery;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SuggestionTermService {
     private final SuggestionTermReader reader;
     private final SuggestionTermWriter writer;
     private final DraftDocumentReader draftReader;
+    private final SuggestionTermProcessor processor;
 
     @Transactional
     public SuggestionTermResult add(AddSuggestionTermCommand c) {
         DraftDocument draftDocument = draftReader.read(c.draftDocumentId());
+        draftDocument.validateExamining();
         validateAnchor(c.anchor(), draftDocument);
         return SuggestionTermResult.from(
                 writer.add(c.draftDocumentId(), c.anchor(), c.originTerm(), c.suggestionTerm(), c.memberId()));
@@ -38,15 +45,49 @@ public class SuggestionTermService {
     @Transactional
     public SuggestionTermResult edit(EditSuggestionTermCommand c) {
         SuggestionTerm suggestionTerm = reader.read(c.id());
+        DraftDocument draftDocument = draftReader.read(suggestionTerm.getDraftDocumentId());
+        draftDocument.validateExamining();
         if (c.anchor() != null) {
-            validateAnchor(c.anchor(), draftReader.read(suggestionTerm.getDraftDocumentId()));
+            validateAnchor(c.anchor(), draftDocument);
         }
         return SuggestionTermResult.from(writer.update(suggestionTerm, c.anchor(), c.originTerm(), c.suggestionTerm()));
     }
 
     @Transactional
     public void delete(Long id) {
-        reader.read(id).delete();
+        SuggestionTerm suggestionTerm = reader.read(id);
+        draftReader.read(suggestionTerm.getDraftDocumentId()).validateExamining();
+        suggestionTerm.delete();
+    }
+
+    @Transactional
+    public SuggestionTermResult accept(AcceptSuggestionTermCommand command) {
+        SuggestionTerm suggestionTerm = reader.read(command.suggestionTermId());
+        DraftDocument draftDocument = draftReader.read(suggestionTerm.getDraftDocumentId());
+        processor.accept(draftDocument, suggestionTerm, command.memberId());
+
+        log.info(
+                "[SuggestionTermService.accept] Suggestion term accepted. suggestionTermId={}, draftDocumentId={}, memberId={}",
+                suggestionTerm.getId(),
+                draftDocument.getId(),
+                command.memberId());
+
+        return SuggestionTermResult.from(suggestionTerm);
+    }
+
+    @Transactional
+    public SuggestionTermResult reject(RejectSuggestionTermCommand command) {
+        SuggestionTerm suggestionTerm = reader.read(command.suggestionTermId());
+        DraftDocument draftDocument = draftReader.read(suggestionTerm.getDraftDocumentId());
+        processor.reject(draftDocument, suggestionTerm, command.memberId(), command.rejectReason());
+
+        log.info(
+                "[SuggestionTermService.reject] Suggestion term rejected. suggestionTermId={}, draftDocumentId={}, memberId={}",
+                suggestionTerm.getId(),
+                draftDocument.getId(),
+                command.memberId());
+
+        return SuggestionTermResult.from(suggestionTerm);
     }
 
     @Transactional(readOnly = true)

@@ -38,7 +38,8 @@ class SuggestionTermControllerTest {
 
     private SuggestionTermResult result() {
         var n = OffsetDateTime.now();
-        return new SuggestionTermResult(1L, 2L, new TextRange(0, 1), "a", "b", SuggestionTermStatus.PENDING, 1L, n, n);
+        return new SuggestionTermResult(
+                1L, 2L, new TextRange(0, 1), "a", "b", SuggestionTermStatus.PENDING, null, null, 1L, n, n);
     }
 
     @Test
@@ -92,10 +93,58 @@ class SuggestionTermControllerTest {
                 .statusCode(400);
     }
 
+    @DisplayName("제안어 시작 위치가 끝 위치보다 뒤면 400과 도메인 오류 코드를 응답한다.")
+    @Test
+    void add_endBeforeStart() {
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("{\"anchor\":{\"startOffset\":2,\"endOffset\":1},\"originTerm\":\"a\",\"suggestionTerm\":\"b\"}")
+                .post("/api/draft-documents/2/suggestion-terms?memberId=1")
+                .then()
+                .statusCode(400)
+                .body("code", equalTo("DRAFT_DOCUMENT_INVALID_ANCHOR"));
+    }
+
     @Test
     void invalid_sort_returns400() {
         RestAssuredMockMvc.given()
                 .get("/api/draft-documents/2/suggestion-terms?sort=body,asc")
+                .then()
+                .statusCode(400);
+    }
+
+    @DisplayName("제안어를 수용하면 200을 응답한다.")
+    @Test
+    void accept() {
+        given(service.accept(any())).willReturn(result());
+
+        RestAssuredMockMvc.given()
+                .post("/api/suggestion-terms/1/acceptance?memberId=1")
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(1));
+    }
+
+    @DisplayName("제안어를 거절하면 200을 응답한다.")
+    @Test
+    void reject() {
+        given(service.reject(any())).willReturn(result());
+
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("{\"rejectReason\":\"고유명사\"}")
+                .post("/api/suggestion-terms/1/rejection?memberId=1")
+                .then()
+                .statusCode(200);
+    }
+
+    @DisplayName("거절 사유가 비어 있으면 400을 응답한다.")
+    @Test
+    void reject_reasonIsBlank() {
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("{\"rejectReason\":\" \"}")
+                .post("/api/suggestion-terms/1/rejection?memberId=1")
                 .then()
                 .statusCode(400);
     }

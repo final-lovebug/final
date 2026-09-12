@@ -52,4 +52,31 @@ class DraftDocumentTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
                         .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_BASE_VERSION));
     }
+
+    @DisplayName("교정을 완료하면 조립한 본문을 확정한다.")
+    @Test
+    void markExamined() {
+        // given
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "회원은 결제할 수 있다.", MEMBER_ID, MEMBER_ID);
+
+        // when
+        draftDocument.markExamined("사용자는 결제할 수 있다.");
+
+        // then
+        assertThat(draftDocument.getStatus()).isEqualTo(DraftDocumentStatus.EXAMINED);
+        assertThat(draftDocument.getDraftBody()).isEqualTo("사용자는 결제할 수 있다.");
+    }
+
+    @DisplayName("이미 교정완료된 초안은 다시 완료할 수 없다.")
+    @Test
+    void markExamined_alreadyExamined() {
+        // given
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "회원은 결제할 수 있다.", MEMBER_ID, MEMBER_ID);
+        draftDocument.markExamined("사용자는 결제할 수 있다.");
+
+        // when & then
+        assertThatThrownBy(() -> draftDocument.markExamined("다시 고친 본문"))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_ALREADY_EXAMINED));
+    }
 }

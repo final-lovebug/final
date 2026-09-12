@@ -11,6 +11,7 @@ import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.service.DraftDocumentService;
 import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
+import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import io.restassured.http.ContentType;
@@ -145,6 +146,58 @@ class DraftDocumentControllerTest {
                 .delete("/api/draft-documents/{draftDocumentId}?memberId={memberId}", DRAFT_DOCUMENT_ID, MEMBER_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
+    }
+
+    @DisplayName("교정을 완료하면 200과 교정완료 상태를 응답한다.")
+    @Test
+    void completeExamine() {
+        // given
+        DraftDocumentResult result = new DraftDocumentResult(
+                DRAFT_DOCUMENT_ID,
+                10L,
+                1,
+                "사용자는 결제할 수 있다.",
+                DraftDocumentStatus.EXAMINED,
+                MEMBER_ID,
+                MEMBER_ID,
+                OffsetDateTime.now(),
+                OffsetDateTime.now());
+        given(draftDocumentService.completeExamine(any())).willReturn(result);
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .post(
+                        "/api/draft-documents/{draftDocumentId}/examine-completion?memberId={memberId}",
+                        DRAFT_DOCUMENT_ID,
+                        MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("status", equalTo("EXAMINED"))
+                .body("draftBody", equalTo("사용자는 결제할 수 있다."));
+    }
+
+    @DisplayName("교정 진행률과 미리보기를 조회하면 200을 응답한다.")
+    @Test
+    void readExamineProgress() {
+        // given
+        given(draftDocumentService.readExamineProgress(DRAFT_DOCUMENT_ID, MEMBER_ID))
+                .willReturn(new ExamineProgressResult(3, 1, 1, 1, "사용자는 결제할 수 있다."));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .get(
+                        "/api/draft-documents/{draftDocumentId}/examine-progress?memberId={memberId}",
+                        DRAFT_DOCUMENT_ID,
+                        MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("total", equalTo(3))
+                .body("pending", equalTo(1))
+                .body("keptOrigin", equalTo(1))
+                .body("appliedSuggestion", equalTo(1))
+                .body("previewBody", equalTo("사용자는 결제할 수 있다."));
     }
 
     private static DraftDocumentResult draftDocumentResult(String draftBody) {

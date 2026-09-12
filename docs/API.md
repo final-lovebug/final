@@ -913,6 +913,10 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | GET | `/api/draft-documents/{draftDocumentId}/suggestion-terms` | `200` | KEEP |
 | PATCH | `/api/suggestion-terms/{suggestionTermId}` | `200` | KEEP |
 | DELETE | `/api/suggestion-terms/{suggestionTermId}` | `204` | KEEP |
+| POST | `/api/suggestion-terms/{suggestionTermId}/acceptance` | `200` | KEEP |
+| POST | `/api/suggestion-terms/{suggestionTermId}/rejection` | `200` | KEEP |
+| POST | `/api/draft-documents/{draftDocumentId}/examine-completion` | `200` | KEEP |
+| GET | `/api/draft-documents/{draftDocumentId}/examine-progress` | `200` | KEEP |
 
 `POST /api/draft-documents?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
 
@@ -984,6 +988,34 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 `DELETE /api/suggestion-terms/{suggestionTermId}` → `204 No Content`. **소프트 삭제**다.
 
+## **제안어 판정과 교정완료**
+
+`POST /api/suggestion-terms/{suggestionTermId}/acceptance?memberId={memberId}`는 제안 용어를 채택한다. 제안 용어는 현재 활성 사전집의 표준어여야 한다. 교정중에는 거절했던 제안어도 다시 수용할 수 있다.
+
+`POST /api/suggestion-terms/{suggestionTermId}/rejection?memberId={memberId}`는 다음 JSON으로 원문 표현을 유지하고 사유를 기록한다.
+
+```json
+{
+  "rejectReason": "제품 고유명사이므로 원문을 유지합니다."
+}
+```
+
+판정 응답은 `handledBy`, `rejectReason`, `updatedAt`을 포함한다. 수용하면 `status`가 `APPLIED_SUGGESTION`이고 `rejectReason`은 `null`이다. 거절하면 `status`가 `KEPT_ORIGIN`이다.
+
+`GET /api/draft-documents/{draftDocumentId}/examine-progress?memberId={memberId}`는 현재 판정 건수와 저장하지 않은 미리보기 본문을 반환한다.
+
+```json
+{
+  "total": 3,
+  "pending": 1,
+  "keptOrigin": 1,
+  "appliedSuggestion": 1,
+  "previewBody": "사용자는 결제수단을 선택한다."
+}
+```
+
+`POST /api/draft-documents/{draftDocumentId}/examine-completion?memberId={memberId}`는 미처리 제안어가 없을 때 교정을 완료한다. 수용된 제안어를 원문 기준 뒤쪽 위치부터 치환해 `draftBody`를 한 번에 확정하며, 이후 제안어 판정과 초안 본문 수정은 잠긴다. 수용된 앵커가 겹치면 일부 판정을 누락하지 않고 `DRAFT_DOCUMENT_INVALID_ANCHOR`로 거절한다.
+
 ## **에러**
 
 | **상황** | **status** | **code** |
@@ -995,10 +1027,12 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | `anchor`가 올바르지 않음(역전·음수) | 400 | `DRAFT_DOCUMENT_INVALID_ANCHOR` |
 | `anchor`가 초안 본문 범위를 벗어남 | 400 | `DRAFT_DOCUMENT_ANCHOR_OUT_OF_BODY` |
 | `suggestionTerm`이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM` |
+| 수용하려는 `suggestionTerm`이 활성 사전집의 표준어가 아님 | 400 | `DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM` |
 | 해당 초안의 제안어가 아님 | 400 | `DRAFT_DOCUMENT_SUGGESTION_TERM_MISMATCHED` |
+| 거절 사유가 비어 있음 | 400 | `DRAFT_DOCUMENT_REJECT_REASON_REQUIRED` |
+| 처리하지 않은 제안어가 남아 있음 | 409 | `DRAFT_DOCUMENT_SUGGESTION_TERM_UNHANDLED_EXISTS` |
+| 교정완료 뒤 판정·본문 수정·완료를 다시 시도 | 409 | `DRAFT_DOCUMENT_ALREADY_EXAMINED` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
-
-> **`DraftDocumentErrorCode`의 메시지 8건 중 6건이 영문이다.** 다른 도메인은 전부 한국어다(`DRAFT_DOCUMENT_NOT_FOUND`·`INVALID_BODY`·`INVALID_BASE_VERSION`만 한국어). 사용자에게 그대로 나가는 문구이므로 `DD-3`에서 맞춘다.
 
 # **ReviewRequest API**
 

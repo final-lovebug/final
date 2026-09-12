@@ -2,13 +2,19 @@ package com.ubidict.backend.draftdocument.service;
 
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.draftdocument.domain.DraftDocument;
+import com.ubidict.backend.draftdocument.domain.SuggestionTerm;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentReader;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentRemover;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentWriter;
+import com.ubidict.backend.draftdocument.implement.SuggestionTermProcessor;
+import com.ubidict.backend.draftdocument.implement.SuggestionTermReader;
+import com.ubidict.backend.draftdocument.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentSearchQuery;
+import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -23,6 +29,8 @@ public class DraftDocumentService {
     private final DraftDocumentReader draftDocumentReader;
     private final DraftDocumentWriter draftDocumentWriter;
     private final DraftDocumentRemover draftDocumentRemover;
+    private final SuggestionTermReader suggestionTermReader;
+    private final SuggestionTermProcessor suggestionTermProcessor;
 
     @Transactional
     public DraftDocumentResult create(CreateDraftDocumentCommand command) {
@@ -83,5 +91,28 @@ public class DraftDocumentService {
                 q.page(),
                 q.size(),
                 r.getTotalElements());
+    }
+
+    @Transactional
+    public DraftDocumentResult completeExamine(CompleteExamineCommand command) {
+        DraftDocument draftDocument = draftDocumentReader.read(command.draftDocumentId());
+        List<SuggestionTerm> suggestionTerms = suggestionTermReader.readAll(draftDocument.getId());
+        suggestionTermProcessor.complete(draftDocument, suggestionTerms);
+
+        log.info(
+                "[DraftDocumentService.completeExamine] Draft document examination completed. draftDocumentId={}, documentId={}, memberId={}",
+                draftDocument.getId(),
+                draftDocument.getDocumentId(),
+                command.memberId());
+
+        return DraftDocumentResult.from(draftDocument);
+    }
+
+    @Transactional(readOnly = true)
+    public ExamineProgressResult readExamineProgress(Long draftDocumentId, Long memberId) {
+        DraftDocument draftDocument = draftDocumentReader.read(draftDocumentId);
+        List<SuggestionTerm> suggestionTerms = suggestionTermReader.readAll(draftDocumentId);
+        String previewBody = suggestionTermProcessor.preview(draftDocument, suggestionTerms);
+        return ExamineProgressResult.from(suggestionTerms, previewBody);
     }
 }

@@ -59,7 +59,28 @@ public class DraftDocument extends BaseEntity {
     }
 
     public void updateBody(String draftBody) {
+        validateExamining();
         this.draftBody = normalizeBody(draftBody);
+    }
+
+    public void markExamined(String composedBody) {
+        validateExamining();
+        this.draftBody = normalizeBody(composedBody);
+        this.status = DraftDocumentStatus.EXAMINED;
+    }
+
+    public void validateExamining() {
+        if (status != DraftDocumentStatus.EXAMINING) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_ALREADY_EXAMINED);
+        }
+    }
+
+    public boolean isExamining() {
+        return status == DraftDocumentStatus.EXAMINING;
+    }
+
+    public boolean isExamined() {
+        return status == DraftDocumentStatus.EXAMINED;
     }
 
     private static int validateBaseVersionNo(int baseVersionNo) {
