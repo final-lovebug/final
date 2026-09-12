@@ -11,6 +11,8 @@ public record SuggestionTermResult(
         String originTerm,
         String suggestionTerm,
         SuggestionTermStatus status,
+        Long handledBy,
+        String rejectReason,
         Long createdBy,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {
@@ -22,6 +24,8 @@ public record SuggestionTermResult(
                 t.getOriginTerm(),
                 t.getSuggestionTerm(),
                 t.getStatus(),
+                t.getHandledBy(),
+                t.getRejectReason(),
                 t.getCreatedBy(),
                 t.getCreatedAt(),
                 t.getUpdatedAt());

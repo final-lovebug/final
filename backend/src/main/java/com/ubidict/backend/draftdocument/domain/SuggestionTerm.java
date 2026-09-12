@@ -2,8 +2,20 @@ package com.ubidict.backend.draftdocument.domain;
 
 import com.ubidict.backend.common.domain.BaseEntity;
 import com.ubidict.backend.common.domain.TextRange;
-import jakarta.persistence.*;
-import lombok.*;
+import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
@@ -53,16 +65,45 @@ public class SuggestionTerm extends BaseEntity {
     }
 
     public void edit(TextRange anchor, String origin, String suggestion) {
-        if (anchor != null) this.anchor = anchor;
-        if (origin != null) this.originTerm = required(origin);
-        if (suggestion != null) this.suggestionTerm = required(suggestion);
+        if (anchor != null) {
+            this.anchor = anchor;
+        }
+        if (origin != null) {
+            this.originTerm = required(origin);
+        }
+        if (suggestion != null) {
+            this.suggestionTerm = required(suggestion);
+        }
+    }
+
+    public void accept(Long handlerId) {
+        this.status = SuggestionTermStatus.APPLIED_SUGGESTION;
+        this.handledBy = handlerId;
+        this.rejectReason = null;
+    }
+
+    public void reject(Long handlerId, String rejectReason) {
+        if (rejectReason == null || rejectReason.isBlank()) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_REJECT_REASON_REQUIRED);
+        }
+
+        this.status = SuggestionTermStatus.KEPT_ORIGIN;
+        this.handledBy = handlerId;
+        this.rejectReason = rejectReason.strip();
+    }
+
+    public boolean isPending() {
+        return status == SuggestionTermStatus.PENDING;
+    }
+
+    public boolean isApplied() {
+        return status == SuggestionTermStatus.APPLIED_SUGGESTION;
     }
 
     private static String required(String v) {
-        if (v == null || v.isBlank())
-            throw new com.ubidict.backend.common.exception.BusinessException(
-                    com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode
-                            .DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM);
+        if (v == null || v.isBlank()) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM);
+        }
         return v.strip();
     }
 }

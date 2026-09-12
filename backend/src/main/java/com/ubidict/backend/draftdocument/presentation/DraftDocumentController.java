@@ -4,8 +4,10 @@ import com.ubidict.backend.common.presentation.PageResponse;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.presentation.dto.CreateDraftDocumentRequest;
 import com.ubidict.backend.draftdocument.presentation.dto.DraftDocumentResponse;
+import com.ubidict.backend.draftdocument.presentation.dto.ExamineProgressResponse;
 import com.ubidict.backend.draftdocument.presentation.dto.UpdateDraftBodyRequest;
 import com.ubidict.backend.draftdocument.service.DraftDocumentService;
+import com.ubidict.backend.draftdocument.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentSearchQuery;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -73,5 +75,19 @@ public class DraftDocumentController {
         draftDocumentService.delete(draftDocumentId, memberId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{draftDocumentId}/examine-completion")
+    public ResponseEntity<DraftDocumentResponse> completeExamine(
+            @PathVariable Long draftDocumentId, @RequestParam Long memberId) {
+        return ResponseEntity.ok(DraftDocumentResponse.from(
+                draftDocumentService.completeExamine(new CompleteExamineCommand(draftDocumentId, memberId))));
+    }
+
+    @GetMapping("/{draftDocumentId}/examine-progress")
+    public ResponseEntity<ExamineProgressResponse> readExamineProgress(
+            @PathVariable Long draftDocumentId, @RequestParam Long memberId) {
+        return ResponseEntity.ok(
+                ExamineProgressResponse.from(draftDocumentService.readExamineProgress(draftDocumentId, memberId)));
     }
 }

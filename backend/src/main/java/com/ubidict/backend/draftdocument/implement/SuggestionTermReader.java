@@ -5,8 +5,10 @@ import com.ubidict.backend.draftdocument.domain.SuggestionTerm;
 import com.ubidict.backend.draftdocument.domain.SuggestionTermStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.infra.SuggestionTermRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,5 +26,9 @@ public class SuggestionTermReader {
         return status == null
                 ? repo.findAllByDraftDocumentIdAndDeletedAtIsNull(id, p)
                 : repo.findAllByDraftDocumentIdAndStatusAndDeletedAtIsNull(id, status, p);
+    }
+
+    public List<SuggestionTerm> readAll(Long draftDocumentId) {
+        return repo.findAllByDraftDocumentIdAndDeletedAtIsNull(draftDocumentId);
     }
 }
