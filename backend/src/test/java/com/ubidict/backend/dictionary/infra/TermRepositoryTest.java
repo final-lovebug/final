@@ -17,8 +17,36 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 
 class TermRepositoryTest extends RepositoryTestSupport {
+
+    @Test
+    @DisplayName("표준어 접두어로 용어 요약을 검색한다.")
+    void findByKeyword_prefixMatch() {
+        Long id = saveDictionary(saveWorkspace(), 1, DictionaryStatus.ACTIVE);
+        saveTerm(id, "사전집");
+        saveTerm(id, "문서");
+        em.flush();
+        assertThat(termRepository
+                        .findSummariesByKeyword(id, "사전", PageRequest.of(0, 20))
+                        .getContent())
+                .extracting(TermSummary::getPreferredForm)
+                .containsExactly("사전집");
+    }
+
+    @Test
+    @DisplayName("영문명 접두어로 용어 요약을 검색한다.")
+    void findByKeyword_matchesEnglishName() {
+        Long id = saveDictionary(saveWorkspace(), 1, DictionaryStatus.ACTIVE);
+        termRepository.save(
+                TermFixture.term().dictionaryId(id).englishName("Dictionary").build());
+        em.flush();
+        assertThat(termRepository
+                        .findSummariesByKeyword(id, "dict", PageRequest.of(0, 20))
+                        .getContent())
+                .hasSize(1);
+    }
 
     @Autowired
     private TermRepository termRepository;

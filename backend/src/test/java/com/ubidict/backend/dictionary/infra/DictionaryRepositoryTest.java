@@ -16,8 +16,22 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 class DictionaryRepositoryTest extends RepositoryTestSupport {
+
+    @Test
+    void findAllVersions_paging() {
+        Long workspaceId = saveWorkspace();
+        saveDictionary(workspaceId, 1, DictionaryStatus.ARCHIVED);
+        saveDictionary(workspaceId, 2, DictionaryStatus.ACTIVE);
+        em.flush();
+        var page = dictionaryRepository.findAllByWorkspaceId(
+                workspaceId, PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "version.versionNo")));
+        assertThat(page.getTotalElements()).isEqualTo(2);
+        assertThat(page.getContent()).hasSize(1);
+    }
 
     @Autowired
     private DictionaryRepository dictionaryRepository;

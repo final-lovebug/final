@@ -1,12 +1,16 @@
 package com.ubidict.backend.dictionary.implement;
 
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.dictionary.domain.Term;
 import com.ubidict.backend.dictionary.infra.TermRepository;
+import com.ubidict.backend.dictionary.service.model.DictionarySearchQuery;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -31,5 +35,22 @@ public class TermReader {
 
         return termRepository.findAllByDictionaryIdIn(dictionaryIds).stream()
                 .collect(Collectors.groupingBy(Term::getDictionaryId, Collectors.counting()));
+    }
+
+    public PageResult<TermPageItem> readPage(Long dictionaryId, DictionarySearchQuery query) {
+        Sort.Direction direction = query.ascending() ? Sort.Direction.ASC : Sort.Direction.DESC;
+        PageRequest pageRequest = PageRequest.of(query.page(), query.size(), Sort.by(direction, query.sortField()));
+        var page = query.keyword() == null || query.keyword().isBlank()
+                ? termRepository.findSummariesByDictionaryId(dictionaryId, pageRequest)
+                : termRepository.findSummariesByKeyword(
+                        dictionaryId, query.keyword().strip(), pageRequest);
+        return new PageResult<>(
+                page.getContent().stream()
+                        .map(summary ->
+                                new TermPageItem(summary.getId(), summary.getPreferredForm(), summary.getEnglishName()))
+                        .toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements());
     }
 }

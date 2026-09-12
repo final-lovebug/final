@@ -4,6 +4,8 @@ import com.ubidict.backend.dictionary.domain.Dictionary;
 import com.ubidict.backend.dictionary.domain.DictionaryStatus;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -18,4 +20,6 @@ public interface DictionaryRepository extends JpaRepository<Dictionary, Long> {
     Optional<Dictionary> findByWorkspaceIdAndVersionVersionNo(Long workspaceId, int versionNo);
 
     List<Dictionary> findAllByWorkspaceIdOrderByVersionVersionNoDesc(Long workspaceId);
+
+    Page<Dictionary> findAllByWorkspaceId(Long workspaceId, Pageable pageable);
 }
