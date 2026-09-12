@@ -22,6 +22,7 @@
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
 - **관측** — Actuator, Micrometer(Prometheus), OpenTelemetry / Grafana LGTM
 - **품질 도구** — Spotless(포맷팅, `palantirJavaFormat`)
+- **설정·시크릿** — AWS Parameter Store (Spring Cloud AWS, `prod` 프로필 전용)
 - **인프라** — Docker / Docker Compose, AWS
 
 ### Spring Boot 4 주의사항
@@ -118,3 +119,34 @@
 - refresh token 쿠키의 `Secure` 플래그(`app.auth.cookie.secure`)는 기본 `true`이고,
   `application-local.yml`(`spring.profiles.active=local`)이 `false`로 덮어쓴다.
   `http://localhost`에서는 `Secure` 쿠키를 브라우저가 돌려보내지 않기 때문이다.
+
+### 운영 설정 — AWS Parameter Store
+
+운영(`prod` 프로필)에서는 위 환경변수를 쓰지 않고 **AWS Parameter Store의 `/lovebug/` 이하**
+값을 애플리케이션이 직접 읽는다. `application-prod.yml`의
+`spring.config.import: aws-parameterstore:/lovebug/`가 담당한다.
+
+파라미터 이름은 접두어 `/lovebug/`를 뗀 뒤 `/`를 `.`으로 바꾼 프로퍼티로 노출된다.
+예를 들어 `/lovebug/rds/password`는 `rds.password`로 읽힌다.
+
+| 파라미터 | 타입 | 매핑되는 프로퍼티 |
+| --- | --- | --- |
+| `/lovebug/rds/url` | String | `spring.datasource.url` |
+| `/lovebug/rds/username` | String | `spring.datasource.username` |
+| `/lovebug/rds/password` | SecureString | `spring.datasource.password` |
+| `/lovebug/jwt/secret` | SecureString | `app.jwt.secret` |
+| `/lovebug/oauth/google/client-id` | String | `spring.security.oauth2....google.client-id` |
+| `/lovebug/oauth/google/client-secret` | SecureString | `spring.security.oauth2....google.client-secret` |
+| `/lovebug/oauth/frontend-redirect-uri` | String | `app.oauth.frontend-redirect-uri` |
+
+- **표의 파라미터가 하나라도 없으면 기동이 실패한다.** 플레이스홀더에 기본값을 두지 않는 것은
+  운영에서 시크릿이 조용히 로컬 기본값으로 떨어지는 것을 막기 위함이다.
+- MongoDB·Redis 운영 엔드포인트는 아직 정해지지 않아 `application-prod.yml`에 주석으로만
+  남겨뒀다. 엔드포인트가 정해지면 `/lovebug/mongodb/uri`, `/lovebug/redis/host`,
+  `/lovebug/redis/port`를 만들고 주석을 해제한다. **해제 전까지 두 클라이언트는
+  `localhost` 기본값을 쓴다.**
+- 리전은 컨테이너에 주입되는 `AWS_REGION`(`deploy/scripts/start_container.sh`)에서 결정된다.
+- EC2 인스턴스 역할에 다음 권한이 필요하다.
+  `ssm:GetParametersByPath`(리소스 `arn:aws:ssm:<region>:<account>:parameter/lovebug/*`)와
+  SecureString 복호화용 `kms:Decrypt`.
+- 로컬·테스트는 이 프로필을 쓰지 않으므로 AWS 호출이 발생하지 않는다.

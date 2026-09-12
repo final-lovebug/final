@@ -51,7 +51,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=spring
 
   deploy:
-    if: false   # 7단계(CodeDeploy 구성) 완료 후 이 줄 제거
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -74,8 +73,8 @@ jobs:
         timeout-minutes: 30
         run: |
           ID=$(aws deploy create-deployment \
-            --application-name lovebug-spring \
-            --deployment-group-name prod \
+            --application-name lovebug \
+            --deployment-group-name lovebug-codedeploy \
             --description "$TAG" \
             --s3-location "bucket=$BUCKET,key=lovebug/deploy/spring-$TAG.zip,bundleType=zip" \
             --query deploymentId --output text)

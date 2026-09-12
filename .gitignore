@@ -9,5 +9,9 @@ compose.override.yml
 # IDE 설정 (IntelliJ)
 /.idea/
 
+# Gradle 로컬 캐시
+/.gradle/
+/build/
+
 # 배포 번들 생성 산출물
 deploy/IMAGE_TAG
