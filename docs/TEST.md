@@ -42,6 +42,45 @@ Fixture는 테스트의 의도를 가리는 중복을 줄이기 위해 사용한
 
 특정 값이 검증 의도에 중요하다면 fixture 메서드 인자를 늘리지 말고 **테스트 전용 builder**를 쓴다. `{도메인}/fixture/` 아래 기존 fixture와 같은 형태(정적 팩토리 + 중첩 builder, 체이닝을 위해 자기 자신 반환)를 따른다.
 
+권장 형식:
+
+```java
+public class UserFixture {
+
+    public static UserBuilder user() {
+        return new UserBuilder();
+    }
+
+    public static class UserBuilder {
+
+        private String id = "user-1";
+        private UserGrade grade = UserGrade.NORMAL;
+        private Point point = Point.wons(10_000);
+
+        public UserBuilder id(String id) {
+            this.id = id;
+            return this;
+        }
+
+        public UserBuilder grade(UserGrade grade) {
+            this.grade = grade;
+            return this;
+        }
+
+        public UserBuilder point(Point point) {
+            this.point = point;
+            return this;
+        }
+
+        public User build() {
+            return User.create(id, grade, point);
+        }
+    }
+}
+```
+
+사용 예시:
+
 ```java
 User user = UserFixture.user().grade(UserGrade.VIP).build();
 ```
