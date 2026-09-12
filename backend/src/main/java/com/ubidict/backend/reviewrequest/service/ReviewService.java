@@ -1,7 +1,12 @@
 package com.ubidict.backend.reviewrequest.service;
 
+import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.reviewrequest.domain.Comment;
 import com.ubidict.backend.reviewrequest.domain.Review;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequest;
+import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
+import com.ubidict.backend.reviewrequest.implement.CommentReader;
+import com.ubidict.backend.reviewrequest.implement.CommentWriter;
 import com.ubidict.backend.reviewrequest.implement.ReviewReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewWriter;
@@ -22,6 +27,8 @@ public class ReviewService {
     private final ReviewRequestReader reviewRequestReader;
     private final ReviewReader reviewReader;
     private final ReviewWriter reviewWriter;
+    private final CommentReader commentReader;
+    private final CommentWriter commentWriter;
     private final WorkspaceAccessValidator workspaceAccessValidator;
 
     @Transactional
@@ -35,6 +42,7 @@ public class ReviewService {
                 command.targetRound(),
                 command.verdict(),
                 command.memberId()));
+        writeComments(review, command);
 
         log.info(
                 "[ReviewService.submit] Review submitted. reviewRequestId={}, reviewId={}, memberId={}, verdict={}",
@@ -56,4 +64,27 @@ public class ReviewService {
                 .toList();
     }
 
+    private void writeComments(Review review, SubmitReviewCommand command) {
+        for (SubmitReviewCommand.NewComment newComment : command.comments()) {
+            validateCommentParent(newComment.parentId(), review.getId());
+            commentWriter.write(Comment.create(
+                    review.getId(),
+                    command.memberId(),
+                    newComment.content(),
+                    newComment.anchor(),
+                    newComment.targetItemId(),
+                    newComment.parentId(),
+                    command.memberId()));
+        }
+    }
+
+    private void validateCommentParent(Long parentId, Long reviewId) {
+        if (parentId == null) {
+            return;
+        }
+        Comment parent = commentReader.read(parentId);
+        if (!parent.getReviewId().equals(reviewId)) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_INVALID_COMMENT_PARENT);
+        }
+    }
 }
