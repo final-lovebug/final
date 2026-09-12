@@ -1064,6 +1064,12 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | GET | `/api/review-requests/{reviewRequestId}/revision-documents` | 참여자 | `200` | KEEP |
 | POST | `/api/review-requests/{reviewRequestId}/revision-dictionaries` | 참여자 | `201` | **INTERNALIZE** |
 | GET | `/api/review-requests/{reviewRequestId}/revision-dictionaries` | 참여자 | `200` | KEEP |
+| POST | `/api/review-requests/{reviewRequestId}/reviews` | 참여자 | `201` | KEEP |
+| GET | `/api/review-requests/{reviewRequestId}/reviews` | 참여자 | `200` | KEEP |
+| GET | `/api/review-requests/{reviewRequestId}/review-progress` | 참여자 | `200` | KEEP |
+| POST | `/api/reviews/{reviewId}/comments` | 참여자 | `201` | KEEP |
+| GET | `/api/review-requests/{reviewRequestId}/comments` | 참여자 | `200` | KEEP |
+| PATCH | `/api/comments/{commentId}/resolution` | 참여자 | `200` | KEEP |
 
 목록 조회는 `workspaceId`가 필수이며 `type`, `status`, `requesterId`, `reviewerMemberId`로 필터링한다. `page`는 0부터 시작하고 `size`는 1~100, `sort`는 `createdAt`, `updatedAt`, `id`와 `asc`/`desc` 조합만 허용한다.
 
@@ -1125,6 +1131,66 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 요청자만 취소할 수 있다. 반영 완료 또는 이미 취소된 요청은 다시 취소할 수 없다. 응답의 `status`는 `CANCELED`다.
 
+## **리뷰 제출과 이력 조회**
+
+`POST /api/review-requests/{reviewRequestId}/reviews?memberId={memberId}` → `201 Created`
+
+```json
+{
+  "targetRound": 0,
+  "verdict": "APPROVED"
+}
+```
+
+`verdict`는 `APPROVED` 또는 `CHANGES_REQUESTED`다. 지정 리뷰어 여부와 무관하게 워크스페이스 참여자라면 리뷰할 수 있고, 같은 회원도 새 리뷰를 제출해 이전 판정을 바꿀 수 있다.
+
+`GET /api/review-requests/{reviewRequestId}/reviews?memberId={memberId}&targetRound={targetRound}` → `200 OK`
+
+`targetRound`를 생략하면 전체 리뷰 이력을, 지정하면 해당 회차의 이력만 제출 순서대로 응답한다.
+
+`GET /api/review-requests/{reviewRequestId}/review-progress?memberId={memberId}` → `200 OK`
+
+```json
+{
+  "requiredReviewerCount": 2,
+  "approvedCount": 2,
+  "changesRequestedCount": 0,
+  "reviseEligible": true
+}
+```
+
+집계는 회원별 최신 판정 하나만 사용하며 재교정 회차로 필터링하지 않는다. `requiredReviewerCount`는 조회 시점 워크스페이스 룰셋 값이고, 정족수가 `0`이면 변경요청 유무와 관계없이 `reviseEligible`이 `true`다.
+
+## **코멘트 추가와 조회**
+
+`POST /api/reviews/{reviewId}/comments?memberId={memberId}` → `201 Created`
+
+```json
+{
+  "content": "본문 표현을 확인해 주세요.",
+  "anchor": {
+    "startOffset": 10,
+    "endOffset": 15
+  },
+  "targetItemId": null,
+  "parentId": null
+}
+```
+
+`anchor`를 생략하면 개정안 전체를 대상으로 한다. 사전 개정안에서는 `targetItemId`로 후보어를 지정할 수 있고, 답글은 `parentId`로 같은 리뷰의 상위 코멘트를 가리킨다.
+
+`GET /api/review-requests/{reviewRequestId}/comments?memberId={memberId}&resolved={resolved}&targetItemId={targetItemId}` → `200 OK`
+
+`resolved`와 `targetItemId`는 선택 필터다. 응답은 최상위 코멘트의 `children`에 답글을 재귀적으로 담은 트리다.
+
+`PATCH /api/comments/{commentId}/resolution?memberId={memberId}` → `200 OK`
+
+```json
+{
+  "resolved": true
+}
+```
+
 ## **에러**
 
 | **상황** | **status** | **code** |
@@ -1144,6 +1210,12 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 개정안을 찾을 수 없음 | 404 | `REVIEW_REQUEST_REVISION_NOT_FOUND` |
 | 같은 회차의 개정안이 이미 있음 | 409 | `REVIEW_REQUEST_REVISION_ALREADY_EXISTS` |
 | 요청 유형과 개정안 종류가 다름 | 400 | `REVIEW_REQUEST_TYPE_MISMATCHED` |
+| 리뷰할 수 없는 상태에서 제출 | 409 | `REVIEW_REQUEST_NOT_REVIEWABLE_STATUS` |
+| 현재 개정안과 다른 회차에 리뷰 제출 | 400 | `REVIEW_REQUEST_STALE_TARGET_ROUND` |
+| 리뷰를 찾을 수 없음 | 404 | `REVIEW_REQUEST_REVIEW_NOT_FOUND` |
+| 코멘트를 찾을 수 없음 | 404 | `REVIEW_REQUEST_COMMENT_NOT_FOUND` |
+| 코멘트 내용이 비어 있음 | 400 | `REVIEW_REQUEST_COMMENT_CONTENT_REQUIRED` |
+| 상위 코멘트가 다른 리뷰에 속함 | 400 | `REVIEW_REQUEST_INVALID_COMMENT_PARENT` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---

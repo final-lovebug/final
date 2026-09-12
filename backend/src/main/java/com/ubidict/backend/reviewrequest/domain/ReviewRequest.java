@@ -99,6 +99,58 @@ public class ReviewRequest extends BaseEntity {
         status = ReviewRequestStatus.CANCELED;
     }
 
+    public void startReview() {
+        validateStatus(ReviewRequestStatus.PENDING_REVIEW);
+        status = ReviewRequestStatus.IN_REVIEW;
+    }
+
+    public void requestChanges() {
+        if (status != ReviewRequestStatus.IN_REVIEW && status != ReviewRequestStatus.APPROVED) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_INVALID_STATUS_TRANSITION);
+        }
+        status = ReviewRequestStatus.CHANGES_REQUESTED;
+    }
+
+    public void resumeReview() {
+        validateStatus(ReviewRequestStatus.CHANGES_REQUESTED);
+        status = ReviewRequestStatus.IN_REVIEW;
+    }
+
+    public void approve(OffsetDateTime approvedAt) {
+        validateStatus(ReviewRequestStatus.IN_REVIEW);
+        if (approvedAt == null) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_INVALID_STATUS_TRANSITION);
+        }
+        status = ReviewRequestStatus.APPROVED;
+        this.approvedAt = approvedAt;
+    }
+
+    public void markRevised(OffsetDateTime revisedAt) {
+        if (status == ReviewRequestStatus.REVISED || status == ReviewRequestStatus.CANCELED || revisedAt == null) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_INVALID_STATUS_TRANSITION);
+        }
+        status = ReviewRequestStatus.REVISED;
+        this.revisedAt = revisedAt;
+    }
+
+    public boolean isBlockingDraftCreation() {
+        return status == ReviewRequestStatus.PENDING_REVIEW
+                || status == ReviewRequestStatus.IN_REVIEW
+                || status == ReviewRequestStatus.CHANGES_REQUESTED;
+    }
+
+    public boolean isReviewable() {
+        return status != ReviewRequestStatus.REVISED && status != ReviewRequestStatus.CANCELED;
+    }
+
+    public boolean isReexaminable() {
+        return status == ReviewRequestStatus.CHANGES_REQUESTED;
+    }
+
+    public boolean isRevised() {
+        return status == ReviewRequestStatus.REVISED;
+    }
+
     public void validateRevisionType(boolean documentRevision) {
         if ((type == ReviewRequestType.DOCUMENT) != documentRevision) {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_TYPE_MISMATCHED);
@@ -124,5 +176,11 @@ public class ReviewRequest extends BaseEntity {
         }
 
         return type;
+    }
+
+    private void validateStatus(ReviewRequestStatus expected) {
+        if (status != expected) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_INVALID_STATUS_TRANSITION);
+        }
     }
 }
