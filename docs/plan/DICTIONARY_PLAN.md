@@ -375,12 +375,14 @@ com.ubidict.backend.dictionary
 
 | 소비자가 정의한 포트 | 시그니처 | 근거 메서드 | 태스크 |
 | --- | --- | --- | --- |
-| `document/infra/port/DictionaryQueryPort` | `Optional<Integer> activeVersionNo(Long workspaceId)` | `DictionaryRepository.findByWorkspaceIdAndStatus(workspaceId, ACTIVE)` | `DIC-5` |
+| `document/infra/port/DictionaryQueryPort` | `Optional<Integer> activeVersionNo(Long workspaceId)` | `DictionaryRepository.findByWorkspaceIdAndStatus(workspaceId, ACTIVE)` | `DIC-5` — **`DOC-1`이 이미 구현했다**(아래) |
 | `draftdictionary/infra/port/DictionaryTermQueryPort` | `List<TermSnapshot> readActiveTerms(Long workspaceId)`, `Optional<Integer> activeVersionNo(Long workspaceId)` | 위 + `TermRepository.findAllByDictionaryIdOrderByPreferredFormAsc` | `DIC-4` |
 | `draftdocument/infra/port/DictionaryTermQueryPort` | `List<TermSnapshot> readActiveTerms(Long workspaceId)` | 같은 조회 | `DIC-4` |
 | `reviewrequest/infra/port/DictionaryVersionPublishPort` | `int publish(Long workspaceId, int baseVersionNo, List<NewTermSnapshot> terms)` → 새 `versionNo` | `DictionaryService.revise`와 같은 흐름 | `DIC-3` |
 
 스냅샷 record — `TermSnapshot(Long termId, String preferredForm, String englishName, String definition)`, `NewTermSnapshot(String preferredForm, String englishName, String definition)`. **엔티티를 포트 시그니처에 노출하지 않는다.**
+
+> **`DIC-5`는 `DOC-1`이 이미 끝냈다.** `document/infra/adapter/DictionaryQueryAdapter`와 그 스텁이 그 산출물이다. `DOCUMENT_PLAN.md` 6절이 같은 어댑터를 `DOC-1`의 산출물(「포트 1 + 어댑터 1 + 스텁 1」)로 적어 두어 **두 문서가 한 파일을 각자 자기 태스크로 청구한 상태**였다. `D-33`으로 조회 어댑터의 주인이 소비 도메인으로 확정됐으므로 **`DOC-1`의 배치가 맞고 `DIC-5`는 별도 산출물을 갖지 않는다.**
 
 **포트 시그니처는 소비자가 정의하고 우리는 구현만 한다.** 시그니처가 위와 다르면 소비 도메인의 정의를 따른다.
 
@@ -392,9 +394,18 @@ com.ubidict.backend.dictionary
 
 ### 어댑터 배치
 
-**포트는 소비자가 정의하고 어댑터는 우리가 구현한다.** 어댑터는 `dictionary/infra/adapter/`에 두고 **자기 도메인의 `infra`(Repository)를 참조한다** — 제공 측 어댑터이므로 크로스 도메인 참조가 없다.
+**포트는 소비자가 정의한다.** 어댑터를 어디에 두는지는 **포트의 종류로 갈린다**(`D-33`, 2026-09-12 확정).
 
-어댑터 선택은 소비 도메인의 프로퍼티(`app.crossdomain.dictionary.mode`)가 결정한다. 우리는 `real` 구현만 제공하고 **스텁은 소비 도메인이 갖는다** — `ARCHITECTURE.md`가 "제공 도메인이 아직 없으면 스텁을 함께 만든다"를 소비 도메인 책임으로 두었기 때문이다.
+| 포트 종류 | 어댑터 위치 | 이 도메인에 해당하는 것 |
+| --- | --- | --- |
+| **조회 포트** | **소비 도메인** `{소비}/infra/adapter/` | `DIC-4`·`DIC-5` — `draftdictionary`·`draftdocument`·`document`가 각자 자기 패키지에 두고 우리 `infra`(Repository)만 참조한다 |
+| **발행 위임 포트** | **제공 도메인** `dictionary/infra/adapter/` | `DIC-3` — 발행은 우리 도메인 로직이라 어댑터가 `DictionaryService`·`implement`를 써야 한다 |
+
+> **이 절의 이전 판은 「어댑터는 `dictionary/infra/adapter/`에 두고 스텁은 소비 도메인이 갖는다」였다.** `ARCHITECTURE.md` «크로스 도메인 **조회** — 포트와 어댑터»가 "어댑터도 소비 도메인이 구현한다"로 못박고 있어 **조회에 대해서는 틀린 서술이었고**, 실제로 `DIC-4`가 그 서술을 따라 제공 측에 놓이면서 `DOC-1`의 소비 측 배치와 어긋났다(`X-21`). `D-33`으로 정정한다.
+
+**스텁도 소비 도메인이 갖는다.** 조회 포트는 어댑터와 스텁이 같은 패키지에 짝으로 있고, 발행 위임 포트는 `RR-4b`가 스텁을, 우리가 real을 만든다.
+
+어댑터 선택은 소비 도메인의 프로퍼티가 결정한다 — 조회는 `app.crossdomain.dictionary.mode`, 발행 위임은 `app.crossdomain.dictionary-publish.mode`다. 두 키 모두 **선행 PR이 `application.yml`에 미리 선언해 둔다.**
 
 ### 발행 이벤트
 
@@ -498,6 +509,7 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 | --- | --- | --- |
 | 1 | **문서화와 감사 엔티티 정합** — `API.md` 절 신설, `BaseEntity` 통일 | 발행 경로 변경(리뷰 도메인이 없다) |
 | 2 | 다른 도메인이 우리를 보는 창구 — 제공 어댑터 3종 | — |
+| | └ **`DIC-4` 완료**(`WLSH-114`), **`DIC-5`는 `DOC-1`이 흡수**, **`DIC-3`만 잔여** — `RR-4b` 대기였고 선행 PR이 포트를 만들어 풀린다. **Phase 2 PR을 새로 열지 않고 `dictionary-phase-3`에 얹는다** | |
 | 3 | 조회·검색·정렬 + 페이징 | 버전 간 비교(`REQ-DIC-007`, MVP2) |
 | 4 | 임시 API 제거 + 이벤트·로그 | — |
 
@@ -507,7 +519,7 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 | **DIC-2** | 감사 상위 클래스 정합 + `V310` | `Dictionary`·`Term` 수정 + `V310` + 테스트 3 | 1 | — |
 | **DIC-3** | 발행 위임 어댑터 | 어댑터 1 + `NewTermSnapshot` + 테스트 4 | 1 | `DIC-2`, **`RR-4b`**(포트 정의) |
 | **DIC-4** | 표준어·정의 스냅샷 조회 어댑터 | 어댑터 2 + `TermSnapshot` + 테스트 2 | 1 | `DIC-2` |
-| **DIC-5** | 활성 버전 조회 어댑터 | 어댑터 1 + 테스트 2 | 0.5 | `DIC-2` |
+| ~~**DIC-5**~~ | ~~활성 버전 조회 어댑터~~ | **`DOC-1`이 구현 완료**(9절) — 별도 산출물 없음 | — | — |
 | **DIC-6** | 조회·검색·정렬 + 페이징 | Repository 2 + `TermSummary` + `TermReader` 수정 + result·response 수정 + 테스트 5 | 2 | **`T-CMN-1`**, `DIC-2` |
 | **DIC-7** | 임시 API 제거 | 컨트롤러 엔드포인트 1 삭제 + dto 2 삭제 + 테스트 수정 | 0.5 | **`RR-4b`**, `DIC-3` |
 | **DIC-8** | 이벤트 발행 + 감사 로그 | 이벤트 record 1 + 서비스 수정 + 로그 + 테스트 1 | 1 | `DIC-3` |
@@ -517,10 +529,10 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 
 **`DIC-2`를 가장 먼저 하는 이유** — `BaseEntity` 통일이 엔티티 시그니처를 바꾸므로, 어댑터 3종(`DIC-3`~`DIC-5`)보다 앞서야 두 번 고치지 않는다.
 
-**`DIC-3`·`DIC-7`은 리뷰 도메인의 발행(`RR-4b`)이 develop에 있어야** 착수할 수 있다.
+**`DIC-3`이 기다린 것은 `RR-4b`의 구현이 아니라 인터페이스 파일 하나다**(2026-09-12 정정).
 
-- `DIC-3`은 **`reviewrequest/infra/port/DictionaryVersionPublishPort` 인터페이스가 존재해야** 어댑터를 구현할 수 있다. `RR-4b`가 포트와 **스텁을 함께 만들어** 자기 Phase를 완결하고(`ARCHITECTURE.md` 「제공 도메인이 아직 없으면 스텁을 함께 만든다」), 그 뒤 `DIC-3`이 real 어댑터로 갈아끼운다. **의존은 한 방향이다** — `RR-4b`가 `DIC-3`을 기다리지 않는다.
-- `DIC-7`은 그보다 더 뒤다. 임시 API를 그 전에 제거하면 사전집을 만들 방법이 없어진다(`D-27`).
+- `DIC-3`은 **`reviewrequest/infra/port/DictionaryVersionPublishPort`가 존재해야** 어댑터를 구현할 수 있다. 원래는 `RR-4b`가 포트와 스텁을 함께 만들어 자기 Phase를 완결하는 구조였으나(`ARCHITECTURE.md` 「제공 도메인이 아직 없으면 스텁을 함께 만든다」), **선행 PR(`chore/WLSH-145-contracts`)이 그 포트와 스텁을 먼저 만든다.** 그래서 `DIC-3`과 `RR-4b`가 **서로를 기다리지 않고 동시에** 진행된다 — `DIC-3`은 real 어댑터를, `RR-4b`는 그 포트를 주입받는 `ReviseProcessor`를 각자 만든다.
+- `DIC-7`은 그보다 더 뒤다. 임시 API를 그 전에 제거하면 사전집을 만들 방법이 없어진다(`D-27`). **Phase 4지만 6개 도메인이 모두 머지된 뒤 마무리 PR에서 한다.**
 
 ### Phase별 DoD
 
@@ -563,10 +575,10 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 - [ ] 사전집이 없으면 빈 목록을 돌려준다(예외를 던지지 않는다)
 - [ ] `O-3`(`suggestionTerm` 값의 출처)이 이 포트로 해소됐음을 `CONFLICTS.md`에 기록했다
 
-**DIC-5**
+**~~DIC-5~~ — `DOC-1`이 충족했다.** 아래 두 항목은 `DictionaryQueryAdapterTest`가 이미 검증한다.
 
-- [ ] `Optional<Integer>`를 반환해 「사전집 없음」과 「버전 0」이 구분된다
-- [ ] 보관 사전집이 활성으로 읽히지 않는다
+- [x] `Optional<Integer>`를 반환해 「사전집 없음」과 「버전 0」이 구분된다
+- [x] 보관 사전집이 활성으로 읽히지 않는다
 
 **DIC-6**
 
@@ -601,9 +613,9 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 | --- | --- | --- |
 | `T-DOC-1` | **문서 선행 수정** — `CONFLICTS.md` 9절이 파일별 목록을 갖는다 | — (**모든 구현의 선행**) |
 | `T-CMN-1` | `PageResponse`·`PageResult` 신설 | `T-DOC-1` |
-| `T-INT-1` | `spring.flyway.out-of-order=true` 정리 | 6개 도메인 Phase 1 |
-| `T-INT-2` | 크로스 도메인 어댑터를 `real`로 전환 | 6개 도메인 Phase 3 |
-| `T-INT-3` | `SecurityConfig` + 인증 주체 + 프로파일 분리 | 인증 도메인(별건) |
+| ~~`T-INT-1`~~ | ~~`spring.flyway.out-of-order=true` 정리~~ | **폐기** — 개발 브랜치 DB를 항상 리셋하므로 필요가 없다 |
+| `T-INT-2` | 크로스 도메인 어댑터를 `real`로 전환 | **조회 축은 선행 PR에서 끝난다.** 발행 축(`dictionary-publish`)만 `DIC-3` 뒤 마무리 PR |
+| `T-INT-3` | `SecurityConfig` + 인증 주체 + 프로파일 분리 | 인증 도메인(별건). `SecurityConfig`는 이미 있다 — 남은 것은 프로파일 분리와 `memberId` 파라미터 제거 |
 
 **`T-INT-4`는 신설하지 않는다** — `D-26`으로 유래 리비전을 두지 않기로 해 필요가 사라졌다.
 

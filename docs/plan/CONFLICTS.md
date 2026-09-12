@@ -15,6 +15,7 @@
 | `D-1`~`D-18` | 초안·리뷰 3개 문서가 2026-09-10에 확정한 결정 | 전역 공유 | `DRAFT_DOCUMENT_PLAN.md`·`DRAFT_DICTIONARY_PLAN.md`·`REVIEW_REQUEST_PLAN.md` 2-1절 |
 | `G-1`~`G-15` | **사용자가 확정한 큰 흐름** | 전역 | 이 문서 2절 |
 | `D-19`~`D-32` | 큰 흐름을 받아 확정한 나머지 결정 | 전역 | 이 문서 3절 |
+| `D-33`~`D-36` | **잔여 태스크 병렬화 세션(2026-09-12)이 확정한 결정** | 전역 | 이 문서 3-1절 |
 | `R-1`~`R-24` | **큰 흐름이 뒤집은 기존 결정** | 전역 | 이 문서 4절. 문서 수정이 구현보다 앞선다 |
 | `F-1`~`F-6` | 뒤집힘이 만든 새 과제 | 전역 | 이 문서 5절 |
 | `X-*` | 문서 ↔ 문서 충돌 | 전역 | 이 문서 6절 |
@@ -25,7 +26,7 @@
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다.
 
-**새 결정 ID는 `D-33`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
+**새 결정 ID는 `D-37`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
 
 ### `D-1`~`D-18` 색인 — 이 문서 밖에 정의된 결정
 
@@ -130,6 +131,21 @@
 
 ---
 
+## 3-1. 잔여 태스크 병렬화 세션이 확정한 결정 (`D-33`~`D-36`)
+
+2026-09-12. 구현된 코드와 6개 계획 문서를 대조해 **완료 22 · 미착수 26 · 차단 2**를 확인하고, 잔여를 도메인 단위 병렬로 풀기 위해 확정한 것들이다. 차단의 정체는 **도메인 간 의존이 로직이 아니라 「포트 정의」에 걸려 있다는 것**이었다 — `DIC-3`이 기다린 것은 `RR-4b`의 구현이 아니라 `DictionaryVersionPublishPort` 인터페이스 파일 하나다.
+
+| ID | 확정 내용 | 해소 |
+| --- | --- | --- |
+| **D-33** | **어댑터 배치를 포트 종류로 가른다.** **조회 포트의 어댑터는 소비 도메인**(`{소비}/infra/adapter/`)에 두고 제공 도메인의 `infra`(Repository)만 참조한다 — `ARCHITECTURE.md` «크로스 도메인 **조회**»의 명문 그대로다. **발행 위임 포트의 어댑터는 제공 도메인**(`{제공}/infra/adapter/`)에 둔다 — 발행은 제공 도메인의 도메인 로직이라 어댑터가 그 도메인의 `implement`·`service`를 써야 하고, 소비 도메인에 두면 규칙 2(역방향 금지)를 어긴다. `DICTIONARY_PLAN.md` 9절의 「어댑터는 `dictionary/infra/adapter/`에 둔다」는 **조회에 대해 틀렸고 발행에 대해 맞다** | `X-21` |
+| **D-34** | **추출·대조 작업 모델은 각 초안 도메인 안에 각자 둔다.** `draftdictionary/domain/ExtractionJob`, `draftdocument/domain/CheckJob`. 공용 job 도메인을 만들지 않는다 — 도메인 경계가 유지되고 두 도메인이 서로를 기다리지 않아 병렬이 깨지지 않는다. 상태 축은 `D-24`대로 `PENDING`·`RUNNING`·`SUCCEEDED`·`FAILED`이고 조회는 폴링이다 | `G-13`이 요구한 계약의 배치 |
+| **D-35** | **추출·대조는 계약과 워커 스텁까지만 만든다**(`G-13` 「계약만 정의한다」와 일치). LLM 호출은 `TermExtractorPort`·`TermCheckerPort` 뒤로 감추고 스텁이 고정 결과를 돌려준다. **service 레이어는 이 포트를 주입받지 않는다** — 주입하면 동기 호출이 가능해지므로 포트는 이벤트 핸들러만 안다. 요청은 작업 행을 `PENDING`으로 넣고 이벤트를 발행한 뒤 `202`로 끝나고, 실행은 `@TransactionalEventListener(AFTER_COMMIT)` + `@Async`가 맡는다. 실제 모델 연동은 새 의존성·API 키·프롬프트 설계가 필요하므로 **별도 승인 뒤** 한다 | `NFR-CHK-001`·`NFR-CMN-002` |
+| **D-36** | **기존 동기 생성 API를 유지하고 비동기 진입점을 추가한다.** `POST /api/draft-documents`·`POST /api/draft-dictionaries`는 `SHRINK` 태그를 단 채 남기고, `POST .../checks`·`POST .../extractions`를 새로 연다. 이미 머지된 `DD-1`·`DI-1`과 프론트 목업을 건드리지 않기 위해서다. 일원화는 리뷰 경로가 다 붙은 뒤 마무리 태스크에서 한다 | — |
+
+> **`DD-5`·`DI-5`를 신설한다.** `G-13`이 추출을 MVP1에 넣으면서 「6개 계획 문서는 계약만 정의한다」고 했는데, **그 계약을 만들 태스크가 어느 문서 12절에도 없다.** `DRAFT_DICTIONARY_PLAN.md` 1절이 `R-8`로 뒤집히기 전 서술(「추출은 MVP1 밖, 별도 도메인」)을 그대로 갖고 있고 보존 대상이라 갱신되지 않은 탓이다. `D-34`~`D-36`이 그 구멍을 메운다.
+
+---
+
 ## 4. 큰 흐름이 뒤집은 기존 결정 (`R-1`~`R-24`)
 
 모두 기존 문서에 「확정」으로 적혀 있던 것이다. 루트 `CLAUDE.md`의 "결정이 바뀌면 코드보다 문서를 먼저 갱신한다"에 따라 **`T-DOC-1`(9절)이 모든 구현보다 앞선다.**
@@ -190,7 +206,7 @@
 
 ---
 
-## 6. 문서 ↔ 문서 충돌 (`X-01`~`X-20`)
+## 6. 문서 ↔ 문서 충돌 (`X-01`~`X-21`)
 
 | ID | 충돌 | 근거 | 결론 | 상태 |
 | --- | --- | --- | --- | --- |
@@ -214,10 +230,11 @@
 | **X-18** | 「미결정-8」 — `NFR-INF-004` 「Kafka는 MSK 또는 EC2 단일 노드」가 미해소 | `REQUIREMENTS.md` 비고 | Kafka 제거 확정. 로컬 인메모리 / AWS SQS | 해소(`D-24`) |
 | **X-19** | `D-*` 결정 ID가 3개 문서 전역 공유(`D-1`~`D-18`)여서 신규 문서가 같은 번호를 쓰면 충돌한다 | 3개 계획 문서 2-1절 | `D-19`부터 이어 붙인다. 새 결정은 `D-33`부터 | 해소(1절) |
 | **X-20** | **`DraftDictionary.dictionaryId`가 필수(`O`)인데 첫 회차에는 가리킬 사전집이 없다.** `DOMAIN.md` «사전집 생성 주기»는 첫 사전집이 초안 → 리뷰 → 발행으로 태어난다고 규정하므로, 그 초안에는 `dictionaryId`가 존재할 수 없다 | `DOMAIN.md` `DraftDictionary` 표 / `DOMAIN.md` «사전집 생성 주기» | **`G-1`의 직접 귀결이라 nullable로 정정했다**(`T-DOC-1` 실행 중 발견). 발행은 `workspaceId`로 「이 워크스페이스의 다음 버전」을 만들며, `DictionaryService.appendNextVersion`이 이미 첫 버전과 다음 버전을 한 경로로 다룬다 | 해소 |
+| **X-21** | **어댑터 배치가 두 문서에서 반대다.** `ARCHITECTURE.md` «크로스 도메인 조회 — 포트와 어댑터»는 「어댑터도 **소비 도메인**이 구현한다. `{소비도메인}/infra/adapter/`에 두고 제공 도메인의 `infra`만 참조한다」이고, `DICTIONARY_PLAN.md` 9절 «어댑터 배치»는 「어댑터는 `dictionary/infra/adapter/`에 두고 **스텁은 소비 도메인이 갖는다**」이다. **코드가 양쪽을 섞어 따랐다** — `DOC-1`의 `document/infra/adapter/DictionaryQueryAdapter`는 소비 측, `DIC-4`의 어댑터 2개와 `WS-4`의 `WorkspacePolicyAdapter`는 제공 측 | `ARCHITECTURE.md` «크로스 도메인 조회» / `DICTIONARY_PLAN.md` 9절 / `infra/adapter/` 6개 | 절 제목이 「조회」인 것이 답이다. **조회는 소비 도메인, 발행 위임은 제공 도메인**으로 가른다 | 해소(`D-33`) |
 
 ---
 
-## 7. 문서 ↔ 코드 충돌 (`Y-01`~`Y-23`)
+## 7. 문서 ↔ 코드 충돌 (`Y-01`~`Y-28`)
 
 | ID | 충돌 | 근거 | 결론 | 담당 |
 | --- | --- | --- | --- | --- |
@@ -244,6 +261,11 @@
 | **Y-21** | 3개 계획 문서 13절이 「`refacotr/WLSH-86-base-entity`(BaseEntity 감사 애노테이션 교체)가 진행 중」을 리스크로 들고 `EXECUTION_ORDER.md` 4절이 그 머지 직후 동기화를 지시하는데, **이미 머지됐다**(`b15263d`) | 3개 계획 문서 / `git log` | `EXECUTION_ORDER.md` 4절에서 해당 조항만 걷어낸다. 3개 계획 문서는 보존 | `T-DOC-1` |
 | **Y-22** | 의존성과 컨테이너만 있고 사용 코드가 0줄인 것 — MongoDB·Redis·JJWT·OAuth2·SpringDoc. **MongoDB는 어느 도메인이 쓸지 문서에도 코드에도 흔적이 없다** | `build.gradle` / `compose.yaml` / 소스 트리 | Redis·JJWT·OAuth2·SpringDoc은 `T-INT-3`에서 쓰인다. **MongoDB는 용처를 정하거나 걷어내야 한다** — `D-24`로 메시징이 SQS가 되어 후보 하나가 사라졌다 | 제안 |
 | **Y-23** | `ARCHITECTURE.md` 절 제목이 「크로스 도메인 **조회**」이고 본문이 "포트는 조회와 발행 위임에만 쓴다"인데, **접근 검증이 조회인지 아닌지 답하지 않는다.** 기구현 2개는 직접 참조, 초안·리뷰 3개 문서는 어댑터를 요구한다 | `ARCHITECTURE.md` «크로스 도메인 조회» / 3개 계획 문서 9절 | 예외 조항을 명문화한다 | 해소(`D-19`) |
+| **Y-24** | **`WS-4`가 다른 도메인의 파일을 만들었다** — `reviewrequest/infra/port/WorkspacePolicyPort`는 `REVIEW_REQUEST_PLAN.md` 6절 트리가 `RR-3c`의 산출물로 둔 것인데 `WS-4` 세션이 어댑터와 함께 만들었다. `EXECUTION_ORDER.md` 3절 «아무도 수정하지 않는 파일»의 「다른 도메인의 패키지 전체」에 걸린다 | `WorkspacePolicyPort` / `REVIEW_REQUEST_PLAN.md` 6절 / `EXECUTION_ORDER.md` 3절 | **위치와 시그니처가 `R-19`대로 정확하므로 지우지 않는다.** `RR-3c` 세션은 이 포트를 **새로 만들지 말고 그대로 쓴다.** 현재 소비자가 0곳이라 `RR-3c` 전까지는 스텁만 선택된다 | 기록 |
+| **Y-25** | **`draftdocument/infra/port/DictionaryTermQueryPort`에 소비자가 0곳이다.** 어댑터는 있는데 주입받는 곳이 없어 `O-3`(`suggestionTerm` 값의 출처)이 코드에서는 아직 이어지지 않았다 | 포트·어댑터 / `SuggestionTermService`·`SuggestionTermWriter` | `DD-3`(교정 흐름)과 `DD-5`(대조 계약)가 실제로 주입해 잇는다 | `DD-3`·`DD-5` |
+| **Y-26** | `AddSuggestionTermRequest`가 `common/domain/TextRange`를 **request DTO에 그대로 노출**한다. `DRAFT_DOCUMENT_PLAN.md` 6절은 `TextRangeRequest.java`를 별도 산출물(P2)로 뒀다 | `AddSuggestionTermRequest` / `DRAFT_DOCUMENT_PLAN.md` 6절 | 도메인 값 객체가 presentation까지 올라간 형태다. `DD-3`에서 `TextRangeRequest`로 분리하거나, 유지할 근거를 남긴다 | `DD-3` |
+| **Y-27** | **ReviewRequest 테스트 공백** — `ReviewerController`·`RevisionController` 컨트롤러 테스트가 없고, 리포지토리 4개 중 `ReviewRequestRepository` 하나만 테스트가 있다. `ReviewerDuplicationValidatorTest`·`RevisionTypeValidatorTest`는 대상이 `implement`인데 **테스트가 `domain` 패키지에 있다** | `reviewrequest` 테스트 11개 / `TEST.md` | `review-req-phase-3` 착수 시 함께 메운다. 패키지 위치는 대상에 맞춘다 | `RR-3a` |
+| **Y-28** | **죽은 프로퍼티** — `app.worker.enabled=false`가 `src/test/resources/application.yml`에만 있고 이 키를 읽는 코드가 0줄이다. `app.messaging.mode`는 반대로 **어디에도 선언돼 있지 않고** `InMemoryEventPublisher`의 `matchIfMissing = true`에만 의존한다(`D-24`가 이 키로 어댑터를 고르라고 규정했다) | `test/resources/application.yml` / `InMemoryEventPublisher` / `D-24` | `app.worker.enabled`를 지우고 `app.messaging.mode`를 `application.yml`에 명시한다 | 해소 예정(선행 PR) |
 
 ---
 
@@ -288,8 +310,10 @@
 
 ## 10. 남은 결정 대기
 
-**없다.** 2026-09-10에 전건 확정했다.
+**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건도 `D-33`~`D-36`으로 확정했다.
 
-`상태` 칸이 `제안`인 항목(`X-04`·`X-05`·`X-08`~`X-14`·`X-17`, `Y-22`)은 **결정이 필요한 것이 아니라 담당 태스크에서 형태를 정하는 것**이다. 설계 방향은 이미 정해져 있다.
+`상태` 칸이 `제안`인 항목(`X-04`·`X-05`·`X-08`~`X-14`·`X-17`, `Y-22`)과 `기록`인 항목(`Y-24`~`Y-27`)은 **결정이 필요한 것이 아니라 담당 태스크에서 형태를 정하는 것**이다. 설계 방향은 이미 정해져 있다.
 
-새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-33`부터 붙인다.
+**`D-35`의 실제 LLM 연동만 예외다** — 새 의존성·API 키·프롬프트 설계가 필요하므로 루트 `CLAUDE.md`의 「새 라이브러리·의존성 추가는 사전에 제안하고 승인받는다」에 따라 그 시점에 별도로 합의한다.
+
+새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-37`부터 붙인다.
