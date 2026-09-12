@@ -423,7 +423,9 @@ com.ubidict.backend.document
 
 ### 어댑터 배치
 
-**포트는 우리가 정의하고 어댑터도 우리가 구현한다.** 어댑터는 `document/infra/adapter/`에 두고 **제공 도메인의 `infra`(Repository)만 참조한다** — 같은 레이어끼리라 방향 위반이 아니다. 제공 도메인의 `implement`(`DictionaryReader` 등)를 참조하면 `infra -> implement`가 되어 `ARCHITECTURE.md`의 역방향 참조 금지를 어긴다. 이 규약 덕분에 **`dictionary` 패키지의 파일을 한 줄도 고치지 않는다.**
+**조회 포트는 우리가 정의하고 어댑터도 우리가 구현한다.** 어댑터는 `document/infra/adapter/`에 두고 **제공 도메인의 `infra`(Repository)만 참조한다** — 같은 레이어끼리라 방향 위반이 아니다.
+
+> **발행 위임 포트는 반대다**(`D-33`, 2026-09-12). `DOC-6`이 구현할 `DocumentVersionPublishPort`의 어댑터는 **우리가 제공 측으로서** `document/infra/adapter/`에 두고, 이때는 우리 `implement`·`service`를 쓴다. 발행이 우리 도메인 로직이기 때문이다. 소비 도메인(`reviewrequest`)은 스텁만 갖는다. 아래 문단의 「제공 도메인 infra만 참조」는 **조회 어댑터에 대한 규정**이다. 제공 도메인의 `implement`(`DictionaryReader` 등)를 참조하면 `infra -> implement`가 되어 `ARCHITECTURE.md`의 역방향 참조 금지를 어긴다. 이 규약 덕분에 **`dictionary` 패키지의 파일을 한 줄도 고치지 않는다.**
 
 어댑터 선택은 프로퍼티로 한다 — `app.crossdomain.{name}.mode=stub|real`(기본 `stub`, `matchIfMissing = true`). `InMemoryEventPublisher`의 `@ConditionalOnProperty` 패턴을 따르고 `@ConditionalOnMissingBean`은 쓰지 않는다.
 
@@ -431,8 +433,8 @@ com.ubidict.backend.document
 
 | 소비자가 정의한 포트 | 시그니처 | 근거 메서드 | 태스크 |
 | --- | --- | --- | --- |
-| `draftdictionary/infra/port/DocumentQueryPort` | `boolean isExtractable(Long documentId)` | `DocumentVersion.isAligned(...)`를 최신 확정 버전에 적용 | `DOC-4` |
-| `draftdocument/infra/port/DocumentQueryPort` | `Optional<DocumentSnapshot> read(Long documentId)` | 최신 확정 버전의 `body`·`versionNo`를 담은 스냅샷 | `DOC-4` |
+| `draftdictionary/infra/port/DocumentQueryPort` | `boolean isExtractable(Long documentId)` | `DocumentVersion.isAligned(...)`를 최신 확정 버전에 적용 | ~~`DOC-4`~~ **선행 PR 완료** |
+| `draftdocument/infra/port/DocumentQueryPort` | `Optional<DocumentSnapshot> read(Long documentId)` | 최신 확정 버전의 `body`·`versionNo`를 담은 스냅샷 | ~~`DOC-4`~~ **선행 PR 완료** |
 | `reviewrequest/infra/port/DocumentVersionPublishPort` | `int publish(Long documentId, int baseVersionNo, String body, int dictionaryVersionNo)` | `Document.publishNext` + `DocumentVersion.publishRevised` | `DOC-6` |
 
 스냅샷 record — `DocumentSnapshot(Long documentId, Long workspaceId, int currentVersionNo, String body)`. **엔티티를 포트 시그니처에 노출하지 않는다.**
@@ -560,7 +562,7 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). JUnit `asse
 | **DOC-1** | 사전집 활성 버전 조회 배선 | 포트 1 + 어댑터 1 + 스텁 1 + `DocumentAlignmentReader` + 프로퍼티 + 테스트 3 | 1 | — |
 | **DOC-2** | 본문 직접 편집 → 즉시 발행 | `V210` + `Document.publishNext` + `DocumentVersion.publishEdited` + `EditDocumentContentRequest`·`Command` + 서비스 1 + 엔드포인트 1 + 테스트 6 | 2 | `DOC-1` |
 | **DOC-3** | `outdated` 제거·`aligned` 통합 | `isAligned` static + `DocumentVersionSummary` 수정 + result 4 + response 4 + 테스트 5 | 1 | `DOC-1`, `DOC-2` |
-| **DOC-4** | 제공 포트 — 추출 대상·문서 스냅샷 | 어댑터 2 + 스냅샷 record 1 + 테스트 2 | 1 | `DOC-3` |
+| ~~**DOC-4**~~ | ~~제공 포트 — 추출 대상·문서 스냅샷~~ | **선행 PR(`chore/WLSH-145-contracts`)이 끝냈다**(2026-09-12) — 산출물 없음 | — | — |
 | **DOC-5** | 편집 차단 검증 | 포트 2 + 스텁 2 + 어댑터 2 + `DocumentEditGuard` + ErrorCode 2 + 테스트 3 | 1 | `DOC-2`, **`DD-1`**, **`DI-1`** |
 | **DOC-6** | 교정 반영 발행 어댑터 | `DocumentVersion.publishRevised` + 어댑터 1 + 테스트 2 | 1 | `DOC-2`, **`RR-4b`** |
 | **DOC-7** | 목록·버전 이력 페이징 | Repository 2 + result 2 + response 2 + 테스트 2 | 1 | **`T-CMN-1`** |
@@ -605,11 +607,11 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). JUnit `asse
 - [ ] 응답에 `aligned`·`edited`·`dictionaryVersionNo` 셋이 함께 있다
 - [ ] 활성 사전집이 없을 때 `aligned`가 참이다
 
-**DOC-4**
+**~~DOC-4~~ — 선행 PR이 충족했다.** `D-33`으로 조회 어댑터의 주인이 소비 도메인이 되면서 산출물이 `draftdictionary`·`draftdocument` 패키지로 옮겨 갔다. **`document-phase-3` 세션은 이것을 다시 만들지 않는다.**
 
-- [ ] `isExtractable`이 `aligned`와 같은 static을 호출한다
-- [ ] `DocumentSnapshot`에 엔티티가 없다
-- [ ] `CONFLICTS.md`의 `O-4`에 `isOutdated → isExtractable` 전환을 기록했다
+- [x] `isExtractable`이 `aligned`와 같은 static을 호출한다 — `draftdictionary/infra/adapter/DocumentQueryAdapter`
+- [x] `DocumentSnapshot`에 엔티티가 없다 — `draftdocument/infra/port/DocumentSnapshot`
+- [x] `CONFLICTS.md`의 `O-4`에 `isOutdated → isExtractable` 전환을 기록했다
 
 **DOC-5**
 
@@ -653,7 +655,7 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). JUnit `asse
 | --- | --- | --- |
 | `T-DOC-1` | **문서 선행 수정** — `R-1`~`R-24`, `D-19`~`D-32`. `CONFLICTS.md` 9절이 파일별 목록을 갖는다 | — (**모든 구현의 선행**) |
 | `T-CMN-1` | `PageResponse`·`PageResult` 신설 | `T-DOC-1` |
-| `T-INT-1` | `spring.flyway.out-of-order=true` 정리 | 6개 도메인 Phase 1 |
+| ~~`T-INT-1`~~ | ~~`spring.flyway.out-of-order=true` 정리~~ — **폐기**(2026-09-12). 개발 브랜치 DB를 항상 리셋하므로 머지 순서와 번호 순서가 어긋나도 무방하다(`Y-10`) | — |
 | `T-INT-2` | 크로스 도메인 어댑터를 `real`로 전환 | 6개 도메인 Phase 3 |
 | `T-INT-3` | `SecurityConfig` + 인증 주체 + 프로파일 분리 | 인증 도메인(별건) |
 

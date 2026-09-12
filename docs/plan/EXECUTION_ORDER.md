@@ -7,7 +7,7 @@
 
 각 문서의 12절이 도메인 안의 태스크 순서를 정하고, 이 문서는 **도메인을 가로지르는 순서와 공유 파일의 주인**을 정한다. 계획 문서가 **병렬 작업을 전제로 쓰였기 때문에** 이 규약이 필요하다. 한 세션이 자기 문서만 보고 진행하면 다른 세션과 같은 파일을 건드리거나, 아직 없는 산출물을 전제하게 된다.
 
-**`CONFLICTS.md`를 함께 읽는다.** 큰 흐름 확정(`G-*`)·이번 세션 확정(`D-19`~`D-32`)·뒤집힌 결정(`R-*`)이 거기에 있다. **초안·리뷰 3개 문서의 서술과 `R-*`가 어긋나면 `R-*`를 따른다** — 그 문서들은 보존 대상이라 갱신되지 않는다.
+**`CONFLICTS.md`를 함께 읽는다.** 큰 흐름 확정(`G-*`)·확정된 결정(`D-19`~`D-37`)·뒤집힌 결정(`R-*`)이 거기에 있다. **초안·리뷰 3개 문서의 서술과 `R-*`가 어긋나면 `R-*`를 따른다** — 그 문서들은 보존 대상이라 갱신되지 않는다.
 
 ---
 
@@ -25,13 +25,20 @@
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다. 세션 지시문에 태스크 ID를 적을 때 한 글자 차이로 다른 도메인을 구현하게 된다.
 
-**결정 ID**는 `D-1`~`D-18`(초안·리뷰 3개 문서 전역 공유), `G-1`~`G-15`(큰 흐름), `D-19`~`D-32`(이번 세션)를 쓴다. **새 결정은 `D-33`부터**다.
+**결정 ID**는 `D-1`~`D-18`(초안·리뷰 3개 문서 전역 공유), `G-1`~`G-15`(큰 흐름), `D-19`~`D-32`(2026-09-10), `D-33`~`D-37`(2026-09-12 잔여 병렬화)를 쓴다. **새 결정은 `D-38`부터**다.
+
+**태스크 두 개가 늘고 하나가 폐기됐다**(2026-09-12).
+
+- **`DD-5`·`DI-5` 신설** — `G-13`이 추출을 MVP1에 넣으며 「계약만 정의한다」고 했는데 그 계약을 만들 태스크가 어느 문서 12절에도 없었다. 비동기 작업 접수·실행 계약이 여기 들어간다(`D-34`~`D-36`).
+- **`T-INT-1`(Flyway `out-of-order`) 폐기** — 개발 브랜치 DB를 항상 리셋하므로 이력이 비어 있고 전체가 버전 순서대로 한 번에 적용된다. 낮은 번호가 나중에 머지돼도 거부되지 않는다. 각 도메인은 자기 대역에서 자유롭게 파일을 추가한다.
 
 ---
 
 ## 1. 태스크 의존 그래프
 
 여섯 문서 12절의 의존 칸을 한데 모은 것이다. **`**`가 붙은 것이 도메인을 가로지르는 의존이다.**
+
+> **2026-09-12 — 도메인을 가로지르는 의존은 선행 PR(`chore/WLSH-145-contracts`)이 전부 끊는다.** 아래 `**` 의존은 모두 「남의 로직」이 아니라 **「남이 정의할 포트 인터페이스」**를 기다리는 것이었다. `DIC-3`이 기다린 것은 `RR-4b`의 구현이 아니라 `DictionaryVersionPublishPort` 파일 하나다. 선행 PR이 잔여 포트·스텁·스냅샷 record·이벤트 record를 한꺼번에 만들고 나면 **아래 표의 `**` 항목은 전부 해소되고 6개 도메인이 자기 패키지 안에서만 병렬로 진행된다**(2절). 표는 원래 의존 관계를 남겨 두기 위해 그대로 둔다.
 
 ### 선행 태스크
 
@@ -94,9 +101,11 @@
 | RR-4d 이벤트 | RR-4a, RR-4b |
 | DD-4 정책 + 이벤트 | DD-3, **RR-1**, **DOC-4** |
 | DI-4 정책 + 인가 + 이벤트 | DI-3, **RR-2c**, **DOC-4** |
-| T-INT-1 Flyway out-of-order 정리 | 6개 도메인 Phase 1 |
-| T-INT-2 크로스 도메인 어댑터 `real` 전환 | 6개 도메인 Phase 3 |
-| T-INT-3 `SecurityConfig` + 인증 주체 + 프로파일 분리 | 인증 도메인(별건) |
+| **DD-5** 대조 작업 접수·실행 계약 | DD-4, **DIC-4**(표준어 출처), **DOC-4**(문서 스냅샷) |
+| **DI-5** 추출 작업 접수·실행 계약 | DI-4, **DIC-4**(통합 입력), **DOC-4**(`isExtractable` 필터) |
+| ~~T-INT-1 Flyway out-of-order 정리~~ | **폐기** — DB를 항상 리셋하므로 필요가 없다 |
+| T-INT-2 크로스 도메인 어댑터 `real` 전환 | 조회 축은 **선행 PR**에서 끝난다. 발행 축 2개만 `DOC-6`·`DIC-3` 뒤 마무리 태스크 |
+| T-INT-3 `SecurityConfig` + 인증 주체 + 프로파일 분리 | 인증 도메인(별건). **`SecurityConfig`는 이미 있다**(`member/infra/security`) — 남은 것은 프로파일 분리와 `memberId` 파라미터 제거 |
 
 > **`DI-4`의 의존을 `RR-2c`로 정확히 적는다.** `DRAFT_DICTIONARY_PLAN.md` 12절은 `RR-2`로 적었으나 그것은 Phase 표기이고 태스크가 아니다. 「사전집에 초안 또는 개정안이 존재하면 추가 초안 생성 불가」 정책이 `RevisionDictionary.dictionaryId`로 진행 중인 개정안을 찾으므로 **사전 개정안을 만드는 `RR-2c`**가 실제 선행이다.
 
@@ -114,48 +123,65 @@
 
 ---
 
-## 2. 순차 실행 순서 (권장)
+## 2. 실행 순서 — 선행 PR 하나와 도메인별 병렬 (2026-09-12 개정)
 
-세션을 하나씩 돌린다면 아래 순서를 따른다. 이 순서면 3절 공유 파일 경합이 **자연히 사라진다** — 같은 시점에 두 세션이 같은 파일을 건드리지 않는다.
+**기존 19단계 순차 순서를 이 구조로 대체한다.** 그 순서는 한 세션이 하나씩 돌리는 것을 전제했는데, 6개 도메인 Phase 1~2가 이미 병렬로 머지돼 잔여가 도메인별로 갈렸다. 남은 크로스 도메인 의존이 전부 「포트 정의」였으므로, 그것만 선행 PR로 걷어내면 **나머지는 순서가 필요 없다.**
 
 ```
- 0. T-DOC-1                          ← 문서 기준을 먼저 맞춘다. 모든 구현의 선행
- 1. T-CMN-1                          ← PageResponse·PageResult를 여기서 만든다
- 2. WS-4                             ← 룰셋 수정. RR-3c·RR-4b가 이것을 기다린다
- 3. DIC-2  →  DIC-1                  ← 감사 엔티티 정합, API.md 절 신설
- 4. DOC-1  →  DOC-2  →  DOC-3        ← aligned 판정을 실제로 동작하게 만든다 (한 PR)
- 5. DIC-4  →  DIC-5  →  DOC-4        ← 도메인 간 조회 창구
- 6. RR-1                             ← 리뷰 요청 루트. DD-4·DI-4를 푼다
- 7. DD-1  →  DI-1
- 8. RR-2b  →  RR-2c                  ← DD-1·DI-1의 초안 식별자가 필요하다
- 9. DD-2                             ← common/domain/TextRange를 여기서 만든다
-10. RR-2a  →  RR-2d  →  DI-2
-11. RR-3a  →  RR-3b  →  RR-3c        ← WS-4가 2번에서 끝나 있어야 발행 판정을 검증할 수 있다
-12. DD-3  →  DI-3
-13. RR-4a  →  RR-4b  →  DIC-3  →  DOC-6     ← RR-4b가 포트·스텁을 만들고, 제공 도메인이 real 어댑터로 갈아끼운다
-14. RR-4c  →  RR-4d
-15. DD-4  →  DI-4  →  DOC-5
-16. WS-1  →  WS-2  →  WS-3  →  WS-5  →  WS-6
-17. DIC-6  →  DIC-7  →  DIC-8  →  DIC-9
-18. DOC-7  →  DOC-8  →  DOC-9  →  DOC-10
-19. T-INT-1  →  T-INT-2  →  T-INT-3
+chore/WLSH-145-contracts   크로스 도메인 계약        ← 단독 선행
+       ↓ 머지되면 도메인 간 의존이 0이 된다
+  feat/WLSH-{티켓}-workspace-phase-3     WS-3
+  feat/WLSH-{티켓}-workspace-phase-4     WS-5 · WS-6
+  feat/WLSH-{티켓}-document-phase-3      DOC-6
+  feat/WLSH-{티켓}-document-phase-4      DOC-7 · DOC-8 · DOC-9 · DOC-10
+  feat/WLSH-{티켓}-dictionary-phase-3    DIC-3† · DIC-6
+  feat/WLSH-{티켓}-dictionary-phase-4    DIC-8 · DIC-9
+  feat/WLSH-{티켓}-draft-doc-phase-3     DD-3
+  feat/WLSH-{티켓}-draft-doc-phase-4     DD-4 · DD-5
+  feat/WLSH-{티켓}-draft-dict-phase-3    DI-3
+  feat/WLSH-{티켓}-draft-dict-phase-4    DI-4 · DI-5
+  feat/WLSH-{티켓}-review-req-phase-3    RR-3a · RR-3b · RR-3c
+  feat/WLSH-{티켓}-review-req-phase-4    RR-4a · RR-4b · RR-4c · RR-4d
+       ↓ 6개가 모두 머지된 뒤
+  마무리 통합   DIC-7 · D-36 정리 · T-INT-2 잔여 · T-INT-3 잔여 · E2E
 ```
 
-**0번을 건너뛰지 않는다.** `R-1`~`R-24`가 `DOMAIN.md`·`REQUIREMENTS.md`·`ARCHITECTURE.md`·`UBIQUITOUS_LANGUAGE.md`·`TEST.md`·`API.md`를 고쳐야 한다. 문서를 그대로 두고 구현하면 **세션이 낡은 기준을 읽고 뒤집힌 결정을 되살린다** — 루트 `CLAUDE.md`의 "결정이 바뀌면 코드보다 문서를 먼저 갱신한다"가 이 순서의 근거다.
+**PR 이름은 각 문서 12절의 Phase를 그대로 잇는다.** Phase 1~2가 `feat/WLSH-124-workspace-phase-2` 형태였으므로 같은 규칙이다. Workspace·DraftDocument·DraftDictionary·ReviewRequest는 12절 Phase 표와 **정확히 일치**하고, 어긋나는 곳은 둘뿐이다.
 
-**1번을 앞당기지 않는다** — `PageResponse`·`PageResult`가 여기서 처음 만들어지므로 `DOC-7`·`DIC-6`·`DD-2`·`DI-2`·`RR-2d`가 그 뒤에 온다. **원래 `DD-2` 소유였던 것을 선행 태스크로 옮긴 이유**는 기구현 3개의 페이징(`Y-05`)이 `DD-2`보다 먼저 필요해졌기 때문이다.
+- **Document** — Phase 3의 `DOC-4`가 선행 PR에 흡수돼 `phase-3`에는 `DOC-6`만 남는다. `DOC-10`은 원래대로 Phase 4다.
+- **† Dictionary `DIC-3`은 Phase 2 잔여다.** 「제공 어댑터 3종」 중 `DIC-4`·`DIC-5`는 끝났고 `RR-4b` 의존으로 막혀 있던 것이 이것 하나다. Phase 2 PR을 따로 열지 않고 `phase-3`에 얹는다. **`DIC-7`(임시 API 제거)은 Phase 4지만 마무리로 미룬다** — 지금 지우면 리뷰 경로가 붙기 전이라 사전집을 만들 방법이 사라진다(`D-27`).
 
-**2번을 미루지 않는다.** `WS-4`가 11번(`RR-3c`)보다 늦으면 정족수 0인 채로 발행 판정을 만들게 되고, 룰셋이 들어올 때 「1 이상」 경로가 처음 실행된다.
+### 선행 PR이 무엇을 끊는가
 
-**4번은 한 PR로 묶는다**(`DOC-1`~`DOC-3`). `aligned`를 넣으려면 활성 사전집 버전을 읽을 수 있어야 하고 조건에 `edited`가 들어가므로, 나누어 머지하면 중간 상태에서 응답 필드가 두 번 바뀐다. **커밋은 태스크별로 나눈다.**
+| 끊는 대상 | 방법 |
+| --- | --- |
+| `DIC-3`·`DOC-6` → `RR-4b` | `reviewrequest/infra/port/`에 발행 위임 포트 2개와 **스텁**을 만든다. 제공 도메인이 각자 real 어댑터로 갈아끼운다 |
+| `DD-4`·`DI-4`·`DD-5`·`DI-5` → `DOC-4` | 소비 도메인에 `DocumentQueryPort`를 정의하고 **real 어댑터까지** 만든다(`DOC-4`의 실질 산출물 흡수) |
+| `RR-4b` → 초안 2개 | `reviewrequest/infra/port/`에 초안 스냅샷 조회 포트 2개 + real 어댑터 |
+| `DD-4` ↔ `DI-4` 상호 배타(`G-14`·`D-22`) | 두 초안 도메인이 서로를 보는 조회 포트 + real 어댑터 |
+| `DD-4`·`DI-4` → `WS-5`·`DOC-10` 이벤트 | 6개 도메인의 **이벤트 record 15종을 미리 만든다.** 발행은 각 도메인 PR이 한다 |
+| 어댑터 배치 불일치(`X-21`) | 조회 어댑터 3개를 소비 도메인으로 옮기고 `@ConditionalOnProperty` + 스텁을 붙인다(`D-33`) |
+| `application.yml` 동시 수정 충돌 | **모든 `app.crossdomain.*`·`app.messaging.mode`·`app.ai.*` 키를 선행 PR이 미리 선언한다.** 이후 각 PR은 자기 한 줄만 뒤집는다 |
 
-**9번을 앞당기지 않는다** — `common/domain/TextRange`가 여기서 처음 만들어지므로 `RR-3b`가 그 뒤에 온다.
+### 선행 PR의 커밋 순서 — 문서가 코드보다 앞선다
 
-**15번의 `DOC-5`가 초안 도메인 뒤에 있는 이유** — real 어댑터를 만들려면 `DD-1`·`DI-1`이 develop에 있어야 한다. 그 전에는 스텁이 `false`를 반환해 편집이 항상 허용된다(as-built와 같은 동작).
+루트 `CLAUDE.md`의 「결정이 바뀌면 코드보다 문서를 먼저 갱신한다」와 이 문서 7절(「계획 문서에 없는 설계 결정이 필요해졌다 → `CONFLICTS.md`에 먼저 적고 합의한 뒤 구현한다」)에 따른다. `D-33`~`D-36`이 새 결정이라 그대로 해당한다.
 
-**16번 이후는 병목이 아니다.** 참여자 관리·검색·페이징·로그·이벤트는 다른 도메인을 막지 않으므로 여유 있는 세션에 배치한다. 단 **`WS-4`는 2번에 있고 나머지 `WS-*`만 16번**이다.
+```
+1  docs: 어댑터 배치·비동기 계약 결정 기록       CONFLICTS · EXECUTION_ORDER · DICTIONARY_PLAN
+2  docs: API.md 절 위치 정정 + 미구성 항목 갱신  API.md · 루트 CLAUDE.md
+3  docs: REQ-EXT-008·REQ-MSG-001 진행 상태 연결  REQUIREMENTS.md 단독 (3절 주인 규약)
+4  refactor: 조회 어댑터를 소비 도메인으로 이동   코드 + application.yml
+5  feat: 조회 계약 6종
+6  feat: 발행 위임 포트 + 이벤트 record
+```
 
-`T-INT-1`(`spring.flyway.out-of-order=true`)은 **6개 도메인 Phase 1이 모두 머지된 뒤** 한다. 대역이 100·200·300·400·500·600으로 나뉘어 있고 `workspace`가 `V2__`로 대역 밖이므로(`Y-10`), 머지 순서가 번호 순서와 어긋나면 Flyway가 거부한다.
+### 그대로 유지되는 것
+
+- **`T-DOC-1` → `T-CMN-1`이 모든 구현의 선행이라는 것.** 둘 다 이미 머지됐다.
+- **`WS-4`가 `RR-3c`·`RR-4b`의 선행이라는 것**(`G-4` 정족수). 이미 머지돼 `review-req-phase-3`이 「1 이상」 경로를 실제로 검증할 수 있다.
+- **`DIC-4` → `DI-1`·`DD-2`**(`G-1` 통합 입력). 이미 머지됐다.
+- **`common/domain/TextRange`의 주인은 `DD-2`**이고 `RR-3b`는 쓰기만 한다. 이미 머지됐다.
 
 ---
 
@@ -165,13 +191,14 @@
 
 | 파일 | 주인 | 규약 |
 | --- | --- | --- |
-| `docs/DOMAIN.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/UBIQUITOUS_LANGUAGE.md`, `docs/TEST.md` | **`T-DOC-1`만** | `R-1`~`R-24`·`D-19`~`D-32`가 요구하는 수정을 **그 태스크 하나가 한 커밋으로** 한다. `CONFLICTS.md` 9절이 파일별 목록을 갖는다. 다른 태스크는 이 파일들을 읽기만 한다 |
+| `docs/DOMAIN.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/UBIQUITOUS_LANGUAGE.md`, `docs/TEST.md` | **`T-DOC-1`만** | `R-1`~`R-24`·`D-19`~`D-32`가 요구하는 수정을 **그 태스크 하나가 한 커밋으로** 한다. `CONFLICTS.md` 9절이 파일별 목록을 갖는다. 다른 태스크는 이 파일들을 읽기만 한다. **`T-DOC-1`이 이미 머지된 뒤에 이 파일들을 고쳐야 하면 그 변경만 담은 커밋을 따로 만든다**(7절) — 선행 PR의 3번 커밋이 그 예다 |
 | `common/presentation/PageResponse`, `common/service/PageResult` | **`T-CMN-1`** | 규격은 `docs/API.md` «페이징·정렬 규격»을 그대로 따른다. 만든 즉시 develop에 올린다. `DOC-7`·`DIC-6`·`DD-2`·`DI-2`·`RR-2d`는 이것을 **쓴다** |
 | `common/domain/TextRange` | **DraftDocument (`DD-2`)** | `@Embeddable` record. 필드 `startOffset`/`endOffset`, 컬럼 `start_offset`/`end_offset`, 생성자에서 `startOffset <= endOffset`·음수 아님 검증. 만든 즉시 develop에 올린다. `RR-3b`는 **직접 만들지 않고 이것을 쓴다** |
 | `workspace/implement/WorkspaceAccessValidator` | **Workspace** | **5개 도메인이 직접 주입한다**(`D-19`). 시그니처를 바꾸면 전부 깨진다 — 변경은 통합 태스크로 넘기고 PR에 영향 범위를 적는다 |
 | `workspace/domain/Permission` | **Workspace** | 다른 도메인이 `Permission.ADMIN`을 인자로 넘긴다. 상수를 지우거나 이름을 바꾸지 않는다 |
 | `docs/API.md` | **도메인별 자기 절만** | 각 도메인은 파일 **끝에 자기 `# **{도메인} API**` 절을 추가**한다. Workspace 절의 골격(도입 문단 → 요약 표 → 엔드포인트 절 → 에러 표)을 따른다. **공통 규칙·페이징·버저닝·에러 응답 형식 절은 건드리지 않는다** — 그 절들은 `T-DOC-1`이 고친다 |
-| Flyway 마이그레이션 | 대역으로 분리 | member 1–99 / **workspace 100–199** / **document 200–299** / **dictionary 300–399** / DraftDocument 400–499 / DraftDictionary 500–599 / ReviewRequest 600–699 / 공통·사후 정리 900–999. 도메인 내부는 10 단위로 증가시킨다 |
+| `backend/src/main/resources/application.yml`, `backend/src/test/resources/application.yml` | **선행 PR이 키를 전부 선언한다** | `app.messaging.mode`·`app.crossdomain.*`·`app.ai.*`를 미리 깔아 두고, **이후 각 PR은 자기 한 줄의 `stub`을 `real`로 뒤집기만 한다.** 새 키가 필요하면 그 PR이 두 파일에 함께 넣는다 — **테스트 쪽 파일이 main을 병합이 아니라 대체하므로 한쪽만 고치면 컨텍스트 로딩이 깨진다**(그 파일 상단 주석이 근거를 갖고 있다) |
+| Flyway 마이그레이션 | 대역으로 분리 | member 1–99 / **workspace 100–199** / **document 200–299** / **dictionary 300–399** / DraftDocument 400–499 / DraftDictionary 500–599 / ReviewRequest 600–699 / 공통·사후 정리 900–999. 도메인 내부는 10 단위로 증가시킨다. **개발 브랜치 DB를 항상 리셋하므로 머지 순서와 번호 순서가 어긋나도 무방하다**(`T-INT-1` 폐기) |
 
 **기존 마이그레이션 파일은 고치지 않는다.** `V1`(member)·`V2`(workspace)·`V200`·`V201`(document)·`V300`(dictionary)은 이미 머지됐고, 파일명이나 내용을 바꾸면 Flyway 체크섬이 어긋난다. `V2`가 대역 밖인 것은 `T-INT-1`이 `out-of-order`로 덮는다.
 
@@ -201,9 +228,9 @@ worktree는 워킹 디렉터리만 분리한다. **`.git`·Docker·호스트 포
 | --- | --- |
 | **`bootRun`은 한 번에 한 worktree만** | `spring-boot-docker-compose`가 worktree마다 별도 Compose 프로젝트(디렉터리명 기준)를 띄운다. MySQL·MongoDB·Redis·LGTM이 배로 뜨고 호스트 포트 8080·3000이 겹쳐 `port is already allocated`로 죽는다 |
 | **`./gradlew test`를 여러 worktree에서 동시에 돌리지 않는다** | `RepositoryTestSupport`가 MySQL 컨테이너를, `IntegrationTestSupport`가 `TestcontainersConfiguration`(MySQL+Mongo+Redis+LGTM)을 띄운다. worktree 수만큼 Gradle 데몬도 늘어난다. LGTM과 빌드 JVM이 겹치면 Docker Desktop 기본 메모리에서 OOM으로 죽는다 |
-| develop 동기화 | **`T-DOC-1` 머지 직후 즉시**(문서 기준이 바뀐다), `T-CMN-1` 머지 직후 즉시(`PageResponse`가 생긴다), `WS-4` 머지 직후(정족수를 쓸 수 있게 된다), 공유 자산이 올라온 직후, 다른 도메인 Phase 1이 머지된 직후 |
+| develop 동기화 | **선행 PR(`chore/WLSH-145-contracts`) 머지 직후 즉시** — 포트·스텁·이벤트 record와 `application.yml` 키가 한꺼번에 생기므로, 동기화 전에 시작한 세션은 자기 도메인의 포트가 없다고 오판한다. 그 밖에 공유 자산이 올라온 직후, 다른 도메인 PR이 머지된 직후 |
 
-**병렬로 진행하려면** 3절 주인 규약을 지키고 위 두 제약을 사람이 조율해야 한다. 조율이 어렵다면 2절 순차 순서를 쓴다.
+**병렬로 진행하려면** 3절 주인 규약을 지키고 위 두 제약을 사람이 조율해야 한다. **선행 PR이 머지된 뒤에는 12개 도메인 PR이 서로 파일을 겹치지 않으므로**(각자 자기 패키지 + 자기 Flyway 대역 + `docs/API.md`의 자기 절 + `application.yml`의 자기 한 줄) 남는 제약은 위의 두 가지, 즉 컨테이너·포트 경합뿐이다.
 
 **병렬로 안전한 조합** — 서로 다른 도메인의 Phase 1이면서 공유 자산을 만들지 않는 것들이다.
 
@@ -231,15 +258,21 @@ Phase가 아니라 태스크(`WS-4`, `DOC-2`, `RR-1`)를 단위로 삼는다. Dr
 
 각 커밋은 **해당 태스크의 DoD를 만족한 상태**여야 한다. 각 문서 12절 «Phase별 DoD»의 공통 항목 + 태스크 항목을 함께 본다.
 
-**한 PR에 여러 태스크를 담는 경우가 하나 있다** — `DOC-1`~`DOC-3`이다(2절 4번). 커밋은 셋으로 나누고 PR만 하나로 묶는다.
+**Phase 하나가 PR 하나이므로 한 PR에 여러 태스크가 담긴다.** 커밋은 그 안에서 태스크별로 나눈다 — 예컨대 `document-phase-4`는 `DOC-7`·`DOC-8`·`DOC-9`·`DOC-10` 네 커밋이다. 이미 머지된 `DOC-1`~`DOC-3`이 같은 방식이었다(한 PR, 세 커밋).
+
+**`DD-5`·`DI-5`는 커밋을 「작업 접수」와 「작업 실행」으로 나눈다.** 접수만 머지돼도 구독자 없는 이벤트가 발행될 뿐 동작은 온전하다(`X-12`).
 
 ### 브랜치명
 
-`feat/WLSH-{티켓번호}-{도메인}` — 예: `feat/WLSH-101-document`, `feat/WLSH-102-workspace`.
+`feat/WLSH-{티켓번호}-{도메인}-phase-{번호}` — 예: `feat/WLSH-124-workspace-phase-2`, `feat/WLSH-135-document-phase-2`.
+
+**도메인 슬러그는 기존에 쓰던 것을 그대로 쓴다** — `workspace` · `document` · `dictionary` · `draft-doc` · `draft-dict` · `review-req`.
+
+**Phase 번호는 각 문서 12절의 Phase를 그대로 잇는다.** 잔여 작업은 `phase-3`·`phase-4`가 된다(2절). Phase 경계와 어긋나게 담아야 할 때는 PR 설명에 이유를 적는다 — 지금 해당하는 것은 `dictionary-phase-3`이 `DIC-3`(Phase 2 잔여)을 함께 담는 것 하나다.
 
 `.githooks/prepare-commit-msg`가 브랜치명에서 `[A-Z]+-[0-9]+`를 뽑아 커밋 메시지에 삽입한다. **패턴이 없으면 티켓 추적이 끊긴다.** 세션을 시작할 때 티켓 번호를 함께 알려줘야 한다.
 
-`T-*` 태스크는 도메인이 없으므로 `chore/WLSH-{티켓번호}-{태스크}` — 예: `chore/WLSH-100-doc-baseline`(`T-DOC-1`), `chore/WLSH-103-page-response`(`T-CMN-1`).
+`T-*` 태스크와 통합 PR은 도메인이 없으므로 `chore/WLSH-{티켓번호}-{태스크}` — 예: `chore/WLSH-100-doc-baseline`(`T-DOC-1`), `chore/WLSH-103-page-response`(`T-CMN-1`), `chore/WLSH-145-contracts`(크로스 도메인 계약).
 
 **`T-DOC-1`은 문서만 담는다.** 코드 변경을 섞으면 "문서를 먼저 갱신한다"는 규약이 의미를 잃는다.
 

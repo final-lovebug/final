@@ -86,12 +86,6 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 
 ---
 
-## DraftDictionary Phase 2 Candidate Terms
-
-`POST /api/draft-dictionaries/{id}/candidate-terms` registers a candidate (`form`, optional definition/name, occurrence count, source documents and context snippets) and returns `201`.
-`GET /api/draft-dictionaries/{id}/candidate-terms` returns `PageResponse`; supports `status`, partial `form`, `minOccurrenceCount`, `page`, `size`, and `sort=occurrenceCount,desc`.
-`GET/PATCH/DELETE /api/candidate-terms/{candidateTermId}` reads, edits, and physically removes a candidate. Blank form, invalid occurrence count, duplicate form, and unsupported sort are rejected.
-
 # **Auth API**
 
 로그인과 토큰 수명 관리를 담당한다. 관련 도메인은 `member`다.
@@ -888,9 +882,14 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | **Method** | **Path** | **성공** | **태그** |
 | --- | --- | --- | --- |
 | POST | `/api/draft-documents` | `201` | **SHRINK** |
+| GET | `/api/draft-documents` | `200` | KEEP |
 | GET | `/api/draft-documents/{draftDocumentId}` | `200` | KEEP |
 | PATCH | `/api/draft-documents/{draftDocumentId}` | `200` | KEEP |
 | DELETE | `/api/draft-documents/{draftDocumentId}` | `204` | KEEP |
+| POST | `/api/draft-documents/{draftDocumentId}/suggestion-terms` | `201` | KEEP |
+| GET | `/api/draft-documents/{draftDocumentId}/suggestion-terms` | `200` | KEEP |
+| PATCH | `/api/suggestion-terms/{suggestionTermId}` | `200` | KEEP |
+| DELETE | `/api/suggestion-terms/{suggestionTermId}` | `204` | KEEP |
 
 `POST /api/draft-documents?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
 
@@ -928,19 +927,55 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 }
 ```
 
-## Phase 2 제안어 API
+## **초안 목록 조회**
 
-| Method | Path | 성공 |
+`GET /api/draft-documents` → `200 OK`, 본문은 `PageResponse`다.
+
+| **파라미터** | **기본값** | **설명** |
 | --- | --- | --- |
-| GET | `/api/draft-documents?documentId=&status=&page=0&size=20&sort=createdAt,desc` | 200 |
-| POST | `/api/draft-documents/{id}/suggestion-terms?memberId=` | 201 |
-| GET | `/api/draft-documents/{id}/suggestion-terms?status=&page=0&size=20&sort=createdAt,desc` | 200 |
-| PATCH | `/api/suggestion-terms/{suggestionTermId}?memberId=` | 200 |
-| DELETE | `/api/suggestion-terms/{suggestionTermId}` | 204 |
+| `documentId` | — | 대상 문서 |
+| `status` | — | `DraftDocumentStatus` 완전 일치 |
+| `page` | `0` | 0부터 시작 |
+| `size` | `20` | 1~100 |
+| `sort` | `createdAt,desc` | 필드는 `createdAt`·`updatedAt`·`id`, 방향은 `asc`·`desc`만 허용한다 |
 
-목록 응답은 `content`, `page`, `size`, `totalElements`, `totalPages`를 포함한다. `size`는 1~100, `page`는 0 이상이며 sort 필드는 `createdAt`, `updatedAt`, `id`, 방향은 `asc` 또는 `desc`만 허용한다.
+## **제안어 등록·수정·삭제·목록**
 
-제안어 등록 요청은 `anchor { startOffset, endOffset }`, `originTerm`, `suggestionTerm`을 사용한다. 수정 요청은 각 필드를 선택적으로 포함한다. 잘못된 요청은 `COMMON_INVALID_REQUEST`, `DRAFT_DOCUMENT_INVALID_ANCHOR`, `DRAFT_DOCUMENT_ANCHOR_OUT_OF_BODY`, `DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM`을 반환하며, 존재하지 않는 제안어는 `DRAFT_DOCUMENT_SUGGESTION_TERM_NOT_FOUND`, 소유 초안이 다르면 `DRAFT_DOCUMENT_SUGGESTION_TERM_MISMATCHED`를 반환한다.
+대조가 찾아낸 「원문 표현 → 표준어」 쌍을 초안 안에서 다룬다. 표준어(`suggestionTerm`)의 출처는 사전집이다(`O-3`, `DIC-4`).
+
+`POST /api/draft-documents/{draftDocumentId}/suggestion-terms?memberId={memberId}` → `201 Created`
+
+```json
+{
+  "anchor": { "startOffset": 0, "endOffset": 3 },
+  "originTerm": "결제방법",
+  "suggestionTerm": "결제수단"
+}
+```
+
+`anchor`는 초안 본문에서의 구간이다. `startOffset <= endOffset`이어야 하고 음수일 수 없으며, 본문 길이를 넘으면 거절한다.
+
+`GET /api/draft-documents/{draftDocumentId}/suggestion-terms` → `200 OK`, 본문은 `PageResponse`다. 파라미터는 `status`·`page`·`size`·`sort`이고 규격은 위 초안 목록과 같다.
+
+`PATCH /api/suggestion-terms/{suggestionTermId}?memberId={memberId}`는 각 필드를 **선택적으로** 받아 넘어온 것만 바꾼다.
+
+`DELETE /api/suggestion-terms/{suggestionTermId}` → `204 No Content`. **소프트 삭제**다.
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 문서 초안 | 404 | `DRAFT_DOCUMENT_NOT_FOUND` |
+| 초안 본문이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_BODY` |
+| 기준 문서 버전이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_INVALID_BASE_VERSION` |
+| 없거나 삭제된 제안어 | 404 | `DRAFT_DOCUMENT_SUGGESTION_TERM_NOT_FOUND` |
+| `anchor`가 올바르지 않음(역전·음수) | 400 | `DRAFT_DOCUMENT_INVALID_ANCHOR` |
+| `anchor`가 초안 본문 범위를 벗어남 | 400 | `DRAFT_DOCUMENT_ANCHOR_OUT_OF_BODY` |
+| `suggestionTerm`이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM` |
+| 해당 초안의 제안어가 아님 | 400 | `DRAFT_DOCUMENT_SUGGESTION_TERM_MISMATCHED` |
+| 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
+
+> **`DraftDocumentErrorCode`의 메시지 8건 중 6건이 영문이다.** 다른 도메인은 전부 한국어다(`DRAFT_DOCUMENT_NOT_FOUND`·`INVALID_BODY`·`INVALID_BASE_VERSION`만 한국어). 사용자에게 그대로 나가는 문구이므로 `DD-3`에서 맞춘다.
 
 # **ReviewRequest API**
 
@@ -1071,6 +1106,11 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | GET | `/api/draft-dictionaries/{draftDictionaryId}` | `200` | KEEP |
 | PUT | `/api/draft-dictionaries/{draftDictionaryId}/source-documents` | `200` | KEEP |
 | DELETE | `/api/draft-dictionaries/{draftDictionaryId}` | `204` | KEEP |
+| POST | `/api/draft-dictionaries/{draftDictionaryId}/candidate-terms` | `201` | KEEP |
+| GET | `/api/draft-dictionaries/{draftDictionaryId}/candidate-terms` | `200` | KEEP |
+| GET | `/api/candidate-terms/{candidateTermId}` | `200` | KEEP |
+| PATCH | `/api/candidate-terms/{candidateTermId}` | `200` | KEEP |
+| DELETE | `/api/candidate-terms/{candidateTermId}` | `204` | KEEP |
 
 `POST /api/draft-dictionaries?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
 
@@ -1101,6 +1141,62 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 `PUT /api/draft-dictionaries/{draftDictionaryId}/source-documents?memberId={memberId}`는 `sourceDocumentIds`를 전체 교체한다.
 
+## **후보어 등록·수정·삭제·목록**
+
+초안 안의 후보어를 다룬다. **`REQ-DIC-004`(용어 수동 추가·수정·삭제)의 구현 자리가 여기다** — 확정 사전집의 `Term`을 직접 고치는 경로는 없고, 교정 중인 초안에서만 항목을 더하고 고친다(`R-11`).
+
+`POST /api/draft-dictionaries/{draftDictionaryId}/candidate-terms?memberId={memberId}` → `201 Created`
+
+```json
+{
+  "form": "결제수단",
+  "proposedDefinition": "회원이 결제에 사용하는 수단",
+  "proposedEnglishName": "PaymentMethod",
+  "occurredDocumentIds": [10, 20],
+  "occurrenceCount": 7,
+  "contextSnippets": ["회원은 결제수단을 등록할 수 있다."]
+}
+```
+
+`form`만 필수다. `occurrenceCount`는 0 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다.
+
+응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다.
+
+```json
+{
+  "candidateTermId": 500,
+  "draftDictionaryId": 100,
+  "origin": "EXTRACTED",
+  "sourceTermId": null,
+  "form": "결제수단",
+  "proposedDefinition": "회원이 결제에 사용하는 수단",
+  "proposedEnglishName": "PaymentMethod",
+  "occurrenceCount": 7,
+  "status": "PENDING",
+  "occurredDocumentIds": [10, 20],
+  "contextSnippets": ["회원은 결제수단을 등록할 수 있다."],
+  "createdAt": "2026-09-11T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-11T10:00:00.000000+09:00"
+}
+```
+
+`GET /api/draft-dictionaries/{draftDictionaryId}/candidate-terms` → `200 OK`, 본문은 `PageResponse`다.
+
+| **파라미터** | **기본값** | **설명** |
+| --- | --- | --- |
+| `status` | — | `CandidateTermStatus` 완전 일치 |
+| `form` | — | 표기 부분 일치 |
+| `minOccurrenceCount` | — | 출현 횟수 하한(이상) |
+| `page` | `0` | 0부터 시작 |
+| `size` | `20` | — |
+| `sort` | `occurrenceCount,desc` | `{필드},{asc\|desc}` |
+
+`PATCH /api/candidate-terms/{candidateTermId}?memberId={memberId}`는 `form`·`proposedDefinition`·`proposedEnglishName`을 **선택적으로** 받아 넘어온 필드만 바꾼다. **교정 중(`PENDING`)인 후보어만 수정할 수 있다.**
+
+`DELETE /api/candidate-terms/{candidateTermId}` → `204 No Content`. **소프트 삭제**이며 이후 조회에서 빠진다.
+
+> **`sort` 화이트리스트가 아직 없다.** 허용 필드·방향을 검사하지 않아 잘못된 값이 `400`이 아닌 다른 형태로 드러난다. `DI-3`에서 `DIC-6`과 같은 방식(허용 목록 + `400`)으로 맞춘다.
+
 ## **에러**
 
 | **상황** | **status** | **code** |
@@ -1108,6 +1204,12 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 없거나 삭제된 사전 초안 | 404 | `DRAFT_DICTIONARY_NOT_FOUND` |
 | 유래 문서가 없음 | 400 | `DRAFT_DICTIONARY_SOURCE_DOCUMENT_REQUIRED` |
 | 유래 문서가 중복됨 | 400 | `DRAFT_DICTIONARY_DUPLICATE_SOURCE_DOCUMENT` |
+| 없거나 삭제된 후보어 | 404 | `DRAFT_DICTIONARY_CANDIDATE_TERM_NOT_FOUND` |
+| 후보어 표기가 비었거나 올바르지 않음 | 400 | `DRAFT_DICTIONARY_INVALID_FORM` |
+| 출현 횟수가 음수 | 400 | `DRAFT_DICTIONARY_INVALID_OCCURRENCE_COUNT` |
+| 같은 초안에 같은 표기가 이미 있음 | 409 | `DRAFT_DICTIONARY_DUPLICATE_CANDIDATE_FORM` |
+| 교정 중이 아닌 후보어를 수정 | 409 | `DRAFT_DICTIONARY_CANDIDATE_TERM_NOT_EXAMINABLE` |
+| 해당 초안의 후보어가 아님 | 400 | `DRAFT_DICTIONARY_CANDIDATE_TERM_MISMATCHED` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---

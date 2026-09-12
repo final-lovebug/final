@@ -1,4 +1,4 @@
-package com.ubidict.backend.dictionary.infra.adapter;
+package com.ubidict.backend.draftdictionary.infra.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
@@ -21,11 +21,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 
-@Import(DraftDictionaryTermQueryAdapter.class)
-class DraftDictionaryTermQueryAdapterTest extends RepositoryTestSupport {
+@Import(DictionaryTermQueryAdapter.class)
+class DictionaryTermQueryAdapterTest extends RepositoryTestSupport {
 
     @Autowired
-    private DraftDictionaryTermQueryAdapter adapter;
+    private DictionaryTermQueryAdapter adapter;
 
     @Autowired
     private DictionaryRepository dictionaryRepository;

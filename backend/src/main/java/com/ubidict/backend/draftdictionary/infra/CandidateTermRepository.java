@@ -2,6 +2,8 @@ package com.ubidict.backend.draftdictionary.infra;
 
 import com.ubidict.backend.draftdictionary.domain.CandidateTerm;
 import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +12,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface CandidateTermRepository extends JpaRepository<CandidateTerm, Long> {
+
+    List<CandidateTerm> findAllByDraftDictionaryIdAndStatusInAndDeletedAtIsNullOrderByFormAsc(
+            Long draftDictionaryId, Collection<CandidateTermStatus> statuses);
+
     Optional<CandidateTerm> findByIdAndDeletedAtIsNull(Long id);
 
     boolean existsByDraftDictionaryIdAndFormAndDeletedAtIsNull(Long draftDictionaryId, String form);

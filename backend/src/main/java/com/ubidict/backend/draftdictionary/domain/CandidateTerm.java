@@ -100,10 +100,17 @@ public class CandidateTerm extends BaseEntity {
         return create(draftDictionaryId, form, definition, english, docs, count, snippets, null);
     }
 
+    /**
+     * 이전 사전집에서 승계한 용어를 초안에 싣는다(G-1).
+     *
+     * <p><b>{@code definition}을 반드시 함께 넘긴다.</b> 확정 사전집의 {@code Term.definition}은 비어 있을 수 없고, 발행은 이전 버전에서
+     * 복사하지 않고 넘어온 목록만으로 새 버전을 만든다(R-12). 여기서 정의를 버리면 교정 화면에서 이전 정의를 볼 수 없고, 발행 시점에
+     * {@code Term.create}가 거절한다(Y-29).
+     */
     public static CandidateTerm createExisting(
-            Long draftDictionaryId, Long sourceTermId, String form, String english, Long createdBy) {
+            Long draftDictionaryId, Long sourceTermId, String form, String definition, String english, Long createdBy) {
         CandidateTerm candidate =
-                new CandidateTerm(draftDictionaryId, form, null, english, List.of(), 1, List.of(), createdBy);
+                new CandidateTerm(draftDictionaryId, form, definition, english, List.of(), 1, List.of(), createdBy);
         candidate.origin = CandidateTermOrigin.EXISTING;
         candidate.sourceTermId = sourceTermId;
         candidate.occurrenceCount = null;
