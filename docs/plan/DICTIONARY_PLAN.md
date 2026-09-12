@@ -509,9 +509,10 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 | --- | --- | --- |
 | 1 | **문서화와 감사 엔티티 정합** — `API.md` 절 신설, `BaseEntity` 통일 | 발행 경로 변경(리뷰 도메인이 없다) |
 | 2 | 다른 도메인이 우리를 보는 창구 — 제공 어댑터 3종 | — |
-| | └ **`DIC-4` 완료**(`WLSH-114`), **`DIC-5`는 `DOC-1`이 흡수**, **`DIC-3`만 잔여** — `RR-4b` 대기였고 선행 PR이 포트를 만들어 풀린다. **Phase 2 PR을 새로 열지 않고 `dictionary-phase-3`에 얹는다** | |
 | 3 | 조회·검색·정렬 + 페이징 | 버전 간 비교(`REQ-DIC-007`, MVP2) |
 | 4 | 임시 API 제거 + 이벤트·로그 | — |
+
+> **Phase 2는 `DIC-3` 하나만 남았다**(2026-09-12). 「제공 어댑터 3종」 중 `DIC-4`는 `WLSH-114`(draftdictionary 세션)가, `DIC-5`는 `DOC-1`이 이미 구현했다. `DIC-3`은 `RR-4b`의 발행 포트를 기다리고 있었는데 **선행 PR(`chore/WLSH-145-contracts`)이 그 포트와 스텁을 만들어 풀렸다.** Phase 2 PR을 새로 열지 않고 `dictionary-phase-3`에 얹는다.
 
 | ID | 태스크 | 산출물 | 일수 | 의존 |
 | --- | --- | --- | --- | --- |

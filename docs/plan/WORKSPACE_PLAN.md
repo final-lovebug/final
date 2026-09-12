@@ -475,7 +475,9 @@ void validateAtLeast(Long workspaceId, Long memberId, Permission required);   //
 
 **룰셋 조회만 포트로 남는 이유** — 정족수는 `Workspace.ruleSet`에 있고 `WorkspaceAccessValidator`가 노출하지 않는다. 값을 읽는 순수 조회이므로 `ARCHITECTURE.md`의 포트 용도(「조회와 발행 위임」)에 정확히 들어맞는다.
 
-**어댑터는 `workspace/infra/adapter/`에 두고 자기 `infra`(Repository)를 참조한다** — 제공 측 어댑터이므로 크로스 도메인 참조가 없다. 스텁은 소비 도메인(`reviewrequest`)이 갖는다.
+~~**어댑터는 `workspace/infra/adapter/`에 두고 자기 `infra`(Repository)를 참조한다.**~~ **정정(2026-09-12, `D-33`)** — `requiredReviewerCount`는 **조회 포트**이므로 어댑터도 소비 도메인이 갖는다. `ARCHITECTURE.md` «크로스 도메인 **조회** — 포트와 어댑터»가 「어댑터도 소비 도메인이 구현한다」로 못박은 대로다(`X-21`).
+
+**`reviewrequest/infra/adapter/WorkspacePolicyAdapter`로 옮겼고 짝 스텁(`WorkspacePolicyStub`, 정족수 0)도 그 옆에 있다.** 어댑터 선택은 `app.crossdomain.workspace.mode`가 한다. 이 도메인은 `Workspace`·`RuleSet`·`WorkspaceRepository`를 **읽히기만** 하고 어댑터 파일을 갖지 않는다.
 
 **실효 정족수는 `ruleSet` 값 그대로다.** `min(ruleSet, 참여자 수)`를 계산하지 않는다 — **상한 검증은 룰셋을 설정·수정하는 이 도메인의 책임**이고(`WS-4`), 참여자 이탈로 정족수를 채울 수 없게 된 교착은 Admin 이상의 발행으로 푼다. 그래서 포트에 `participantCount`를 두지 않는다.
 
@@ -681,7 +683,7 @@ AssertJ를 쓴다. `@DisplayName`은 한국어 완결 문장 + 마침표, 메서
 | --- | --- | --- |
 | `T-DOC-1` | **문서 선행 수정** — `CONFLICTS.md` 9절이 파일별 목록을 갖는다. **이 도메인은 `ARCHITECTURE.md` 예외 조항(`D-19`)이 여기 들어간다** | — (**모든 구현의 선행**) |
 | `T-CMN-1` | `PageResponse`·`PageResult` 신설 | `T-DOC-1` |
-| `T-INT-1` | `spring.flyway.out-of-order=true` 정리 — **`V2`가 대역 밖인 것을 덮는다**(`Y-10`) | 6개 도메인 Phase 1 |
+| ~~`T-INT-1`~~ | ~~`spring.flyway.out-of-order=true` 정리~~ — **폐기**(2026-09-12). 개발 브랜치 DB를 항상 리셋하므로 이력이 비어 있고 전체가 버전 순서대로 한 번에 적용된다. **`V2`가 대역 밖이어도, `WS-3`이 `V100`을 나중에 머지해도 거부되지 않는다**(`Y-10`) | — |
 | `T-INT-2` | 크로스 도메인 어댑터를 `real`로 전환 | 6개 도메인 Phase 3 |
 | `T-INT-3` | `SecurityConfig` + 인증 주체 + 프로파일 분리 | 인증 도메인(별건) |
 

@@ -235,7 +235,7 @@
 
 ---
 
-## 7. 문서 ↔ 코드 충돌 (`Y-01`~`Y-28`)
+## 7. 문서 ↔ 코드 충돌 (`Y-01`~`Y-30`)
 
 | ID | 충돌 | 근거 | 결론 | 담당 |
 | --- | --- | --- | --- | --- |
@@ -248,7 +248,7 @@
 | **Y-07** | 삭제 경로가 없는 엔티티에 `deleted_at`이 항상 null로 남는 대신 감사 상위 클래스가 둘로 갈라져 있다 | `BaseEntity` / `Dictionary`·`DocumentVersion`·`Label`·`DocumentLabel` | 후속 결정으로 모든 엔티티를 `BaseEntity`로 통일하고 `AuditableEntity`를 제거한다. 삭제 경로가 없는 엔티티의 `deleted_at`은 nullable로 유지한다 | 해소(후속 결정) |
 | **Y-08** | `Term`이 공통 감사 상위 클래스 없이 `@CreationTimestamp`/`@UpdateTimestamp`를 직접 선언한다 | `Term` / `BaseEntity` | `BaseEntity` 상속으로 대체하고 `V310`에서 `term.deleted_at`을 추가한다 | `DIC-2` |
 | **Y-09** | **ID 값 객체 8개가 정의만 되고 호출부가 없다**(`WorkspaceId`·`ParticipantId`·`DocumentId`·`DocumentVersionId`·`DocumentLabelId`·`LabelId`·`DictionaryId`·`TermId`). 엔티티는 raw `Long`을 쓴다. `DOMAIN.md` 속성 표는 이 타입을, 초안·리뷰 3개 문서는 `Long`을 쓴다 | 8개 record / `DOMAIN.md` 속성 표 / 3개 계획 문서 3절 | 전부 제거하고 `Long`으로 통일한다 | 해소(`D-25`) |
-| **Y-10** | **Flyway 대역 위반** — `backend/CLAUDE.md`는 workspace = 100–199인데 실제는 `V2__create_workspace_and_participant.sql`이다. 400/500/600이 붙으면 머지 순서와 번호 순서가 어긋나 out-of-order가 필연이다 | `backend/CLAUDE.md` / `db/migration/` | 기존 파일은 고치지 않고 **신규만 대역을 지킨다**(workspace `V100`~, document `V210`~, dictionary `V310`~). `spring.flyway.out-of-order=true`는 `T-INT-1` | `T-INT-1` |
+| **Y-10** | **Flyway 대역 위반** — `backend/CLAUDE.md`는 workspace = 100–199인데 실제는 `V2__create_workspace_and_participant.sql`이다. 400/500/600이 붙으면 머지 순서와 번호 순서가 어긋나 out-of-order가 필연이다 | `backend/CLAUDE.md` / `db/migration/` | 기존 파일은 고치지 않고 **신규만 대역을 지킨다**(workspace `V100`~, document `V210`~, dictionary `V310`~). `spring.flyway.out-of-order=true`는 `T-INT-1` | ~~`T-INT-1`~~ **폐기**(2026-09-12) — 개발 브랜치 DB를 항상 리셋하므로 이력이 비어 있고 전체가 버전 순서대로 한 번에 적용된다. 낮은 번호가 나중에 머지돼도 거부되지 않는다. **`V2`가 대역 밖인 것은 그대로 두고 신규만 대역을 지킨다** |
 | **Y-11** | **이벤트 구현이 0건이다.** `DomainEvent` 마커와 `EventPublisher` 포트만 있고 어떤 도메인도 발행하지 않는다 | `ARCHITECTURE.md` «이벤트 발행 규약» / `DOMAIN.md` 「파생 데이터 정리는 삭제 이벤트를 각 도메인이 구독해 처리한다」 / `DocumentRemover` javadoc | 각 도메인의 이벤트 태스크에서 발행부를 넣는다. 구독자는 초안 도메인 | `WS-5`·`DOC-10`·`DIC-8` |
 | **Y-12** | `workspace` 패키지가 하위 디렉터리 규약을 벗어난다 — `presentation/dto/`·`service/model/` 없이 루트에 DTO·command가 있고, 컨트롤러가 `toCommand()` 없이 `new CreateWorkspaceCommand(...)`를 직접 조립한다 | `D-18` 기본값 / `member`·`document`·`dictionary`는 규약 준수 | `WS-6`에서 정리한다 | `WS-6` |
 | **Y-13** | `ParticipantRepository.countByWorkspaceIdAndDeletedAtIsNull`이 선언만 되고 호출부가 없다 — 정원 5명 검증용으로 만들어졌다 | `ParticipantRepository` / `DOMAIN.md` 「참여자는 최대 5명」 | `WS-4`가 룰셋 상한 검증과 함께 쓴다 | `WS-4` |
@@ -267,6 +267,8 @@
 | **Y-26** | `AddSuggestionTermRequest`가 `common/domain/TextRange`를 **request DTO에 그대로 노출**한다. `DRAFT_DOCUMENT_PLAN.md` 6절은 `TextRangeRequest.java`를 별도 산출물(P2)로 뒀다 | `AddSuggestionTermRequest` / `DRAFT_DOCUMENT_PLAN.md` 6절 | 도메인 값 객체가 presentation까지 올라간 형태다. `DD-3`에서 `TextRangeRequest`로 분리하거나, 유지할 근거를 남긴다 | `DD-3` |
 | **Y-27** | **ReviewRequest 테스트 공백** — `ReviewerController`·`RevisionController` 컨트롤러 테스트가 없고, 리포지토리 4개 중 `ReviewRequestRepository` 하나만 테스트가 있다. `ReviewerDuplicationValidatorTest`·`RevisionTypeValidatorTest`는 대상이 `implement`인데 **테스트가 `domain` 패키지에 있다** | `reviewrequest` 테스트 11개 / `TEST.md` | `review-req-phase-3` 착수 시 함께 메운다. 패키지 위치는 대상에 맞춘다 | `RR-3a` |
 | **Y-28** | **죽은 프로퍼티** — `app.worker.enabled=false`가 `src/test/resources/application.yml`에만 있고 이 키를 읽는 코드가 0줄이다. `app.messaging.mode`는 반대로 **어디에도 선언돼 있지 않고** `InMemoryEventPublisher`의 `matchIfMissing = true`에만 의존한다(`D-24`가 이 키로 어댑터를 고르라고 규정했다) | `test/resources/application.yml` / `InMemoryEventPublisher` / `D-24` | `app.worker.enabled`를 지우고 `app.messaging.mode`를 `application.yml`에 명시한다 | 해소 예정(선행 PR) |
+| **Y-29** | **승계 용어의 정의가 사라지고 발행이 터진다.** `DraftDictionaryWriter.create`가 `TermSnapshot(termId, preferredForm, englishName, **definition**)`을 읽고도 `CandidateTerm.createExisting(draftDictionaryId, sourceTermId, form, english, createdBy)`에 **definition을 넘길 자리가 없어 버린다.** 그 결과 ① 교정 화면에서 이전 사전집의 정의를 볼 수 없고 ② `EXISTING`/`KEPT` 후보의 `proposedDefinition`이 항상 `null`이라 `readFinalTerms`가 그대로 실어 보내면 `Term.create`가 「정의는 비어 있을 수 없다」로 거절한다(`Term.definition`은 `@Column(nullable = false)`). **`G-1` 통합 모델의 「사전집이 있는 경우」 회차가 통째로 막힌다** | `DraftDictionaryWriter` / `CandidateTerm.createExisting` / `Term.create` | `createExisting`에 `definition`을 더하고 `DraftDictionaryWriter`가 `term.definition()`을 넘긴다. **판정 시점에 정의가 빈 항목을 걸러내는 것은 `DI-3`의 몫**이다 — 사용자가 정의 없이 등재 승인하면 같은 지점에서 터진다 | 선행 PR(즉시) + `DI-3` |
+| **Y-30** | **문서 편집마다 `draft_dictionary` 전체를 읽는다.** `document/infra/adapter/DraftDictionaryQueryAdapter.isSourceOfOngoingDraft`가 `findAll().stream()`으로 전체를 메모리에 올려 거른다(`DOC-5`). 스텁이 걸려 있는 동안은 실행되지 않았으나 **선행 PR이 `app.crossdomain.draft-dictionary.mode`를 `real`로 올리면서 live가 됐다** | `DraftDictionaryQueryAdapter` / `DOC-5` | `sourceDocumentIds`가 `@ElementCollection`이므로 `join`을 쓰는 `@Query`로 바꾼다. 활성화한 쪽이 선행 PR이므로 거기서 함께 고친다 | 선행 PR(즉시) |
 
 ---
 
