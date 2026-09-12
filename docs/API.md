@@ -918,6 +918,8 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | POST | `/api/suggestion-terms/{suggestionTermId}/rejection` | `200` | KEEP |
 | POST | `/api/draft-documents/{draftDocumentId}/examine-completion` | `200` | KEEP |
 | GET | `/api/draft-documents/{draftDocumentId}/examine-progress` | `200` | KEEP |
+| POST | `/api/draft-documents/checks` | `202` | KEEP |
+| GET | `/api/draft-documents/checks/{checkJobId}` | `200` | KEEP |
 
 `POST /api/draft-documents?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
 
@@ -1025,6 +1027,35 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 `POST /api/draft-documents/{draftDocumentId}/examine-completion?memberId={memberId}`는 미처리 제안어가 없을 때 교정을 완료한다. 수용된 제안어를 원문 기준 뒤쪽 위치부터 치환해 `draftBody`를 한 번에 확정하며, 이후 제안어 판정과 초안 본문 수정은 잠긴다. 수용된 앵커가 겹치면 일부 판정을 누락하지 않고 `DRAFT_DOCUMENT_INVALID_ANCHOR`로 거절한다.
 
+## **비동기 문서 대조**
+
+`POST /api/draft-documents/checks?memberId={memberId}`는 다음 요청으로 최신 확정 본문과 활성 사전집의 대조 작업을 접수한다.
+
+```json
+{
+  "documentId": 10
+}
+```
+
+작업을 `PENDING`으로 저장하고 대조 요청 이벤트를 발행한 뒤 `202 Accepted`와 작업 상태를 즉시 반환한다. 같은 문서에 `PENDING` 또는 `RUNNING` 작업이 있으면 중복 접수를 거절한다.
+
+`GET /api/draft-documents/checks/{checkJobId}?memberId={memberId}`는 폴링용 상태 조회 API다. 응답 형식은 다음과 같다.
+
+```json
+{
+  "checkJobId": 300,
+  "documentId": 10,
+  "status": "PENDING",
+  "draftDocumentId": null,
+  "failureReason": null,
+  "requestedBy": 7,
+  "createdAt": "2026-09-13T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-13T10:00:00.000000+09:00"
+}
+```
+
+상태는 `PENDING`·`RUNNING`·`SUCCEEDED`·`FAILED`다. 성공하면 `draftDocumentId`, 실패하면 `failureReason`이 채워진다.
+
 ## **에러**
 
 | **상황** | **status** | **code** |
@@ -1045,6 +1076,11 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 같은 문서 또는 워크스페이스에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
 | 대상 문서의 리뷰가 진행 중임 | 409 | `DRAFT_DOCUMENT_UNDER_REVIEW` |
 | 초안 생성 대상 문서가 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_DOCUMENT_NOT_FOUND` |
+| 활성 사전집이 없어 대조할 수 없음 | 404 | `DRAFT_DOCUMENT_DICTIONARY_NOT_FOUND` |
+| 문서 대조 작업이 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_CHECK_NOT_FOUND` |
+| 같은 문서의 대조 작업이 이미 진행 중임 | 409 | `DRAFT_DOCUMENT_CHECK_ALREADY_RUNNING` |
+| 문서 대조 요청이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_CHECK_INVALID_REQUEST` |
+| 문서 대조 작업 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_CHECK_INVALID_STATUS` |
 | 초안 또는 제안어가 속한 워크스페이스의 비참여자 | 404 | 대상 리소스의 `NOT_FOUND` 코드 |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
