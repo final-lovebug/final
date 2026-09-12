@@ -14,7 +14,7 @@
 - **프레임워크** — Spring Boot 4.x
 - **빌드** — Gradle (Groovy DSL)
 - **아키텍처** — 모놀리식 / 도메인별 레이어드
-- **영속성** — Spring Data JPA + MySQL, Spring Data MongoDB + MongoDB
+- **영속성** — Spring Data JPA + MySQL
 - **스키마 마이그레이션** — Flyway
 - **캐시·세션** — Redis
 - **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS.** 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다
@@ -82,16 +82,15 @@
 | 서비스 | 이미지 |
 | --- | --- |
 | Grafana LGTM | `grafana/otel-lgtm:latest` |
-| MongoDB | `mongo:8.0` |
 | MySQL | `mysql:8.4` |
 | Redis | `redis:latest` |
 
-- MySQL·MongoDB의 계정과 데이터베이스 이름은 `compose.yaml`의 환경변수로만 정의한다.
+- MySQL의 계정과 데이터베이스 이름은 `compose.yaml`의 환경변수로만 정의한다.
   `spring-boot-docker-compose`가 이 값을 읽어 접속 정보를 주입하므로
   `application.yml`에 접속 설정을 적지 않는다. 로컬 전용 값이므로
   운영 계정과 같은 값을 쓰지 않는다.
 - 테스트용 컨테이너는 별도로 `TestcontainersConfiguration`이 관리한다.
-  (MySQL, MongoDB, Redis, Grafana LGTM — 이미지 태그는 `compose.yaml`과 맞춘다.)
+  (MySQL, Redis, Grafana LGTM — 이미지 태그는 `compose.yaml`과 맞춘다.)
 - 메시징은 로컬·테스트에서 인메모리 어댑터를 쓰므로 로컬 인프라가 필요 없다.
   **배포용 SQS 어댑터를 추가할 때** 대응하는 로컬 대체 컨테이너(LocalStack 등)를
   `compose.yaml`과 테스트에 함께 넣는다.
@@ -141,10 +140,9 @@
 
 - **표의 파라미터가 하나라도 없으면 기동이 실패한다.** 플레이스홀더에 기본값을 두지 않는 것은
   운영에서 시크릿이 조용히 로컬 기본값으로 떨어지는 것을 막기 위함이다.
-- MongoDB·Redis 운영 엔드포인트는 아직 정해지지 않아 `application-prod.yml`에 주석으로만
-  남겨뒀다. 엔드포인트가 정해지면 `/lovebug/mongodb/uri`, `/lovebug/redis/host`,
-  `/lovebug/redis/port`를 만들고 주석을 해제한다. **해제 전까지 두 클라이언트는
-  `localhost` 기본값을 쓴다.**
+- Redis 운영 엔드포인트는 아직 정해지지 않아 `application-prod.yml`에 주석으로만
+  남겨뒀다. 엔드포인트가 정해지면 `/lovebug/redis/host`, `/lovebug/redis/port`를
+  만들고 주석을 해제한다. **해제 전까지는 `localhost` 기본값을 쓴다.**
 - 리전은 컨테이너에 주입되는 `AWS_REGION`(`deploy/scripts/start_container.sh`)에서 결정된다.
 - EC2 인스턴스 역할에 다음 권한이 필요하다.
   `ssm:GetParametersByPath`(리소스 `arn:aws:ssm:<region>:<account>:parameter/lovebug/*`)와
