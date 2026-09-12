@@ -19,6 +19,12 @@ public class DocumentReader {
 
     private final DocumentRepository documentRepository;
 
+    public Document read(Long documentId) {
+        return documentRepository
+                .findByIdAndDeletedAtIsNull(documentId)
+                .orElseThrow(() -> new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND));
+    }
+
     public Document read(Long documentId, Long workspaceId) {
         return documentRepository
                 .findByIdAndWorkspaceIdAndDeletedAtIsNull(documentId, workspaceId)

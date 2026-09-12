@@ -86,6 +86,12 @@ public class DocumentVersion extends BaseEntity {
         return new DocumentVersion(documentId, version, normalizeBody(body), dictionaryVersionNo, true, memberId);
     }
 
+    /** 교정이 끝난 본문을 다음 확정 버전으로 발행한다. */
+    public static DocumentVersion publishRevised(
+            Long documentId, PublishedVersion version, String body, int dictionaryVersionNo, Long memberId) {
+        return new DocumentVersion(documentId, version, normalizeBody(body), dictionaryVersionNo, false, memberId);
+    }
+
     /**
      * 활성 사전집이 없거나, 직접 편집되지 않았고 기준 사전집 버전이 활성 버전과 같으면 정렬된 상태다.
      *

@@ -157,4 +157,15 @@ class DocumentVersionTest {
 
         assertThat(version.getDictionaryVersionNo()).isEqualTo(3);
     }
+
+    @DisplayName("교정 반영본은 활성 사전집 버전을 사용하고 직접 편집본이 아니다.")
+    @Test
+    void publishRevised_usesActiveDictionaryVersionAndIsNotEdited() {
+        DocumentVersion version = DocumentVersion.publishRevised(
+                DOCUMENT_ID, PublishedVersion.initial().next(), "교정된 본문", 4, MEMBER_ID);
+
+        assertThat(version.getDictionaryVersionNo()).isEqualTo(4);
+        assertThat(version.isEdited()).isFalse();
+        assertThat(version.versionNo()).isEqualTo(2);
+    }
 }
