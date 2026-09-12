@@ -59,4 +59,28 @@ public class Participant extends BaseEntity {
     public static Participant owner(Long workspaceId, Long memberId) {
         return new Participant(workspaceId, memberId, Permission.OWNER, memberId);
     }
+
+    public static Participant join(Long workspaceId, Long memberId, Permission permission, Long invitedBy) {
+        return new Participant(workspaceId, memberId, permission, invitedBy);
+    }
+
+    public void changePermission(Permission permission) {
+        this.permission = permission;
+    }
+
+    public void demoteToAdmin() {
+        this.permission = Permission.ADMIN;
+    }
+
+    public void promoteToOwner() {
+        this.permission = Permission.OWNER;
+    }
+
+    public boolean isOwner() {
+        return permission == Permission.OWNER;
+    }
+
+    public boolean canBeManagedBy(Permission actorPermission) {
+        return !permission.isAtLeast(actorPermission);
+    }
 }

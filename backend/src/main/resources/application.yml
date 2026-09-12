@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: backend
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: "${GOOGLE_CLIENT_ID}"
+            client-secret: "${GOOGLE_CLIENT_SECRET}"
+
+app:
+  messaging:
+    # 어댑터 선택(D-24). 로컬·테스트는 인메모리 ApplicationEvent, AWS 배포는 SQS다.
+    # 상위 레이어는 EventPublisher 포트만 참조한다.
+    mode: ${MESSAGING_MODE:in-memory}
+  crossdomain:
+    # 크로스 도메인 어댑터 선택. 소비 도메인이 real과 stub을 짝으로 갖고 이 프로퍼티가 고른다(D-33).
+    # 키를 한자리에 모아 두는 이유 — 도메인 PR이 동시에 이 파일을 건드리면 충돌한다.
+    # 선행 PR이 전부 선언하고, 이후 각 PR은 자기 한 줄의 stub을 real로 뒤집기만 한다.
+    dictionary:
+      mode: ${DICTIONARY_CROSSDOMAIN_MODE:real}
+    document:
+      mode: ${DOCUMENT_CROSSDOMAIN_MODE:real}
+    draft-document:
+      mode: ${DRAFT_DOCUMENT_CROSSDOMAIN_MODE:real}
+    draft-dictionary:
+      mode: ${DRAFT_DICTIONARY_CROSSDOMAIN_MODE:real}
+    workspace:
+      mode: ${WORKSPACE_CROSSDOMAIN_MODE:real}
+    # 발행 위임 축은 제공 도메인이 real 어댑터를 넣을 때 뒤집는다 — DOC-6 / DIC-3.
+    document-publish:
+      mode: ${DOCUMENT_PUBLISH_CROSSDOMAIN_MODE:stub}
+    dictionary-publish:
+      mode: ${DICTIONARY_PUBLISH_CROSSDOMAIN_MODE:stub}
+  ai:
+    # 용어 추출·문서 대조의 LLM 경계(D-35). 이번 범위는 계약과 워커 스텁까지이며,
+    # 실제 모델 연동은 의존성·API 키·프롬프트 설계를 합의한 뒤 real로 뒤집는다.
+    extractor:
+      mode: ${AI_EXTRACTOR_MODE:stub}
+    checker:
+      mode: ${AI_CHECKER_MODE:stub}
+  jwt:
+    secret: "${JWT_SECRET:local-dev-only-jwt-secret-do-not-use-in-production-0123456789}"
+    access-token-validity: 30m
+    refresh-token-validity: 7d
+  oauth:
+    # 프론트 dev 서버(Vite, WLSH-92) 주소. 배포 시 실제 프론트 도메인으로 교체한다.
+    frontend-redirect-uri: "${OAUTH_FRONTEND_REDIRECT_URI:http://localhost:5173/oauth/callback}"
+  auth:
+    cookie:
+      # refresh token 쿠키의 Secure 플래그. 로컬(http)에서는 application-local.yml이 false로 덮어쓴다.
+      secure: true
+  cors:
+    # 프론트 dev 서버 origin. refresh token이 쿠키 기반이라 자격증명 포함 요청엔 "*"를 못 쓰고
+    # origin을 명시해야 한다. 배포 시 실제 프론트 도메인으로 교체(콤마로 여러 개 지정 가능).
+    allowed-origins: "${CORS_ALLOWED_ORIGINS:http://localhost:5173}"

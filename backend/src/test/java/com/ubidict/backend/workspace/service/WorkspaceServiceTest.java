@@ -166,6 +166,29 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
         assertThat(workspaceService.readMine(OWNER_ID)).isEmpty();
     }
 
+    @DisplayName("참여자 수를 넘는 룰셋은 수정할 수 없다.")
+    @Test
+    void changeRuleSet_exceedsParticipantCount() {
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        assertThatThrownBy(() ->
+                        workspaceService.changeRuleSet(new UpdateRuleSetCommand(created.workspaceId(), 2, 0, OWNER_ID)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_REVIEWER_COUNT_EXCEEDS_PARTICIPANTS);
+    }
+
+    @DisplayName("룰셋을 올리면 즉시 새 값이 조회된다.")
+    @Test
+    void changeRuleSet_isReflectedImmediately() {
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        workspaceService.changeRuleSet(new UpdateRuleSetCommand(created.workspaceId(), 1, 1, OWNER_ID));
+
+        WorkspaceResult result = workspaceService.read(created.workspaceId(), OWNER_ID);
+
+        assertThat(result.requiredDocumentReviewerCount()).isEqualTo(1);
+        assertThat(result.requiredDictionaryReviewerCount()).isEqualTo(1);
+    }
+
     private void joinAs(Long workspaceId, Long memberId, Permission permission) {
         participantRepository.save(ParticipantFixture.participant()
                 .workspaceId(workspaceId)

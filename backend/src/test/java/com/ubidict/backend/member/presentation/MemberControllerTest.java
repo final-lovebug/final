@@ -7,10 +7,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.domain.MemberErrorCode;
 import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.domain.MemberStatus;
 import com.ubidict.backend.member.domain.OAuthProvider;
+import com.ubidict.backend.member.exception.MemberErrorCode;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.member.presentation.dto.CreateMemberRequest;
 import com.ubidict.backend.member.presentation.dto.UpdateMemberRequest;

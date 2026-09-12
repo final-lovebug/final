@@ -1,7 +1,7 @@
 package com.ubidict.backend.member.presentation;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.domain.AuthErrorCode;
+import com.ubidict.backend.member.exception.AuthErrorCode;
 import com.ubidict.backend.member.presentation.dto.OAuthExchangeRequest;
 import com.ubidict.backend.member.presentation.dto.TokenResponse;
 import com.ubidict.backend.member.service.LogoutService;

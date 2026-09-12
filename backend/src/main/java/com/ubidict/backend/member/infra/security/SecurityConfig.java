@@ -1,6 +1,8 @@
 package com.ubidict.backend.member.infra.security;
 
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -9,6 +11,9 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * JWT 기반 stateless 인증/인가를 구성한다.
@@ -23,7 +28,17 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * {@link GoogleOAuth2LoginSuccessHandler}/{@link GoogleOAuth2LoginFailureHandler}가 프론트엔드
  * 리다이렉트로 이어받는다 — stateless 정책과 맞추기 위해 OAuth2 로그인 자체의 세션 인가
  * 상태는 유지하지 않는다.
+ *
+ * <p>서블릿 웹 애플리케이션일 때만 등록한다 — {@link JwtAuthenticationEntryPoint}/
+ * {@link JwtAccessDeniedHandler}가 필요로 하는 {@code HandlerExceptionResolver}가
+ * {@code webEnvironment = WebEnvironment.NONE}(예: {@code IntegrationTestSupport} 기반 서비스
+ * 통합 테스트)에서는 존재하지 않아, 그런 컨텍스트까지 이 설정을 로드하려다 실패하지 않게 한다.
+ *
+ * <p>refresh token을 쿠키로 주고받으므로(자격증명 포함 요청) CORS는 {@code allowCredentials(true)}와
+ * 함께 명시적 origin 목록({@link CorsProperties})만 허용한다 — {@code Access-Control-Allow-Origin: *}는
+ * 자격증명 포함 요청에 쓸 수 없다.
  */
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @RequiredArgsConstructor
 @EnableWebSecurity
 @Configuration
@@ -34,6 +49,7 @@ public class SecurityConfig {
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final GoogleOAuth2LoginSuccessHandler googleOAuth2LoginSuccessHandler;
     private final GoogleOAuth2LoginFailureHandler googleOAuth2LoginFailureHandler;
+    private final CorsProperties corsProperties;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -41,6 +57,7 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/auth/**")
                         .permitAll()
@@ -62,5 +79,17 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(corsProperties.allowedOrigins());
+        configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }

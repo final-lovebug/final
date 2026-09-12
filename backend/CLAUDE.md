@@ -17,7 +17,7 @@
 - **영속성** — Spring Data JPA + MySQL, Spring Data MongoDB + MongoDB
 - **스키마 마이그레이션** — Flyway
 - **캐시·세션** — Redis
-- **메시징** — Spring `ApplicationEvent`(인메모리). 배포용 어댑터는 미확정
+- **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS.** 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다
 - **인증·인가** — Spring Security, JWT (JJWT), OAuth2
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
 - **관측** — Actuator, Micrometer(Prometheus), OpenTelemetry / Grafana LGTM
@@ -87,12 +87,13 @@
 
 - MySQL·MongoDB의 계정과 데이터베이스 이름은 `compose.yaml`의 환경변수로만 정의한다.
   `spring-boot-docker-compose`가 이 값을 읽어 접속 정보를 주입하므로
-  `application.properties`에 접속 설정을 적지 않는다. 로컬 전용 값이므로
+  `application.yml`에 접속 설정을 적지 않는다. 로컬 전용 값이므로
   운영 계정과 같은 값을 쓰지 않는다.
 - 테스트용 컨테이너는 별도로 `TestcontainersConfiguration`이 관리한다.
   (MySQL, MongoDB, Redis, Grafana LGTM — 이미지 태그는 `compose.yaml`과 맞춘다.)
-- 메시징은 인메모리 어댑터를 사용하므로 로컬 인프라가 필요 없다. 배포용 어댑터를
-  추가할 때 대응하는 로컬 컨테이너를 `compose.yaml`과 테스트에 함께 넣는다.
+- 메시징은 로컬·테스트에서 인메모리 어댑터를 쓰므로 로컬 인프라가 필요 없다.
+  **배포용 SQS 어댑터를 추가할 때** 대응하는 로컬 대체 컨테이너(LocalStack 등)를
+  `compose.yaml`과 테스트에 함께 넣는다.
 
 ### 환경변수
 
@@ -103,10 +104,11 @@
 | --- | --- | --- |
 | `GOOGLE_CLIENT_ID` | Google OAuth2 클라이언트 ID (Google Cloud Console에서 발급) | 없음 — 반드시 설정해야 함 |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth2 클라이언트 시크릿 | 없음 — 반드시 설정해야 함 |
-| `JWT_SECRET` | JWT 서명 키 (HMAC-SHA, 최소 256비트/32바이트 이상 필요) | `application.properties`에 로컬 전용 기본값이 있어 설정 안 해도 `bootRun`/테스트가 동작함 |
-| `OAUTH_FRONTEND_REDIRECT_URI` | Google 로그인 성공/실패 후 서버가 리다이렉트할 프론트엔드 URL(교환 코드를 쿼리 파라미터로 붙임) | `http://localhost:3000/oauth/callback` — 프론트 미확정이라 임시값. 실제 프론트 주소가 정해지면 교체 |
+| `JWT_SECRET` | JWT 서명 키 (HMAC-SHA, 최소 256비트/32바이트 이상 필요) | `application.yml`에 로컬 전용 기본값이 있어 설정 안 해도 `bootRun`/테스트가 동작함 |
+| `OAUTH_FRONTEND_REDIRECT_URI` | Google 로그인 성공/실패 후 서버가 리다이렉트할 프론트엔드 URL(교환 코드를 쿼리 파라미터로 붙임) | `http://localhost:5173/oauth/callback` — 프론트 dev 서버(Vite) 주소. 배포 시 실제 프론트 도메인으로 교체 |
+| `CORS_ALLOWED_ORIGINS` | CORS 허용 origin(콤마로 여러 개 지정 가능). refresh token이 쿠키 기반이라 `*` 불가 | `http://localhost:5173` — 프론트 dev 서버 주소. 배포 시 실제 프론트 도메인으로 교체 |
 
-- `JWT_SECRET`은 값을 아예 안 정해도 테스트가 깨지지 않도록 `application.properties`에
+- `JWT_SECRET`은 값을 아예 안 정해도 테스트가 깨지지 않도록 `application.yml`에
   `${JWT_SECRET:로컬 전용 기본값}` 형태의 기본값을 뒀다. 이 기본값은 공개돼 있어
   **보안 목적이 아니며, 실제 배포 환경에서는 반드시 실제 값으로 덮어써야 한다.**
   로컬에서 직접 만들려면 `openssl rand -base64 48`로 생성한 값을 쓰면 된다.
@@ -114,5 +116,5 @@
   클라이언트 등록 프로퍼티가 빈 값 취급되지만, 로그인 API를 실제로 호출하기 전까지는
   기동 자체는 막히지 않는다(값 검증은 실제 로그인 시도 시점에 이뤄짐).
 - refresh token 쿠키의 `Secure` 플래그(`app.auth.cookie.secure`)는 기본 `true`이고,
-  `application-local.properties`(`spring.profiles.active=local`)가 `false`로 덮어쓴다.
+  `application-local.yml`(`spring.profiles.active=local`)이 `false`로 덮어쓴다.
   `http://localhost`에서는 `Secure` 쿠키를 브라우저가 돌려보내지 않기 때문이다.

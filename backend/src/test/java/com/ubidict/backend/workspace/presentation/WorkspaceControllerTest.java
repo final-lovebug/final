@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import com.ubidict.backend.workspace.service.CreateWorkspaceCommand;
@@ -26,6 +27,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+/**
+ * addFilters=false로 Security 필터 체인 자체는 우회하지만, SecurityConfig가 이 슬라이스에
+ * 함께 로드되므로 JwtAuthenticationFilter가 요구하는 JwtProvider는 mock으로 채워 컨텍스트를
+ * 띄운다(member 도메인의 컨트롤러 테스트들과 동일한 이유).
+ */
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(WorkspaceController.class)
 class WorkspaceControllerTest {
@@ -38,6 +44,9 @@ class WorkspaceControllerTest {
 
     @MockitoBean
     private WorkspaceService workspaceService;
+
+    @MockitoBean
+    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {
@@ -195,5 +204,34 @@ class WorkspaceControllerTest {
                 .delete("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
+    }
+
+    @DisplayName("룰셋을 수정하면 200과 저장된 값을 응답한다.")
+    @Test
+    void changeRuleSet() {
+        given(workspaceService.changeRuleSet(any()))
+                .willReturn(new WorkspaceResult(WORKSPACE_ID, "개발팀", 2, 3, Permission.OWNER, OffsetDateTime.now()));
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("{\"requiredDocumentReviewerCount\":2,\"requiredDictionaryReviewerCount\":3}")
+                .when()
+                .patch("/api/workspaces/{workspaceId}/rule-set?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("requiredDocumentReviewerCount", equalTo(2))
+                .body("requiredDictionaryReviewerCount", equalTo(3));
+    }
+
+    @DisplayName("음수 리뷰어 수는 400으로 응답한다.")
+    @Test
+    void changeRuleSet_negativeCount() {
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("{\"requiredDocumentReviewerCount\":-1,\"requiredDictionaryReviewerCount\":0}")
+                .when()
+                .patch("/api/workspaces/{workspaceId}/rule-set?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .body("code", equalTo("COMMON_INVALID_REQUEST"));
     }
 }

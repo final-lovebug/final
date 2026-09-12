@@ -27,4 +27,8 @@ public record RuleSet(
     public static RuleSet initial() {
         return new RuleSet(0, 0);
     }
+
+    public boolean exceedsParticipantCount(long participantCount) {
+        return requiredDocumentReviewerCount > participantCount || requiredDictionaryReviewerCount > participantCount;
+    }
 }
