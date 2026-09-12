@@ -3,9 +3,22 @@ package com.ubidict.backend.draftdictionary.domain;
 import com.ubidict.backend.common.domain.BaseEntity;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
-import jakarta.persistence.*;
-import java.util.*;
-import lombok.*;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
+import java.util.ArrayList;
+import java.util.List;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.BatchSize;
 
 @Entity
@@ -25,6 +38,14 @@ public class CandidateTerm extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private CandidateTermOrigin origin;
+
+    private Long handledBy;
+
+    @Lob
+    private String rejectReason;
+
+    private Long mergeTargetTermId;
+    private Long resultTermId;
 
     private Long sourceTermId;
 
@@ -119,12 +140,73 @@ public class CandidateTerm extends BaseEntity {
     }
 
     public void edit(String form, String definition, String english) {
-        if (status != CandidateTermStatus.PENDING)
-            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_CANDIDATE_TERM_NOT_EXAMINABLE);
         if (form != null && form.isBlank())
             throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_INVALID_FORM);
         if (form != null) this.form = form;
         if (definition != null) this.proposedDefinition = definition;
         if (english != null) this.proposedEnglishName = english;
+    }
+
+    public void approveRegistration(Long handlerId) {
+        if (proposedDefinition == null || proposedDefinition.isBlank())
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED);
+        decide(CandidateTermStatus.REGISTRATION_APPROVED, handlerId);
+    }
+
+    public void mergeAsSynonym(Long handlerId, Long targetId) {
+        if (targetId == null)
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_MERGE_TARGET_REQUIRED);
+        decide(CandidateTermStatus.MERGED_AS_SYNONYM, handlerId);
+        mergeTargetTermId = targetId;
+    }
+
+    public void reject(Long handlerId, String reason) {
+        if (reason == null || reason.isBlank())
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_REJECT_REASON_REQUIRED);
+        decide(CandidateTermStatus.REJECTED, handlerId);
+        rejectReason = reason.strip();
+    }
+
+    public void hold(Long handlerId) {
+        decide(CandidateTermStatus.ON_HOLD, handlerId);
+    }
+
+    private void decide(CandidateTermStatus next, Long handlerId) {
+        status = next;
+        handledBy = handlerId;
+        rejectReason = null;
+        mergeTargetTermId = null;
+    }
+
+    public boolean isPending() {
+        return status == CandidateTermStatus.PENDING;
+    }
+
+    public boolean isDecided() {
+        return status != CandidateTermStatus.PENDING;
+    }
+
+    public boolean isRegistrationApproved() {
+        return status == CandidateTermStatus.REGISTRATION_APPROVED;
+    }
+
+    public boolean isMergedAsSynonym() {
+        return status == CandidateTermStatus.MERGED_AS_SYNONYM;
+    }
+
+    public boolean isRejected() {
+        return status == CandidateTermStatus.REJECTED;
+    }
+
+    public boolean isKept() {
+        return status == CandidateTermStatus.KEPT;
+    }
+
+    public boolean isOnHold() {
+        return status == CandidateTermStatus.ON_HOLD;
+    }
+
+    public boolean isPublished() {
+        return isRegistrationApproved() || isKept();
     }
 }
