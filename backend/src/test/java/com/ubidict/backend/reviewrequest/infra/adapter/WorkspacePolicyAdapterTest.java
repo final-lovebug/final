@@ -1,4 +1,4 @@
-package com.ubidict.backend.workspace.infra.adapter;
+package com.ubidict.backend.reviewrequest.infra.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
