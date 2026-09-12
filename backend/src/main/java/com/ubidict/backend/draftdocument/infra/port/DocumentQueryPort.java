@@ -1,6 +1,7 @@
 package com.ubidict.backend.draftdocument.infra.port;
 
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 초안이 근거로 삼는 문서 본문을 읽는다.
@@ -9,4 +10,6 @@ import java.util.Optional;
  */
 public interface DocumentQueryPort {
     Optional<DocumentSnapshot> read(Long documentId);
+
+    Set<Long> readAccessibleDocumentIds(Long memberId);
 }

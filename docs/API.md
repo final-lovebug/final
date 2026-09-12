@@ -906,14 +906,14 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | **Method** | **Path** | **성공** | **태그** |
 | --- | --- | --- | --- |
 | POST | `/api/draft-documents` | `201` | **SHRINK** |
-| GET | `/api/draft-documents` | `200` | KEEP |
+| GET | `/api/draft-documents?memberId={memberId}` | `200` | KEEP |
 | GET | `/api/draft-documents/{draftDocumentId}` | `200` | KEEP |
 | PATCH | `/api/draft-documents/{draftDocumentId}` | `200` | KEEP |
 | DELETE | `/api/draft-documents/{draftDocumentId}` | `204` | KEEP |
 | POST | `/api/draft-documents/{draftDocumentId}/suggestion-terms` | `201` | KEEP |
-| GET | `/api/draft-documents/{draftDocumentId}/suggestion-terms` | `200` | KEEP |
+| GET | `/api/draft-documents/{draftDocumentId}/suggestion-terms?memberId={memberId}` | `200` | KEEP |
 | PATCH | `/api/suggestion-terms/{suggestionTermId}` | `200` | KEEP |
-| DELETE | `/api/suggestion-terms/{suggestionTermId}` | `204` | KEEP |
+| DELETE | `/api/suggestion-terms/{suggestionTermId}?memberId={memberId}` | `204` | KEEP |
 | POST | `/api/suggestion-terms/{suggestionTermId}/acceptance` | `200` | KEEP |
 | POST | `/api/suggestion-terms/{suggestionTermId}/rejection` | `200` | KEEP |
 | POST | `/api/draft-documents/{draftDocumentId}/examine-completion` | `200` | KEEP |
@@ -957,7 +957,7 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 ## **초안 목록 조회**
 
-`GET /api/draft-documents` → `200 OK`, 본문은 `PageResponse`다.
+`GET /api/draft-documents?memberId={memberId}` → `200 OK`, 본문은 `PageResponse`다. 요청자가 참여한 워크스페이스에 속한 문서의 초안만 반환한다.
 
 | **파라미터** | **기본값** | **설명** |
 | --- | --- | --- |
@@ -983,11 +983,19 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 `anchor`는 초안 본문에서의 구간이다. `startOffset <= endOffset`이어야 하고 음수일 수 없으며, 본문 길이를 넘으면 거절한다.
 
-`GET /api/draft-documents/{draftDocumentId}/suggestion-terms` → `200 OK`, 본문은 `PageResponse`다. 파라미터는 `status`·`page`·`size`·`sort`이고 규격은 위 초안 목록과 같다.
+`GET /api/draft-documents/{draftDocumentId}/suggestion-terms?memberId={memberId}` → `200 OK`, 본문은 `PageResponse`다. 파라미터는 `status`·`page`·`size`·`sort`이고 규격은 위 초안 목록과 같다.
 
 `PATCH /api/suggestion-terms/{suggestionTermId}?memberId={memberId}`는 각 필드를 **선택적으로** 받아 넘어온 것만 바꾼다.
 
-`DELETE /api/suggestion-terms/{suggestionTermId}` → `204 No Content`. **소프트 삭제**다.
+`DELETE /api/suggestion-terms/{suggestionTermId}?memberId={memberId}` → `204 No Content`. **소프트 삭제**다.
+
+## **생성 정책과 데이터 격리**
+
+초안을 만들 때 대상 문서가 존재하고 요청자가 문서의 워크스페이스 참여자인지 확인한다. 같은 문서에 진행 중인 문서 초안·리뷰가 있거나 같은 워크스페이스에 진행 중인 사전 초안이 있으면 생성할 수 없다. `baseVersionNo`는 대상 문서의 현재 버전과 일치해야 한다.
+
+초안과 제안어의 조회·수정·삭제·판정·교정완료는 모두 문서가 속한 워크스페이스 참여자만 실행할 수 있다. 비참여자에게는 리소스 존재를 드러내지 않도록 `404`를 반환한다.
+
+초안 생성과 교정완료 시 각각 `DraftDocumentCreatedEvent`, `DraftDocumentExaminedEvent`를 발행한다. 문서 리뷰 요청 생성·취소·반영 이벤트를 받으면 초안 상태를 각각 `REVIEW_REQUESTED`, `EXAMINED`, `REVISED`로 멱등 전이한다.
 
 ## **제안어 판정과 교정완료**
 
@@ -1033,6 +1041,11 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 거절 사유가 비어 있음 | 400 | `DRAFT_DOCUMENT_REJECT_REASON_REQUIRED` |
 | 처리하지 않은 제안어가 남아 있음 | 409 | `DRAFT_DOCUMENT_SUGGESTION_TERM_UNHANDLED_EXISTS` |
 | 교정완료 뒤 판정·본문 수정·완료를 다시 시도 | 409 | `DRAFT_DOCUMENT_ALREADY_EXAMINED` |
+| 문서 초안 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION` |
+| 같은 문서 또는 워크스페이스에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
+| 대상 문서의 리뷰가 진행 중임 | 409 | `DRAFT_DOCUMENT_UNDER_REVIEW` |
+| 초안 생성 대상 문서가 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_DOCUMENT_NOT_FOUND` |
+| 초안 또는 제안어가 속한 워크스페이스의 비참여자 | 404 | 대상 리소스의 `NOT_FOUND` 코드 |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 # **ReviewRequest API**

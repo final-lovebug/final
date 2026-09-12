@@ -4,6 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.document.domain.Document;
+import com.ubidict.backend.document.fixture.DocumentFixture;
+import com.ubidict.backend.document.fixture.DocumentVersionFixture;
+import com.ubidict.backend.document.infra.DocumentRepository;
+import com.ubidict.backend.document.infra.DocumentVersionRepository;
 import com.ubidict.backend.draftdocument.domain.DraftDocument;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
@@ -12,20 +17,58 @@ import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentComman
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
+import com.ubidict.backend.workspace.domain.Workspace;
+import com.ubidict.backend.workspace.fixture.ParticipantFixture;
+import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
+import com.ubidict.backend.workspace.infra.WorkspaceRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 class DraftDocumentServiceTest extends IntegrationTestSupport {
 
-    private static final Long DOCUMENT_ID = 10L;
     private static final Long MEMBER_ID = 1L;
+
+    private Long documentId;
 
     @Autowired
     private DraftDocumentService draftDocumentService;
 
     @Autowired
     private DraftDocumentRepository draftDocumentRepository;
+
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ParticipantRepository participantRepository;
+
+    @Autowired
+    private DocumentRepository documentRepository;
+
+    @Autowired
+    private DocumentVersionRepository documentVersionRepository;
+
+    @BeforeEach
+    void setUpDocument() {
+        Workspace workspace = workspaceRepository.save(
+                WorkspaceFixture.workspace().createdBy(MEMBER_ID).build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspace.getId())
+                .memberId(MEMBER_ID)
+                .build());
+        Document document = documentRepository.save(DocumentFixture.document()
+                .workspaceId(workspace.getId())
+                .createdBy(MEMBER_ID)
+                .build());
+        documentVersionRepository.save(DocumentVersionFixture.documentVersion()
+                .documentId(document.getId())
+                .createdBy(MEMBER_ID)
+                .build());
+        documentId = document.getId();
+    }
 
     @DisplayName("문서 초안을 생성한다.")
     @Test
@@ -35,7 +78,7 @@ class DraftDocumentServiceTest extends IntegrationTestSupport {
 
         // then
         assertThat(result.draftDocumentId()).isNotNull();
-        assertThat(result.documentId()).isEqualTo(DOCUMENT_ID);
+        assertThat(result.documentId()).isEqualTo(documentId);
         assertThat(result.status()).isEqualTo(DraftDocumentStatus.EXAMINING);
         assertThat(result.requestedBy()).isEqualTo(MEMBER_ID);
     }
@@ -86,6 +129,6 @@ class DraftDocumentServiceTest extends IntegrationTestSupport {
     }
 
     private DraftDocumentResult createDraft(String draftBody) {
-        return draftDocumentService.create(new CreateDraftDocumentCommand(DOCUMENT_ID, 1, draftBody, MEMBER_ID));
+        return draftDocumentService.create(new CreateDraftDocumentCommand(documentId, 1, draftBody, MEMBER_ID));
     }
 }

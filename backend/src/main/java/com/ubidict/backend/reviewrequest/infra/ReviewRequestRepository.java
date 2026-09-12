@@ -32,4 +32,19 @@ public interface ReviewRequestRepository extends JpaRepository<ReviewRequest, Lo
             @Param("requesterId") Long requesterId,
             @Param("reviewerMemberId") Long reviewerMemberId,
             Pageable pageable);
+
+    @Query("""
+            select (count(r) > 0) from ReviewRequest r, RevisionDocument revision
+            where revision.reviewRequestId = r.id
+              and revision.documentId = :documentId
+              and r.type = com.ubidict.backend.reviewrequest.domain.ReviewRequestType.DOCUMENT
+              and r.status in (
+                com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus.PENDING_REVIEW,
+                com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus.IN_REVIEW,
+                com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus.CHANGES_REQUESTED
+              )
+              and r.deletedAt is null
+              and revision.deletedAt is null
+            """)
+    boolean existsOngoingDocumentReview(@Param("documentId") Long documentId);
 }

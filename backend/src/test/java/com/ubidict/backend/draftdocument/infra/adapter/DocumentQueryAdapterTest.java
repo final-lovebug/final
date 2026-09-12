@@ -12,6 +12,7 @@ import com.ubidict.backend.draftdocument.infra.port.DocumentSnapshot;
 import com.ubidict.backend.support.RepositoryTestSupport;
 import com.ubidict.backend.workspace.domain.Workspace;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,9 @@ class DocumentQueryAdapterTest extends RepositoryTestSupport {
     @Autowired
     private WorkspaceRepository workspaceRepository;
 
+    @Autowired
+    private ParticipantRepository participantRepository;
+
     private DocumentQueryAdapter adapter;
     private Long workspaceId;
 
@@ -38,7 +42,7 @@ class DocumentQueryAdapterTest extends RepositoryTestSupport {
         Workspace workspace =
                 workspaceRepository.save(WorkspaceFixture.workspace().build());
         workspaceId = workspace.getId();
-        adapter = new DocumentQueryAdapter(documentRepository, documentVersionRepository);
+        adapter = new DocumentQueryAdapter(documentRepository, documentVersionRepository, participantRepository);
     }
 
     @DisplayName("현재 버전의 본문을 스냅샷으로 읽는다.")

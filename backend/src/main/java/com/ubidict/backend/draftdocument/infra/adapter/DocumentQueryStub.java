@@ -3,6 +3,7 @@ package com.ubidict.backend.draftdocument.infra.adapter;
 import com.ubidict.backend.draftdocument.infra.port.DocumentQueryPort;
 import com.ubidict.backend.draftdocument.infra.port.DocumentSnapshot;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -18,5 +19,10 @@ public class DocumentQueryStub implements DocumentQueryPort {
     @Override
     public Optional<DocumentSnapshot> read(Long documentId) {
         return Optional.empty();
+    }
+
+    @Override
+    public Set<Long> readAccessibleDocumentIds(Long memberId) {
+        return Set.of();
     }
 }

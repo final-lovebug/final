@@ -3,7 +3,8 @@ package com.ubidict.backend.draftdocument.service.model;
 import com.ubidict.backend.common.exception.*;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 
-public record DraftDocumentSearchQuery(Long documentId, DraftDocumentStatus status, int page, int size, String sort) {
+public record DraftDocumentSearchQuery(
+        Long documentId, DraftDocumentStatus status, int page, int size, String sort, Long memberId) {
     public DraftDocumentSearchQuery {
         if (page < 0 || size < 1 || size > 100) throw new BusinessException(CommonErrorCode.COMMON_INVALID_REQUEST);
         String[] p = sort == null ? new String[] {"createdAt", "desc"} : sort.split(",");

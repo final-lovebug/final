@@ -45,9 +45,10 @@ public class SuggestionTermController {
             @RequestParam(required = false) SuggestionTermStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "createdAt,desc") String sort) {
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @RequestParam Long memberId) {
         return ResponseEntity.ok(
-                PageResponse.from(service.search(new SuggestionTermSearchQuery(id, status, page, size, sort))
+                PageResponse.from(service.search(new SuggestionTermSearchQuery(id, status, page, size, sort, memberId))
                         .map(SuggestionTermResponse::from)));
     }
 
@@ -58,8 +59,8 @@ public class SuggestionTermController {
     }
 
     @DeleteMapping("/api/suggestion-terms/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        service.delete(id);
+    public ResponseEntity<Void> delete(@PathVariable Long id, @RequestParam Long memberId) {
+        service.delete(id, memberId);
         return ResponseEntity.noContent().build();
     }
 
