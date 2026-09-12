@@ -2,8 +2,11 @@ package com.ubidict.backend.draftdictionary.presentation;
 
 import com.ubidict.backend.draftdictionary.presentation.dto.CreateDraftDictionaryRequest;
 import com.ubidict.backend.draftdictionary.presentation.dto.DraftDictionaryResponse;
+import com.ubidict.backend.draftdictionary.presentation.dto.ExamineProgressResponse;
 import com.ubidict.backend.draftdictionary.presentation.dto.UpdateSourceDocumentsRequest;
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
+import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
+import com.ubidict.backend.draftdictionary.service.model.RequestDictionaryReviewCommand;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -62,5 +65,26 @@ public class DraftDictionaryController {
         draftDictionaryService.delete(draftDictionaryId, memberId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{draftDictionaryId}/examine-progress")
+    public ResponseEntity<ExamineProgressResponse> examineProgress(
+            @PathVariable Long draftDictionaryId, @RequestParam Long memberId) {
+        return ResponseEntity.ok(
+                ExamineProgressResponse.from(draftDictionaryService.readExamineProgress(draftDictionaryId, memberId)));
+    }
+
+    @PostMapping("/{draftDictionaryId}/examine-completion")
+    public ResponseEntity<DraftDictionaryResponse> complete(
+            @PathVariable Long draftDictionaryId, @RequestParam Long memberId) {
+        return ResponseEntity.ok(DraftDictionaryResponse.from(
+                draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, memberId))));
+    }
+
+    @PostMapping("/{draftDictionaryId}/review-request")
+    public ResponseEntity<DraftDictionaryResponse> review(
+            @PathVariable Long draftDictionaryId, @RequestParam Long memberId) {
+        return ResponseEntity.ok(DraftDictionaryResponse.from(
+                draftDictionaryService.requestReview(new RequestDictionaryReviewCommand(draftDictionaryId, memberId))));
     }
 }

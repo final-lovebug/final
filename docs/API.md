@@ -1111,6 +1111,14 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | GET | `/api/candidate-terms/{candidateTermId}` | `200` | KEEP |
 | PATCH | `/api/candidate-terms/{candidateTermId}` | `200` | KEEP |
 | DELETE | `/api/candidate-terms/{candidateTermId}` | `204` | KEEP |
+| POST | `/api/candidate-terms/{candidateTermId}/registration-approval` | `200` | KEEP |
+| POST | `/api/candidate-terms/{candidateTermId}/synonym-merge` | `200` | KEEP |
+| POST | `/api/candidate-terms/{candidateTermId}/rejection` | `200` | KEEP |
+| POST | `/api/candidate-terms/{candidateTermId}/hold` | `200` | KEEP |
+| POST | `/api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision` | `200` | KEEP |
+| GET | `/api/draft-dictionaries/{draftDictionaryId}/examine-progress` | `200` | KEEP |
+| POST | `/api/draft-dictionaries/{draftDictionaryId}/examine-completion` | `200` | KEEP |
+| POST | `/api/draft-dictionaries/{draftDictionaryId}/review-request` | `200` | **HALF** |
 
 `POST /api/draft-dictionaries?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
 
@@ -1158,7 +1166,7 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 }
 ```
 
-`form`만 필수다. `occurrenceCount`는 0 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다.
+`form`만 필수다. `occurrenceCount`는 1 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다.
 
 응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다.
 
@@ -1173,6 +1181,10 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
   "proposedEnglishName": "PaymentMethod",
   "occurrenceCount": 7,
   "status": "PENDING",
+  "handledBy": null,
+  "rejectReason": null,
+  "mergeTargetTermId": null,
+  "resultTermId": null,
   "occurredDocumentIds": [10, 20],
   "contextSnippets": ["회원은 결제수단을 등록할 수 있다."],
   "createdAt": "2026-09-11T10:00:00.000000+09:00",
@@ -1191,11 +1203,66 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | `size` | `20` | — |
 | `sort` | `occurrenceCount,desc` | `{필드},{asc\|desc}` |
 
-`PATCH /api/candidate-terms/{candidateTermId}?memberId={memberId}`는 `form`·`proposedDefinition`·`proposedEnglishName`을 **선택적으로** 받아 넘어온 필드만 바꾼다. **교정 중(`PENDING`)인 후보어만 수정할 수 있다.**
+`PATCH /api/candidate-terms/{candidateTermId}?memberId={memberId}`는 `form`·`proposedDefinition`·`proposedEnglishName`을 **선택적으로** 받아 넘어온 필드만 바꾼다. 초안이 `EXAMINING`이면 후보어 상태와 관계없이 수정할 수 있다.
 
 `DELETE /api/candidate-terms/{candidateTermId}` → `204 No Content`. **소프트 삭제**이며 이후 조회에서 빠진다.
 
-> **`sort` 화이트리스트가 아직 없다.** 허용 필드·방향을 검사하지 않아 잘못된 값이 `400`이 아닌 다른 형태로 드러난다. `DI-3`에서 `DIC-6`과 같은 방식(허용 목록 + `400`)으로 맞춘다.
+`sort` 필드는 `occurrenceCount`, `form`, `createdAt`, `updatedAt`, `id`만 허용하고 방향은 `asc`, `desc`만 허용한다. 화이트리스트 밖 값은 `400`이다.
+
+## **후보어 판정과 교정 완료**
+
+후보어 판정은 초안이 `EXAMINING`일 때만 가능하다. 등재 승인, 동의어 편입, 거절, 보류를 지원하며 교정 중에는 이미 판정한 후보어도 다시 판정할 수 있다. 판정 결과에는 처리자 `handledBy`와 판정에 따른 `rejectReason`, `mergeTargetTermId`가 저장된다. 다른 판정으로 바꾸면 이전 판정에만 쓰이던 메타데이터는 제거된다.
+
+| **판정** | **요청** | **필수 조건** |
+| --- | --- | --- |
+| `POST /api/candidate-terms/{candidateTermId}/registration-approval?memberId={memberId}` | 본문 없음 | `proposedDefinition`이 비어 있지 않음 |
+| `POST /api/candidate-terms/{candidateTermId}/synonym-merge?memberId={memberId}` | `{"mergeTargetTermId": 300}` | `mergeTargetTermId`가 존재함 |
+| `POST /api/candidate-terms/{candidateTermId}/rejection?memberId={memberId}` | `{"rejectReason": "오등록"}` | `rejectReason`이 비어 있지 않음 |
+| `POST /api/candidate-terms/{candidateTermId}/hold?memberId={memberId}` | 본문 없음 | — |
+
+`POST /api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision?memberId={memberId}`는 다음과 같이 같은 판정을 여러 후보어에 적용한다. 일부 항목이 실패해도 나머지 항목을 계속 처리하고 항목별 성공·실패를 응답한다.
+
+```json
+{
+  "candidateTermIds": [500, 501],
+  "decision": "REJECTED",
+  "rejectReason": "오등록",
+  "mergeTargetTermId": null
+}
+```
+
+```json
+{
+  "succeeded": [500],
+  "failed": [
+    {
+      "candidateTermId": 501,
+      "code": "DRAFT_DICTIONARY_CANDIDATE_TERM_NOT_FOUND",
+      "message": "후보어를 찾을 수 없습니다."
+    }
+  ]
+}
+```
+
+`GET /api/draft-dictionaries/{draftDictionaryId}/examine-progress?memberId={memberId}`는 다음 상태별 건수를 응답한다.
+
+```json
+{
+  "total": 7,
+  "pending": 1,
+  "kept": 1,
+  "approved": 1,
+  "merged": 1,
+  "rejected": 1,
+  "onHold": 1
+}
+```
+
+`POST /api/draft-dictionaries/{draftDictionaryId}/examine-completion?memberId={memberId}`은 `PENDING` 후보어가 0건일 때 초안을 `EXAMINED`로 바꾼다. 교정 완료와 리뷰 요청은 별도 단계다.
+
+`POST /api/draft-dictionaries/{draftDictionaryId}/review-request?memberId={memberId}`는 최종 등재 대상(`REGISTRATION_APPROVED`, `KEPT`)의 표기·영문명·정의 집합이 현재 활성 사전집과 실제로 다를 때 초안을 `REVIEW_REQUESTED`로 바꾼다. 승인 건수만으로 변경 여부를 판단하지 않으므로 기존 용어 수정·제외도 변경으로 인식한다. 최종 등재 대상의 정의는 비어 있을 수 없다.
+
+> 이 리뷰 요청 엔드포인트는 Phase 3의 반쪽 구현이다. 초안 상태만 전이하며 실제 `ReviewRequest` 생성과 연결은 Phase 4에서 구현한다.
 
 ## **에러**
 
@@ -1210,6 +1277,16 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 같은 초안에 같은 표기가 이미 있음 | 409 | `DRAFT_DICTIONARY_DUPLICATE_CANDIDATE_FORM` |
 | 교정 중이 아닌 후보어를 수정 | 409 | `DRAFT_DICTIONARY_CANDIDATE_TERM_NOT_EXAMINABLE` |
 | 해당 초안의 후보어가 아님 | 400 | `DRAFT_DICTIONARY_CANDIDATE_TERM_MISMATCHED` |
+| 등재 승인 후보어의 정의가 비어 있음 | 400 | `DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED` |
+| 동의어 편입 대상이 없음 | 400 | `DRAFT_DICTIONARY_MERGE_TARGET_REQUIRED` |
+| 거절 사유가 비어 있음 | 400 | `DRAFT_DICTIONARY_REJECT_REASON_REQUIRED` |
+| 지원하지 않는 후보어 판정 | 400 | `DRAFT_DICTIONARY_INVALID_DECISION` |
+| 교정 중인 초안이 아님 | 409 | `DRAFT_DICTIONARY_NOT_EXAMINABLE` |
+| 이미 교정 완료됨 | 409 | `DRAFT_DICTIONARY_ALREADY_EXAMINED` |
+| 교정 완료 전 리뷰 요청 | 409 | `DRAFT_DICTIONARY_NOT_EXAMINED` |
+| 이미 리뷰를 요청함 | 409 | `DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED` |
+| 미판정 후보어가 존재함 | 409 | `DRAFT_DICTIONARY_CANDIDATE_TERM_UNDECIDED_EXISTS` |
+| 활성 사전집과 달라진 등재 대상이 없음 | 409 | `DRAFT_DICTIONARY_NO_CHANGED_ITEM` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---

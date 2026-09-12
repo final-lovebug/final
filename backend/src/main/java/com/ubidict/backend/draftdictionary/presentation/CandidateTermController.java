@@ -5,6 +5,7 @@ import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
 import com.ubidict.backend.draftdictionary.presentation.dto.*;
 import com.ubidict.backend.draftdictionary.service.CandidateTermService;
 import com.ubidict.backend.draftdictionary.service.model.CandidateTermSearchQuery;
+import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
@@ -52,5 +53,41 @@ public class CandidateTermController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/candidate-terms/{id}/registration-approval")
+    public ResponseEntity<CandidateTermResponse> approve(@PathVariable Long id, @RequestParam Long memberId) {
+        return ResponseEntity.ok(CandidateTermResponse.from(service.decide(
+                new DecideCandidateTermCommand(id, memberId, CandidateTermStatus.REGISTRATION_APPROVED, null, null))));
+    }
+
+    @PostMapping("/candidate-terms/{id}/synonym-merge")
+    public ResponseEntity<CandidateTermResponse> merge(
+            @PathVariable Long id, @RequestParam Long memberId, @Valid @RequestBody MergeCandidateTermRequest request) {
+        return ResponseEntity.ok(CandidateTermResponse.from(service.decide(new DecideCandidateTermCommand(
+                id, memberId, CandidateTermStatus.MERGED_AS_SYNONYM, null, request.mergeTargetTermId()))));
+    }
+
+    @PostMapping("/candidate-terms/{id}/rejection")
+    public ResponseEntity<CandidateTermResponse> reject(
+            @PathVariable Long id,
+            @RequestParam Long memberId,
+            @Valid @RequestBody RejectCandidateTermRequest request) {
+        return ResponseEntity.ok(CandidateTermResponse.from(service.decide(new DecideCandidateTermCommand(
+                id, memberId, CandidateTermStatus.REJECTED, request.rejectReason(), null))));
+    }
+
+    @PostMapping("/candidate-terms/{id}/hold")
+    public ResponseEntity<CandidateTermResponse> hold(@PathVariable Long id, @RequestParam Long memberId) {
+        return ResponseEntity.ok(CandidateTermResponse.from(
+                service.decide(new DecideCandidateTermCommand(id, memberId, CandidateTermStatus.ON_HOLD, null, null))));
+    }
+
+    @PostMapping("/draft-dictionaries/{id}/candidate-terms/bulk-decision")
+    public ResponseEntity<BulkDecisionResponse> bulk(
+            @PathVariable Long id,
+            @RequestParam Long memberId,
+            @Valid @RequestBody BulkDecideCandidateTermsRequest request) {
+        return ResponseEntity.ok(BulkDecisionResponse.from(service.bulkDecide(request.toCommand(id, memberId))));
     }
 }

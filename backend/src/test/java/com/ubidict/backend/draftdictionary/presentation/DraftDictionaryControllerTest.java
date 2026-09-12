@@ -10,8 +10,11 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionaryStatus;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
+import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdictionary.service.model.CreateDraftDictionaryCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
+import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
+import com.ubidict.backend.draftdictionary.service.model.RequestDictionaryReviewCommand;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -99,9 +102,69 @@ class DraftDictionaryControllerTest {
                 .body("code", equalTo("DRAFT_DICTIONARY_NOT_FOUND"));
     }
 
+    @DisplayName("교정을 완료하면 EXAMINED 상태를 응답한다.")
+    @Test
+    void completeExamine() {
+        given(draftDictionaryService.completeExamine(any(CompleteExamineCommand.class)))
+                .willReturn(draftDictionaryResult(DraftDictionaryStatus.EXAMINED));
+
+        RestAssuredMockMvc.given()
+                .when()
+                .post(
+                        "/api/draft-dictionaries/{draftDictionaryId}/examine-completion?memberId={memberId}",
+                        DRAFT_DICTIONARY_ID,
+                        MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("status", equalTo("EXAMINED"));
+    }
+
+    @DisplayName("리뷰를 요청하면 REVIEW_REQUESTED 상태를 응답한다.")
+    @Test
+    void requestReview() {
+        given(draftDictionaryService.requestReview(any(RequestDictionaryReviewCommand.class)))
+                .willReturn(draftDictionaryResult(DraftDictionaryStatus.REVIEW_REQUESTED));
+
+        RestAssuredMockMvc.given()
+                .when()
+                .post(
+                        "/api/draft-dictionaries/{draftDictionaryId}/review-request?memberId={memberId}",
+                        DRAFT_DICTIONARY_ID,
+                        MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("status", equalTo("REVIEW_REQUESTED"));
+    }
+
+    @DisplayName("초안의 상태별 교정 진행률을 응답한다.")
+    @Test
+    void readExamineProgress() {
+        given(draftDictionaryService.readExamineProgress(DRAFT_DICTIONARY_ID, MEMBER_ID))
+                .willReturn(new ExamineProgressResult(7, 1, 1, 1, 1, 1, 1));
+
+        RestAssuredMockMvc.given()
+                .when()
+                .get(
+                        "/api/draft-dictionaries/{draftDictionaryId}/examine-progress?memberId={memberId}",
+                        DRAFT_DICTIONARY_ID,
+                        MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("total", equalTo(7))
+                .body("pending", equalTo(1))
+                .body("kept", equalTo(1))
+                .body("approved", equalTo(1))
+                .body("merged", equalTo(1))
+                .body("rejected", equalTo(1))
+                .body("onHold", equalTo(1));
+    }
+
     private static DraftDictionaryResult draftDictionaryResult() {
+        return draftDictionaryResult(DraftDictionaryStatus.EXAMINING);
+    }
+
+    private static DraftDictionaryResult draftDictionaryResult(DraftDictionaryStatus status) {
         OffsetDateTime now = OffsetDateTime.now();
-        return new DraftDictionaryResult(
-                DRAFT_DICTIONARY_ID, 1L, null, List.of(20L, 30L), DraftDictionaryStatus.EXAMINING, MEMBER_ID, now, now);
+        return new DraftDictionaryResult(DRAFT_DICTIONARY_ID, 1L, null, List.of(20L, 30L), status, MEMBER_ID, now, now);
     }
 }

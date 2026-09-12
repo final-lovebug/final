@@ -7,6 +7,7 @@ import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
 import com.ubidict.backend.draftdictionary.infra.CandidateTermRepository;
 import com.ubidict.backend.draftdictionary.service.model.CandidateTermResult;
 import com.ubidict.backend.draftdictionary.service.model.CandidateTermSearchQuery;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -36,5 +37,9 @@ public class CandidateTermReader {
                 page.getNumber(),
                 page.getSize(),
                 page.getTotalElements());
+    }
+
+    public List<CandidateTerm> readAll(Long draftDictionaryId) {
+        return repository.findAllByDraftDictionaryIdAndDeletedAtIsNull(draftDictionaryId);
     }
 }

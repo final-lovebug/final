@@ -18,6 +18,8 @@ public interface CandidateTermRepository extends JpaRepository<CandidateTerm, Lo
 
     Optional<CandidateTerm> findByIdAndDeletedAtIsNull(Long id);
 
+    List<CandidateTerm> findAllByDraftDictionaryIdAndDeletedAtIsNull(Long draftDictionaryId);
+
     boolean existsByDraftDictionaryIdAndFormAndDeletedAtIsNull(Long draftDictionaryId, String form);
 
     @Query("""

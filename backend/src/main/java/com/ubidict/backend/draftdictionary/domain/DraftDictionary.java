@@ -78,6 +78,38 @@ public class DraftDictionary extends BaseEntity {
         return status == DraftDictionaryStatus.REVISED;
     }
 
+    public void markExamined() {
+        validateExaminingForCompletion();
+        status = DraftDictionaryStatus.EXAMINED;
+    }
+
+    public void markReviewRequested() {
+        if (status == DraftDictionaryStatus.REVIEW_REQUESTED)
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED);
+        if (!isExamined()) throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NOT_EXAMINED);
+        status = DraftDictionaryStatus.REVIEW_REQUESTED;
+    }
+
+    public void validateExamining() {
+        if (!isExamining()) throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NOT_EXAMINABLE);
+    }
+
+    public void validateExaminingForCompletion() {
+        if (isExamined()) {
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_EXAMINED);
+        }
+        validateExamining();
+    }
+
+    public void validateExaminedForReview() {
+        if (status == DraftDictionaryStatus.REVIEW_REQUESTED) {
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED);
+        }
+        if (status != DraftDictionaryStatus.EXAMINED) {
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NOT_EXAMINED);
+        }
+    }
+
     private static void validateSourceDocumentIds(List<Long> sourceDocumentIds) {
         if (sourceDocumentIds == null || sourceDocumentIds.isEmpty()) {
             throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_SOURCE_DOCUMENT_REQUIRED);

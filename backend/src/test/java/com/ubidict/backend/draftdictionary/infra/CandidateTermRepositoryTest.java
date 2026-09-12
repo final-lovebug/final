@@ -103,6 +103,32 @@ class CandidateTermRepositoryTest extends RepositoryTestSupport {
         assertThat(found.getSourceTermId()).isEqualTo(100L);
     }
 
+    @DisplayName("후보어 판정 메타데이터와 수정 시각을 영속화한다.")
+    @Test
+    void save_decisionMetadata() {
+        Long draftDictionaryId = saveDraftDictionary();
+        CandidateTerm saved = candidateTermRepository.save(candidate(draftDictionaryId, "거절어", 1));
+        em.flush();
+        em.clear();
+
+        CandidateTerm candidate = candidateTermRepository
+                .findByIdAndDeletedAtIsNull(saved.getId())
+                .orElseThrow();
+        candidate.reject(3L, "오등록");
+        em.flush();
+        em.clear();
+
+        CandidateTerm found = candidateTermRepository
+                .findByIdAndDeletedAtIsNull(saved.getId())
+                .orElseThrow();
+        assertThat(found.getHandledBy()).isEqualTo(3L);
+        assertThat(found.getRejectReason()).isEqualTo("오등록");
+        assertThat(found.getMergeTargetTermId()).isNull();
+        assertThat(found.getResultTermId()).isNull();
+        assertThat(found.getUpdatedAt()).isNotNull();
+        assertThat(found.getUpdatedAt()).isAfterOrEqualTo(found.getCreatedAt());
+    }
+
     private Long saveDraftDictionary() {
         DraftDictionary draft = draftDictionaryRepository.save(DraftDictionary.create(1L, null, List.of(10L), 2L));
         return draft.getId();
