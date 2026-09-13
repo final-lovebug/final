@@ -5,10 +5,12 @@ import com.ubidict.backend.reviewrequest.domain.ReviewRequest;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
 import com.ubidict.backend.reviewrequest.domain.Revise;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
+import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator.ReviewAggregate;
 import com.ubidict.backend.reviewrequest.implement.ReviewReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
+import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
 import com.ubidict.backend.reviewrequest.implement.ReviseEligibilityCalculator;
 import com.ubidict.backend.reviewrequest.implement.ReviseProcessor;
 import com.ubidict.backend.reviewrequest.implement.ReviseWriter;
@@ -17,9 +19,9 @@ import com.ubidict.backend.reviewrequest.implement.RevisionDocumentReader;
 import com.ubidict.backend.reviewrequest.infra.port.WorkspacePolicyPort;
 import com.ubidict.backend.reviewrequest.service.model.PerformReviseCommand;
 import com.ubidict.backend.reviewrequest.service.model.ReviseResult;
-import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,13 +38,15 @@ public class ReviseService {
     private final ReviseEligibilityCalculator reviseEligibilityCalculator;
     private final ReviseProcessor reviseProcessor;
     private final ReviseWriter reviseWriter;
+    private final ReviewRequestWriter reviewRequestWriter;
     private final WorkspacePolicyPort workspacePolicyPort;
-    private final WorkspaceAccessValidator workspaceAccessValidator;
+    private final ApprovalAuthorityValidator approvalAuthorityValidator;
 
     @Transactional
     public ReviseResult perform(PerformReviseCommand command) {
         ReviewRequest reviewRequest = reviewRequestReader.read(command.reviewRequestId());
-        workspaceAccessValidator.validateParticipant(reviewRequest.getWorkspaceId(), command.actorId());
+        approvalAuthorityValidator.validateRevise(reviewRequest, command.actorId());
+        reviewRequest = lockForRevision(command.reviewRequestId());
         validateNotRevised(reviewRequest);
         validateEligible(reviewRequest);
 
@@ -76,6 +80,16 @@ public class ReviseService {
     private static void validateNotRevised(ReviewRequest reviewRequest) {
         if (reviewRequest.isRevised()) {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_ALREADY_REVISED);
+        }
+    }
+
+    private ReviewRequest lockForRevision(Long reviewRequestId) {
+        try {
+            ReviewRequest reviewRequest = reviewRequestReader.readForRevision(reviewRequestId);
+            reviewRequestWriter.flush();
+            return reviewRequest;
+        } catch (OptimisticLockingFailureException exception) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_CONCURRENT_MODIFICATION);
         }
     }
 }

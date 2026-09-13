@@ -12,9 +12,11 @@ import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
 import com.ubidict.backend.reviewrequest.domain.ReviewVerdict;
 import com.ubidict.backend.reviewrequest.domain.RevisionDocument;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
+import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator;
 import com.ubidict.backend.reviewrequest.implement.ReviewReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
+import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
 import com.ubidict.backend.reviewrequest.implement.ReviseEligibilityCalculator;
 import com.ubidict.backend.reviewrequest.implement.ReviseProcessor;
 import com.ubidict.backend.reviewrequest.implement.ReviseWriter;
@@ -22,7 +24,6 @@ import com.ubidict.backend.reviewrequest.implement.RevisionDictionaryReader;
 import com.ubidict.backend.reviewrequest.implement.RevisionDocumentReader;
 import com.ubidict.backend.reviewrequest.infra.port.WorkspacePolicyPort;
 import com.ubidict.backend.reviewrequest.service.model.PerformReviseCommand;
-import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -54,10 +55,13 @@ class ReviseServiceTest {
     private ReviseWriter reviseWriter;
 
     @Mock
+    private ReviewRequestWriter reviewRequestWriter;
+
+    @Mock
     private WorkspacePolicyPort workspacePolicyPort;
 
     @Mock
-    private WorkspaceAccessValidator workspaceAccessValidator;
+    private ApprovalAuthorityValidator approvalAuthorityValidator;
 
     private ReviseService reviseService;
 
@@ -72,8 +76,9 @@ class ReviseServiceTest {
                 new ReviseEligibilityCalculator(),
                 reviseProcessor,
                 reviseWriter,
+                reviewRequestWriter,
                 workspacePolicyPort,
-                workspaceAccessValidator);
+                approvalAuthorityValidator);
     }
 
     @DisplayName("발행하면 반영완료가 되고 반영일시가 기록된다.")
@@ -83,6 +88,7 @@ class ReviseServiceTest {
         ReviewRequest request = request(ReviewRequestStatus.APPROVED);
         RevisionDocument revision = RevisionDocument.create(1L, 20L, 1, 30L, "개정 본문", 1L);
         given(reviewRequestReader.read(1L)).willReturn(request);
+        given(reviewRequestReader.readForRevision(1L)).willReturn(request);
         given(reviewReader.readLatest(1L)).willReturn(List.of(Review.submit(1L, 2L, 0, ReviewVerdict.APPROVED, 2L)));
         given(workspacePolicyPort.requiredReviewerCount(10L, ReviewRequestType.DOCUMENT))
                 .willReturn(1);
@@ -106,6 +112,7 @@ class ReviseServiceTest {
         // given
         ReviewRequest request = request(ReviewRequestStatus.IN_REVIEW);
         given(reviewRequestReader.read(1L)).willReturn(request);
+        given(reviewRequestReader.readForRevision(1L)).willReturn(request);
         given(reviewReader.readLatest(1L)).willReturn(List.of());
         given(workspacePolicyPort.requiredReviewerCount(10L, ReviewRequestType.DOCUMENT))
                 .willReturn(1);
@@ -122,6 +129,7 @@ class ReviseServiceTest {
         // given
         ReviewRequest request = request(ReviewRequestStatus.REVISED);
         given(reviewRequestReader.read(1L)).willReturn(request);
+        given(reviewRequestReader.readForRevision(1L)).willReturn(request);
 
         // when & then
         assertThatThrownBy(() -> reviseService.perform(new PerformReviseCommand(1L, 1L)))
@@ -136,6 +144,7 @@ class ReviseServiceTest {
         ReviewRequest request = request(ReviewRequestStatus.PENDING_REVIEW);
         RevisionDocument revision = RevisionDocument.create(1L, 20L, 1, 30L, "개정 본문", 1L);
         given(reviewRequestReader.read(1L)).willReturn(request);
+        given(reviewRequestReader.readForRevision(1L)).willReturn(request);
         given(reviewReader.readLatest(1L)).willReturn(List.of());
         given(workspacePolicyPort.requiredReviewerCount(10L, ReviewRequestType.DOCUMENT))
                 .willReturn(0);

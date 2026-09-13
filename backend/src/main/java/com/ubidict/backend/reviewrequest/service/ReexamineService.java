@@ -7,10 +7,12 @@ import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
 import com.ubidict.backend.reviewrequest.domain.RevisionDictionary;
 import com.ubidict.backend.reviewrequest.domain.RevisionDocument;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
+import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
 import com.ubidict.backend.reviewrequest.implement.ReexamineReader;
 import com.ubidict.backend.reviewrequest.implement.ReexamineRoundCalculator;
 import com.ubidict.backend.reviewrequest.implement.ReexamineWriter;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
+import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
 import com.ubidict.backend.reviewrequest.implement.RevisionDictionaryReader;
 import com.ubidict.backend.reviewrequest.implement.RevisionDictionaryWriter;
 import com.ubidict.backend.reviewrequest.implement.RevisionDocumentReader;
@@ -21,6 +23,7 @@ import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,13 +40,15 @@ public class ReexamineService {
     private final ReexamineReader reexamineReader;
     private final ReexamineWriter reexamineWriter;
     private final ReexamineRoundCalculator reexamineRoundCalculator;
+    private final ReviewRequestWriter reviewRequestWriter;
+    private final ApprovalAuthorityValidator approvalAuthorityValidator;
     private final WorkspaceAccessValidator workspaceAccessValidator;
 
     @Transactional
     public ReexamineResult perform(PerformReexamineCommand command) {
         ReviewRequest reviewRequest = reviewRequestReader.read(command.reviewRequestId());
-        workspaceAccessValidator.validateParticipant(reviewRequest.getWorkspaceId(), command.actorId());
-        validateRequester(reviewRequest, command.actorId());
+        approvalAuthorityValidator.validateReexamine(reviewRequest, command.actorId());
+        reviewRequest = lockForRevision(command.reviewRequestId());
         validateReexaminable(reviewRequest);
 
         int round = reexamineRoundCalculator.nextRound(currentRound(reviewRequest));
@@ -88,15 +93,19 @@ public class ReexamineService {
         revisionDictionaryWriter.write(RevisionDictionary.reexamine(previous, round, command.actorId()));
     }
 
-    private static void validateRequester(ReviewRequest reviewRequest, Long actorId) {
-        if (!reviewRequest.getRequesterId().equals(actorId)) {
-            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_NOT_REQUESTER);
-        }
-    }
-
     private static void validateReexaminable(ReviewRequest reviewRequest) {
         if (!reviewRequest.isReexaminable()) {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_NOT_REEXAMINABLE);
+        }
+    }
+
+    private ReviewRequest lockForRevision(Long reviewRequestId) {
+        try {
+            ReviewRequest reviewRequest = reviewRequestReader.readForRevision(reviewRequestId);
+            reviewRequestWriter.flush();
+            return reviewRequest;
+        } catch (OptimisticLockingFailureException exception) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_CONCURRENT_MODIFICATION);
         }
     }
 }

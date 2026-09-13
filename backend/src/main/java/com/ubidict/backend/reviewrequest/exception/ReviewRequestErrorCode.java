@@ -25,7 +25,9 @@ public enum ReviewRequestErrorCode implements ErrorCode {
     REVIEW_REQUEST_INVALID_COMMENT_PARENT(HttpStatus.BAD_REQUEST, "상위 코멘트가 올바르지 않습니다."),
     REVIEW_REQUEST_NOT_REEXAMINABLE(HttpStatus.CONFLICT, "변경요청 상태에서만 재교정할 수 있습니다."),
     REVIEW_REQUEST_NOT_ELIGIBLE_FOR_REVISE(HttpStatus.CONFLICT, "발행 조건을 충족하지 않았습니다."),
-    REVIEW_REQUEST_ALREADY_REVISED(HttpStatus.CONFLICT, "이미 반영된 리뷰 요청입니다.");
+    REVIEW_REQUEST_ALREADY_REVISED(HttpStatus.CONFLICT, "이미 반영된 리뷰 요청입니다."),
+    REVIEW_REQUEST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "워크스페이스 관리자 이상만 수행할 수 있습니다."),
+    REVIEW_REQUEST_CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "다른 사용자가 먼저 처리했습니다. 다시 시도해 주세요.");
 
     private final HttpStatus status;
     private final String message;

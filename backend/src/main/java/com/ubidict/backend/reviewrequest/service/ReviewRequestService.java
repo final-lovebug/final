@@ -2,6 +2,7 @@ package com.ubidict.backend.reviewrequest.service;
 
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequest;
+import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestRemover;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
@@ -25,6 +26,7 @@ public class ReviewRequestService {
     private final ReviewRequestWriter reviewRequestWriter;
     private final ReviewRequestRemover reviewRequestRemover;
     private final WorkspaceAccessValidator workspaceAccessValidator;
+    private final ApprovalAuthorityValidator approvalAuthorityValidator;
 
     @Transactional(readOnly = true)
     public PageResult<ReviewRequestResult> search(ReviewRequestSearchQuery query) {
@@ -76,7 +78,12 @@ public class ReviewRequestService {
     @Transactional
     public ReviewRequestResult cancel(CancelReviewRequestCommand command) {
         ReviewRequest reviewRequest = readAccessible(command.reviewRequestId(), command.actorId());
-        reviewRequestRemover.remove(reviewRequest, command.actorId());
+        approvalAuthorityValidator.validateRequesterOrAdmin(reviewRequest, command.actorId());
+        if (reviewRequest.getRequesterId().equals(command.actorId())) {
+            reviewRequestRemover.remove(reviewRequest, command.actorId());
+        } else {
+            reviewRequestRemover.removeByAdministrator(reviewRequest);
+        }
 
         log.info(
                 "[ReviewRequestService.cancel] Review request canceled. reviewRequestId={}, actorId={}",

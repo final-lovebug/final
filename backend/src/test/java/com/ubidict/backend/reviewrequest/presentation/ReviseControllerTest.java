@@ -71,4 +71,21 @@ class ReviseControllerTest {
                 .statusCode(HttpStatus.CONFLICT.value())
                 .body("code", equalTo("REVIEW_REQUEST_NOT_ELIGIBLE_FOR_REVISE"));
     }
+
+    @DisplayName("ADMIN 미만이 개정안을 발행하면 403을 응답한다.")
+    @Test
+    void perform_regularPermission() {
+        // given
+        willThrow(new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_ACCESS_DENIED))
+                .given(reviseService)
+                .perform(any());
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .post("/api/review-requests/{reviewRequestId}/revision?memberId={memberId}", 1L, 2L)
+                .then()
+                .statusCode(HttpStatus.FORBIDDEN.value())
+                .body("code", equalTo("REVIEW_REQUEST_ACCESS_DENIED"));
+    }
 }
