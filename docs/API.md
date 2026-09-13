@@ -1249,6 +1249,8 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | GET | `/api/draft-dictionaries/{draftDictionaryId}/examine-progress` | `200` | KEEP |
 | POST | `/api/draft-dictionaries/{draftDictionaryId}/examine-completion` | `200` | KEEP |
 | POST | `/api/draft-dictionaries/{draftDictionaryId}/review-request` | `200` | **HALF** |
+| POST | `/api/draft-dictionaries/extractions` | `202` | KEEP |
+| GET | `/api/draft-dictionaries/extractions/{extractionJobId}` | `200` | KEEP |
 
 `POST /api/draft-dictionaries?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
 
@@ -1392,7 +1394,38 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 `POST /api/draft-dictionaries/{draftDictionaryId}/review-request?memberId={memberId}`는 최종 등재 대상(`REGISTRATION_APPROVED`, `KEPT`)의 표기·영문명·정의 집합이 현재 활성 사전집과 실제로 다를 때 초안을 `REVIEW_REQUESTED`로 바꾼다. 승인 건수만으로 변경 여부를 판단하지 않으므로 기존 용어 수정·제외도 변경으로 인식한다. 최종 등재 대상의 정의는 비어 있을 수 없다.
 
-> 이 리뷰 요청 엔드포인트는 Phase 3의 반쪽 구현이다. 초안 상태만 전이하며 실제 `ReviewRequest` 생성과 연결은 Phase 4에서 구현한다.
+> 이 엔드포인트는 초안을 `REVIEW_REQUESTED`로 전이하고 `DraftDictionaryReviewRequestedEvent`를 발행한다. 실제 `ReviewRequest` 생성은 ReviewRequest 도메인의 이벤트 소비자가 담당하므로 해당 소비자가 함께 배포되어야 전체 흐름이 이어진다.
+
+## **용어 추출 작업 접수와 조회**
+
+`POST /api/draft-dictionaries/extractions?memberId={memberId}`는 용어 추출 작업을 비동기로 접수하고 `202 Accepted`를 응답한다. 워크스페이스 관리자 이상만 요청할 수 있으며, 전달한 문서 중 현재 활성 사전집 기준과 정렬되고 직접 편집되지 않은 문서만 작업 대상에 남긴다. 대상 문서가 하나도 없거나 같은 워크스페이스에 진행 중인 초안·추출 작업이 있으면 요청을 거절한다.
+
+```json
+{
+  "workspaceId": 1,
+  "dictionaryId": null,
+  "sourceDocumentIds": [10, 20]
+}
+```
+
+`dictionaryId`는 기존 사전집이 없는 첫 회차에 `null`이다. 응답과 `GET /api/draft-dictionaries/extractions/{extractionJobId}?memberId={memberId}`의 폴링 응답은 다음 형식이다.
+
+```json
+{
+  "extractionJobId": 300,
+  "workspaceId": 1,
+  "dictionaryId": null,
+  "sourceDocumentIds": [10, 20],
+  "status": "PENDING",
+  "draftDictionaryId": null,
+  "failureReason": null,
+  "requestedBy": 7,
+  "createdAt": "2026-09-13T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-13T10:00:00.000000+09:00"
+}
+```
+
+상태는 `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`다. 성공하면 `draftDictionaryId`로 생성된 초안을 확인할 수 있고, 실패하면 `failureReason`에 원인이 기록된다.
 
 ## **에러**
 
@@ -1417,6 +1450,12 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 이미 리뷰를 요청함 | 409 | `DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED` |
 | 미판정 후보어가 존재함 | 409 | `DRAFT_DICTIONARY_CANDIDATE_TERM_UNDECIDED_EXISTS` |
 | 활성 사전집과 달라진 등재 대상이 없음 | 409 | `DRAFT_DICTIONARY_NO_CHANGED_ITEM` |
+| 진행 중인 초안이 있음 | 409 | `DRAFT_DICTIONARY_ALREADY_EXISTS` |
+| 용어 추출 요청 값이 올바르지 않음 | 400 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_REQUEST` |
+| 용어 추출 작업을 찾을 수 없음 | 404 | `DRAFT_DICTIONARY_EXTRACTION_NOT_FOUND` |
+| 진행 중인 용어 추출 작업이 있음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_ALREADY_RUNNING` |
+| 용어 추출 작업 상태를 변경할 수 없음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_STATUS` |
+| 추출 가능한 문서가 없음 | 409 | `DRAFT_DICTIONARY_NO_EXTRACTABLE_DOCUMENT` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---
