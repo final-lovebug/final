@@ -1,6 +1,10 @@
 spring:
   application:
     name: backend
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
   jpa:
     properties:
       hibernate:
@@ -21,6 +25,13 @@ spring:
 app:
   messaging:
     mode: ${MESSAGING_MODE:in-memory}
+    sqs:
+      queue: ${MESSAGING_SQS_QUEUE:lovebug-domain-event}
+      # 추출·대조 워커용 큐. AWS에는 이미 만들어져 있지만 읽는 코드가 아직 없다.
+      # 지금 살려 두면 「이 키를 읽는 코드가 0줄」인 죽은 프로퍼티가 된다(Y-28이 지적한 결함).
+      # DD-5(문서 대조)·DI-5(용어 추출) 워커가 들어올 때 주석을 푼다.
+      # llm-request-queue: ${MESSAGING_SQS_LLM_REQUEST_QUEUE:lovebug-llm-request}
+      # llm-reply-queue: ${MESSAGING_SQS_LLM_REPLY_QUEUE:lovebug-llm-reply}
   crossdomain:
     dictionary:
       mode: ${DICTIONARY_CROSSDOMAIN_MODE:real}
@@ -32,6 +43,8 @@ app:
       mode: ${DRAFT_DICTIONARY_CROSSDOMAIN_MODE:real}
     workspace:
       mode: ${WORKSPACE_CROSSDOMAIN_MODE:real}
+    review-request:
+      mode: ${REVIEW_REQUEST_CROSSDOMAIN_MODE:real}
     document-publish:
       mode: ${DOCUMENT_PUBLISH_CROSSDOMAIN_MODE:real}
     dictionary-publish:
