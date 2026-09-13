@@ -14,15 +14,12 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.dictionary.domain.DictionaryStatus;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
-import com.ubidict.backend.dictionary.presentation.dto.ReviseDictionaryRequest;
-import com.ubidict.backend.dictionary.presentation.dto.TermRequest;
 import com.ubidict.backend.dictionary.service.DictionaryService;
 import com.ubidict.backend.dictionary.service.model.DictionaryResult;
 import com.ubidict.backend.dictionary.service.model.DictionarySearchQuery;
 import com.ubidict.backend.dictionary.service.model.DictionaryVersionResult;
 import com.ubidict.backend.dictionary.service.model.TermResult;
 import com.ubidict.backend.member.infra.security.JwtProvider;
-import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -91,27 +88,6 @@ class DictionaryControllerTest {
         RestAssuredMockMvc.mockMvc(mockMvc);
     }
 
-    @DisplayName("사전집 버전을 반영하면 201 Created를 응답한다.")
-    @Test
-    void revise() {
-        // given
-        given(dictionaryService.revise(any())).willReturn(dictionaryResult(2, DictionaryStatus.ACTIVE));
-
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .queryParam("memberId", MEMBER_ID)
-                .body(new ReviseDictionaryRequest(List.of(new TermRequest("회원", "Member", "가입한 주체"))))
-                .when()
-                .post(BASE_PATH + "/versions", WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.CREATED.value())
-                .body("versionNo", equalTo(2))
-                .body("status", equalTo("ACTIVE"))
-                .body("terms.content", hasSize(1))
-                .body("terms.content[0].preferredForm", equalTo("회원"));
-    }
-
     @DisplayName("현재 확정본을 조회하면 200 OK와 용어를 응답한다.")
     @Test
     void readActive() {
@@ -174,36 +150,6 @@ class DictionaryControllerTest {
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("ARCHIVED"));
-    }
-
-    @DisplayName("용어가 비어 있으면 400 Bad Request를 응답한다.")
-    @Test
-    void revise_termsAreEmpty() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .queryParam("memberId", MEMBER_ID)
-                .body(new ReviseDictionaryRequest(List.of()))
-                .when()
-                .post(BASE_PATH + "/versions", WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value())
-                .body("code", equalTo("COMMON_INVALID_REQUEST"));
-    }
-
-    @DisplayName("표준어가 비어 있으면 400 Bad Request를 응답한다.")
-    @Test
-    void revise_preferredFormIsBlank() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .queryParam("memberId", MEMBER_ID)
-                .body(new ReviseDictionaryRequest(List.of(new TermRequest("  ", null, "가입한 주체"))))
-                .when()
-                .post(BASE_PATH + "/versions", WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value())
-                .body("code", equalTo("COMMON_INVALID_REQUEST"));
     }
 
     @DisplayName("memberId가 없으면 400 Bad Request를 응답한다.")

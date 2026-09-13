@@ -5,14 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.dictionary.domain.DictionaryStatus;
+import com.ubidict.backend.dictionary.domain.NewTerm;
 import com.ubidict.backend.dictionary.domain.event.DictionaryRevisedEvent;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
 import com.ubidict.backend.dictionary.exception.TermErrorCode;
 import com.ubidict.backend.dictionary.service.model.DictionaryResult;
 import com.ubidict.backend.dictionary.service.model.DictionarySearchQuery;
 import com.ubidict.backend.dictionary.service.model.DictionaryVersionResult;
-import com.ubidict.backend.dictionary.service.model.ReviseDictionaryCommand;
-import com.ubidict.backend.dictionary.service.model.TermCommand;
 import com.ubidict.backend.dictionary.service.model.TermResult;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Permission;
@@ -22,6 +21,7 @@ import com.ubidict.backend.workspace.fixture.ParticipantFixture;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
 import com.ubidict.backend.workspace.infra.ParticipantRepository;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,55 +29,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 
+/**
+ * 버전을 만드는 진입점은 발행 위임 포트가 호출하는 publish 하나다(DIC-7). ADMIN이 용어 목록을 직접 실어 보내던 임시 엔드포인트를 제거했으므로 이 테스트도 그 계약으로
+ * 검증한다 — 기준 버전 불일치는 DictionaryVersionPublishAdapterTest가 본다.
+ */
 @RecordApplicationEvents
 class DictionaryServiceTest extends IntegrationTestSupport {
-
-    @Autowired
-    private ApplicationEvents applicationEvents;
-
-    @DisplayName("사전집 버전을 반영하면 식별자와 버전만 담은 이벤트를 발행한다.")
-    @Test
-    void revise_publishesEvent() {
-        Long workspaceId = createWorkspace();
-
-        DictionaryResult result = dictionaryService.revise(command(workspaceId, term("회원")));
-
-        assertThat(applicationEvents.stream(DictionaryRevisedEvent.class))
-                .singleElement()
-                .satisfies(event -> {
-                    assertThat(event.workspaceId()).isEqualTo(workspaceId);
-                    assertThat(event.dictionaryId()).isEqualTo(result.dictionaryId());
-                    assertThat(event.versionNo()).isEqualTo(result.versionNo());
-                    assertThat(event.occurredAt()).isEqualTo(result.publishedAt());
-                });
-    }
-
-    @Test
-    @DisplayName("표준어 접두어로 활성 사전집의 용어를 검색한다.")
-    void readActive_searchByKeyword() {
-        Long workspaceId = createWorkspace();
-        dictionaryService.revise(command(workspaceId, term("사전"), term("문서")));
-        DictionaryResult result = dictionaryService.readActive(
-                workspaceId, ADMIN_ID, new DictionarySearchQuery(0, 20, "preferredForm,asc", "사전"));
-        assertThat(result.terms().content())
-                .extracting(TermResult::preferredForm)
-                .containsExactly("사전");
-    }
-
-    @Test
-    @DisplayName("활성 사전집의 용어 목록을 페이지 단위로 조회한다.")
-    void readActive_termsArePaged() {
-        Long workspaceId = createWorkspace();
-        dictionaryService.revise(command(workspaceId, term("사전"), term("문서")));
-        DictionaryResult result = dictionaryService.readActive(
-                workspaceId, ADMIN_ID, new DictionarySearchQuery(0, 1, "preferredForm,asc", null));
-        assertThat(result.terms().content()).hasSize(1);
-        assertThat(result.terms().totalElements()).isEqualTo(2);
-    }
 
     private static final Long ADMIN_ID = 1L;
     private static final Long REGULAR_ID = 2L;
     private static final Long OUTSIDER_ID = 3L;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @Autowired
     private DictionaryService dictionaryService;
@@ -88,20 +52,66 @@ class DictionaryServiceTest extends IntegrationTestSupport {
     @Autowired
     private ParticipantRepository participantRepository;
 
+    @DisplayName("사전집 버전을 반영하면 식별자와 버전만 담은 이벤트를 발행한다.")
+    @Test
+    void publish_publishesEvent() {
+        Long workspaceId = createWorkspace();
+
+        publishNext(workspaceId, "회원");
+
+        DictionaryResult active = dictionaryService.readActive(workspaceId, ADMIN_ID, defaultQuery());
+        assertThat(applicationEvents.stream(DictionaryRevisedEvent.class))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.workspaceId()).isEqualTo(workspaceId);
+                    assertThat(event.dictionaryId()).isEqualTo(active.dictionaryId());
+                    assertThat(event.versionNo()).isEqualTo(active.versionNo());
+                    assertThat(event.occurredAt()).isEqualTo(active.publishedAt());
+                });
+    }
+
+    @DisplayName("표준어 접두어로 활성 사전집의 용어를 검색한다.")
+    @Test
+    void readActive_searchByKeyword() {
+        Long workspaceId = createWorkspace();
+        publishNext(workspaceId, "사전", "문서");
+
+        DictionaryResult result = dictionaryService.readActive(
+                workspaceId, ADMIN_ID, new DictionarySearchQuery(0, 20, "preferredForm,asc", "사전"));
+
+        assertThat(result.terms().content())
+                .extracting(TermResult::preferredForm)
+                .containsExactly("사전");
+    }
+
+    @DisplayName("활성 사전집의 용어 목록을 페이지 단위로 조회한다.")
+    @Test
+    void readActive_termsArePaged() {
+        Long workspaceId = createWorkspace();
+        publishNext(workspaceId, "사전", "문서");
+
+        DictionaryResult result = dictionaryService.readActive(
+                workspaceId, ADMIN_ID, new DictionarySearchQuery(0, 1, "preferredForm,asc", null));
+
+        assertThat(result.terms().content()).hasSize(1);
+        assertThat(result.terms().totalElements()).isEqualTo(2);
+    }
+
     @DisplayName("사전집이 없는 워크스페이스에 반영하면 버전 1이 만들어진다.")
     @Test
-    void revise_firstVersion() {
+    void publish_firstVersion() {
         // given
         Long workspaceId = createWorkspace();
 
         // when
-        DictionaryResult result = dictionaryService.revise(command(workspaceId, term("회원"), term("문서")));
+        int versionNo = dictionaryService.publish(workspaceId, 0, terms("회원", "문서"), ADMIN_ID);
 
         // then
-        assertThat(result.versionNo()).isEqualTo(1);
-        assertThat(result.status()).isEqualTo(DictionaryStatus.ACTIVE);
-        assertThat(result.publishedAt()).isNotNull();
-        assertThat(result.terms().content())
+        assertThat(versionNo).isEqualTo(1);
+        DictionaryResult active = dictionaryService.readActive(workspaceId, ADMIN_ID, defaultQuery());
+        assertThat(active.status()).isEqualTo(DictionaryStatus.ACTIVE);
+        assertThat(active.publishedAt()).isNotNull();
+        assertThat(active.terms().content())
                 .extracting(TermResult::preferredForm)
                 .containsExactly("문서", "회원");
     }
@@ -111,17 +121,16 @@ class DictionaryServiceTest extends IntegrationTestSupport {
      */
     @DisplayName("이미 사전집이 있으면 이전 버전이 보관되고 활성 사전집은 하나로 유지된다.")
     @Test
-    void revise_nextVersion() {
+    void publish_nextVersion() {
         // given
         Long workspaceId = createWorkspace();
-        dictionaryService.revise(command(workspaceId, term("회원")));
+        dictionaryService.publish(workspaceId, 0, terms("회원"), ADMIN_ID);
 
         // when
-        DictionaryResult result = dictionaryService.revise(command(workspaceId, term("회원"), term("문서")));
+        int versionNo = dictionaryService.publish(workspaceId, 1, terms("회원", "문서"), ADMIN_ID);
 
         // then
-        assertThat(result.versionNo()).isEqualTo(2);
-        assertThat(result.status()).isEqualTo(DictionaryStatus.ACTIVE);
+        assertThat(versionNo).isEqualTo(2);
         assertThat(dictionaryService.readVersions(workspaceId, ADMIN_ID, 0, 20).content())
                 .filteredOn(version -> version.status() == DictionaryStatus.ACTIVE)
                 .hasSize(1);
@@ -132,13 +141,13 @@ class DictionaryServiceTest extends IntegrationTestSupport {
      */
     @DisplayName("새 버전을 반영해도 이전 버전의 용어는 그대로 남는다.")
     @Test
-    void revise_previousTermsRemain() {
+    void publish_previousTermsRemain() {
         // given
         Long workspaceId = createWorkspace();
-        dictionaryService.revise(command(workspaceId, term("회원"), term("문서")));
+        publishNext(workspaceId, "회원", "문서");
 
         // when
-        dictionaryService.revise(command(workspaceId, term("회원")));
+        publishNext(workspaceId, "회원");
 
         // then
         DictionaryResult first = dictionaryService.readVersion(workspaceId, 1, ADMIN_ID, defaultQuery());
@@ -153,8 +162,8 @@ class DictionaryServiceTest extends IntegrationTestSupport {
     void readVersions() {
         // given
         Long workspaceId = createWorkspace();
-        dictionaryService.revise(command(workspaceId, term("회원")));
-        dictionaryService.revise(command(workspaceId, term("회원"), term("문서")));
+        publishNext(workspaceId, "회원");
+        publishNext(workspaceId, "회원", "문서");
 
         // when
         List<DictionaryVersionResult> versions =
@@ -194,7 +203,7 @@ class DictionaryServiceTest extends IntegrationTestSupport {
     void readVersion_versionNoDoesNotExist() {
         // given
         Long workspaceId = createWorkspace();
-        dictionaryService.revise(command(workspaceId, term("회원")));
+        publishNext(workspaceId, "회원");
 
         // when & then
         assertThatThrownBy(() -> dictionaryService.readVersion(workspaceId, 2, ADMIN_ID, defaultQuery()))
@@ -205,13 +214,12 @@ class DictionaryServiceTest extends IntegrationTestSupport {
 
     @DisplayName("용어가 없으면 사전집 버전을 반영할 수 없다.")
     @Test
-    void revise_termsAreEmpty() {
+    void publish_termsAreEmpty() {
         // given
         Long workspaceId = createWorkspace();
-        ReviseDictionaryCommand command = new ReviseDictionaryCommand(workspaceId, ADMIN_ID, List.of());
 
         // when & then
-        assertThatThrownBy(() -> dictionaryService.revise(command))
+        assertThatThrownBy(() -> dictionaryService.publish(workspaceId, 0, List.of(), ADMIN_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DictionaryErrorCode.DICTIONARY_EMPTY_TERMS);
@@ -219,13 +227,12 @@ class DictionaryServiceTest extends IntegrationTestSupport {
 
     @DisplayName("같은 표준어가 둘이면 사전집 버전을 반영할 수 없다.")
     @Test
-    void revise_preferredFormIsDuplicated() {
+    void publish_preferredFormIsDuplicated() {
         // given
         Long workspaceId = createWorkspace();
-        ReviseDictionaryCommand command = command(workspaceId, term("회원"), term("회원"));
 
         // when & then
-        assertThatThrownBy(() -> dictionaryService.revise(command))
+        assertThatThrownBy(() -> dictionaryService.publish(workspaceId, 0, terms("회원", "회원"), ADMIN_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(TermErrorCode.TERM_DUPLICATE_PREFERRED_FORM);
@@ -233,14 +240,13 @@ class DictionaryServiceTest extends IntegrationTestSupport {
 
     @DisplayName("REGULAR는 사전집 버전을 반영할 수 없다.")
     @Test
-    void revise_permissionIsBelowAdmin() {
+    void publish_permissionIsBelowAdmin() {
         // given
         Long workspaceId = createWorkspace();
         joinAs(workspaceId, REGULAR_ID, Permission.REGULAR);
-        ReviseDictionaryCommand command = new ReviseDictionaryCommand(workspaceId, REGULAR_ID, List.of(term("회원")));
 
         // when & then
-        assertThatThrownBy(() -> dictionaryService.revise(command))
+        assertThatThrownBy(() -> dictionaryService.publish(workspaceId, 0, terms("회원"), REGULAR_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_ADMIN_REQUIRED);
@@ -251,13 +257,12 @@ class DictionaryServiceTest extends IntegrationTestSupport {
      */
     @DisplayName("참여자가 아닌 사용자의 반영은 권한 부족이 아니라 조회 실패로 응답한다.")
     @Test
-    void revise_memberIsNotParticipant() {
+    void publish_memberIsNotParticipant() {
         // given
         Long workspaceId = createWorkspace();
-        ReviseDictionaryCommand command = new ReviseDictionaryCommand(workspaceId, OUTSIDER_ID, List.of(term("회원")));
 
         // when & then
-        assertThatThrownBy(() -> dictionaryService.revise(command))
+        assertThatThrownBy(() -> dictionaryService.publish(workspaceId, 0, terms("회원"), OUTSIDER_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
@@ -268,7 +273,7 @@ class DictionaryServiceTest extends IntegrationTestSupport {
     void readActive_memberIsNotParticipant() {
         // given
         Long workspaceId = createWorkspace();
-        dictionaryService.revise(command(workspaceId, term("회원")));
+        publishNext(workspaceId, "회원");
 
         // when & then
         assertThatThrownBy(() -> dictionaryService.readActive(workspaceId, OUTSIDER_ID, defaultQuery()))
@@ -285,7 +290,7 @@ class DictionaryServiceTest extends IntegrationTestSupport {
     void readActive_workspaceIsDeleted() {
         // given
         Long workspaceId = createWorkspace();
-        dictionaryService.revise(command(workspaceId, term("회원")));
+        publishNext(workspaceId, "회원");
         Workspace workspace = workspaceRepository.findById(workspaceId).orElseThrow();
         workspace.delete();
         workspaceRepository.save(workspace);
@@ -297,16 +302,24 @@ class DictionaryServiceTest extends IntegrationTestSupport {
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
     }
 
-    private ReviseDictionaryCommand command(Long workspaceId, TermCommand... terms) {
-        return new ReviseDictionaryCommand(workspaceId, ADMIN_ID, List.of(terms));
+    /** 발행은 기준 버전이 현재 활성 버전과 같아야 하므로, 현재 버전을 읽어 다음 버전으로 올린다. */
+    private int publishNext(Long workspaceId, String... preferredForms) {
+        int baseVersionNo = dictionaryService.readVersions(workspaceId, ADMIN_ID, 0, 1).content().stream()
+                .mapToInt(DictionaryVersionResult::versionNo)
+                .max()
+                .orElse(0);
+
+        return dictionaryService.publish(workspaceId, baseVersionNo, terms(preferredForms), ADMIN_ID);
+    }
+
+    private List<NewTerm> terms(String... preferredForms) {
+        return Arrays.stream(preferredForms)
+                .map(preferredForm -> new NewTerm(preferredForm, null, preferredForm + "에 대한 정의"))
+                .toList();
     }
 
     private DictionarySearchQuery defaultQuery() {
         return new DictionarySearchQuery(0, 20, "preferredForm,asc", null);
-    }
-
-    private TermCommand term(String preferredForm) {
-        return new TermCommand(preferredForm, null, preferredForm + "에 대한 정의");
     }
 
     private Long createWorkspace() {
