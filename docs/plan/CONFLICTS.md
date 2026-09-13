@@ -183,7 +183,7 @@
 
 | ID | 뒤집힌 결정 | 출처 | 대체 |
 | --- | --- | --- | --- |
-| **R-13** | `DocumentVersionPublishPort.publish(Long documentId, int baseVersionNo, String body)` | `REVIEW_REQUEST_PLAN.md` 9절 | **`dictionaryVersionNo` 인자 필요**(`G-7`). 현 시그니처로는 기준 사전집 버전을 넣을 수 없다 |
+| **R-13** | `DocumentVersionPublishPort.publish(Long documentId, int baseVersionNo, String body)` | `REVIEW_REQUEST_PLAN.md` 9절 | **`dictionaryVersionNo` 인자 필요**(`G-7`). ReviewRequest가 소비 측 조회 계약인 `ActiveDictionaryVersionQueryPort.activeVersionNo(workspaceId)`로 발행 직전 활성 버전을 조회해 발행 포트에 넘긴다. 활성 사전집이 없으면 문서 갱신 초안의 전제가 성립하지 않으므로 `DICTIONARY_NOT_FOUND`로 거절한다 |
 | **R-14** | 제공 포트 `hasOngoingDocumentReview(Long documentId)` / `hasOngoingDictionaryReview(Long dictionaryId)` — **대상 단위** | `REVIEW_REQUEST_PLAN.md` 9절 | **`D-22`로 취소.** 초안 조회 하나가 초안과 개정안을 동시에 덮으므로 워크스페이스 단위 확장이 불필요하다 |
 | **R-15** | 「사전집에 초안 또는 개정안이 존재하면 추가 초안을 생성할 수 없다」 — 도메인 **내부** 제약 | `DOMAIN.md` «초안 사전», `D-10` | **워크스페이스 단위로 확대**(`G-14`) |
 | **R-16** | `NFR-DOC-002` 원문 저장소 추상화(로컬 FS → S3), 상태 「보류」 | `REQUIREMENTS.md` | **폐기 확정**(`G-5`) |

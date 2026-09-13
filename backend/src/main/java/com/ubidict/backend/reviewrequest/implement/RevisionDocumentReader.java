@@ -36,4 +36,12 @@ public class RevisionDocumentReader {
                 .max()
                 .orElse(0);
     }
+
+    public RevisionDocument readCurrent(Long reviewRequestId) {
+        return repository
+                .findTopByReviewRequestIdOrderByReexamineRoundDesc(reviewRequestId)
+                .orElseThrow(() -> new com.ubidict.backend.common.exception.BusinessException(
+                        com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode
+                                .REVIEW_REQUEST_REVISION_NOT_FOUND));
+    }
 }

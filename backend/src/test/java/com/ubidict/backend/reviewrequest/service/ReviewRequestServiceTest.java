@@ -28,6 +28,7 @@ class ReviewRequestServiceTest extends IntegrationTestSupport {
 
     private static final Long REQUESTER_ID = 1L;
     private static final Long OTHER_MEMBER_ID = 2L;
+    private static final Long ADMIN_ID = 3L;
 
     @Autowired
     private ReviewRequestService reviewRequestService;
@@ -47,6 +48,7 @@ class ReviewRequestServiceTest extends IntegrationTestSupport {
         workspaceId = workspace.getId();
         joinAs(workspaceId, REQUESTER_ID, Permission.OWNER);
         joinAs(workspaceId, OTHER_MEMBER_ID, Permission.REGULAR);
+        joinAs(workspaceId, ADMIN_ID, Permission.ADMIN);
     }
 
     @DisplayName("리뷰 요청을 생성하면 요청 내용과 리뷰대기 상태가 저장된다.")
@@ -102,6 +104,20 @@ class ReviewRequestServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(ReviewRequestErrorCode.REVIEW_REQUEST_NOT_REQUESTER);
+    }
+
+    @DisplayName("ADMIN은 요청자가 아니어도 리뷰 요청을 취소할 수 있다.")
+    @Test
+    void cancel_admin() {
+        // given
+        ReviewRequestResult created = createReviewRequest();
+
+        // when
+        ReviewRequestResult result =
+                reviewRequestService.cancel(new CancelReviewRequestCommand(created.reviewRequestId(), ADMIN_ID));
+
+        // then
+        assertThat(result.status()).isEqualTo(ReviewRequestStatus.CANCELED);
     }
 
     private ReviewRequestResult createReviewRequest() {

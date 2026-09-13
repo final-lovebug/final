@@ -35,9 +35,9 @@ app:
       mode: ${WORKSPACE_CROSSDOMAIN_MODE:real}
     # 발행 위임 축은 제공 도메인이 real 어댑터를 넣을 때 뒤집는다 — DOC-6 / DIC-3.
     document-publish:
-      mode: ${DOCUMENT_PUBLISH_CROSSDOMAIN_MODE:stub}
+      mode: ${DOCUMENT_PUBLISH_CROSSDOMAIN_MODE:real}
     dictionary-publish:
-      mode: ${DICTIONARY_PUBLISH_CROSSDOMAIN_MODE:stub}
+      mode: ${DICTIONARY_PUBLISH_CROSSDOMAIN_MODE:real}
   ai:
     # 용어 추출·문서 대조의 LLM 경계(D-35). 이번 범위는 계약과 워커 스텁까지이며,
     # 실제 모델 연동은 의존성·API 키·프롬프트 설계를 합의한 뒤 real로 뒤집는다.

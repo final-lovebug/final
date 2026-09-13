@@ -435,13 +435,13 @@ com.ubidict.backend.document
 | --- | --- | --- | --- |
 | `draftdictionary/infra/port/DocumentQueryPort` | `boolean isExtractable(Long documentId)` | `DocumentVersion.isAligned(...)`를 최신 확정 버전에 적용 | ~~`DOC-4`~~ **선행 PR 완료** |
 | `draftdocument/infra/port/DocumentQueryPort` | `Optional<DocumentSnapshot> read(Long documentId)` | 최신 확정 버전의 `body`·`versionNo`를 담은 스냅샷 | ~~`DOC-4`~~ **선행 PR 완료** |
-| `reviewrequest/infra/port/DocumentVersionPublishPort` | `int publish(Long documentId, int baseVersionNo, String body, int dictionaryVersionNo)` | `Document.publishNext` + `DocumentVersion.publishRevised` | `DOC-6` |
+| `reviewrequest/infra/port/DocumentVersionPublishPort` | `int publish(Long documentId, int baseVersionNo, String body, int dictionaryVersionNo, Long publishedBy)` | `Document.publishNext` + `DocumentVersion.publishRevised` | `DOC-6` |
 
 스냅샷 record — `DocumentSnapshot(Long documentId, Long workspaceId, int currentVersionNo, String body)`. **엔티티를 포트 시그니처에 노출하지 않는다.**
 
 > **`isExtractable`이 `D-15`의 `isOutdated`를 대체한다**(`R-9`·`O-4`). 기존 계획 문서는 스텁이 `false`를 반환하고 정책이 유예된다고 확정했지만, `G-12`로 추출 대상 필터가 MVP1 필수가 됐다. **이름과 의미가 함께 바뀐다** — `isOutdated`는 참일 때 제외였고 `isExtractable`은 참일 때 포함이다. 소비 도메인이 논리를 반대로 쓰지 않도록 `CONFLICTS.md`가 이 전환을 기록한다.
 
-> **`DocumentVersionPublishPort`에 `dictionaryVersionNo`를 추가한다**(`R-13`). 기존 시그니처로는 `G-7`(발행 시점 최신 사전집 버전)을 넣을 수 없다. 값을 ReviewRequest가 조회해 넘기는 이유는, 발행 시점의 활성 버전을 판단하는 것이 발행 트랜잭션의 책임이기 때문이다.
+> **`DocumentVersionPublishPort`에 `dictionaryVersionNo`를 추가한다**(`R-13`). 기존 시그니처로는 `G-7`(발행 시점 최신 사전집 버전)을 넣을 수 없다. ReviewRequest가 자기 소비 포트인 `ActiveDictionaryVersionQueryPort`로 값을 조회해 넘기는 이유는, 발행 시점의 활성 버전을 판단하는 것이 발행 트랜잭션의 책임이기 때문이다. 활성 사전집이 없으면 문서 갱신 초안의 전제가 성립하지 않으므로 발행을 거절한다.
 
 ### 발행 이벤트
 

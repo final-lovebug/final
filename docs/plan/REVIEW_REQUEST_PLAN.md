@@ -439,6 +439,7 @@ com.ubidict.backend.reviewrequest
 │   │   ├── WorkspacePolicyPort.java             P3c
 │   │   ├── DraftDocumentQueryPort.java          P4
 │   │   ├── DraftDictionaryQueryPort.java        P4
+│   │   ├── ActiveDictionaryVersionQueryPort.java P4b
 │   │   ├── DocumentVersionPublishPort.java      P4b
 │   │   ├── DictionaryVersionPublishPort.java    P4b
 │   │   ├── DraftDocumentSnapshot.java           P4
@@ -446,6 +447,7 @@ com.ubidict.backend.reviewrequest
 │   │   └── stub
 │   │       └── (각 포트의 프로퍼티 조건부 스텁)
 │   └── adapter
+│       ├── ActiveDictionaryVersionQueryAdapter.java      P4b ← 활성 사전집 버전 조회
 │       ├── DraftDocumentReviewRequestQueryAdapter.java    P4  ← DD가 정의한 포트 구현
 │       └── DraftDictionaryReviewRequestQueryAdapter.java  P4  ← DI가 정의한 포트 구현
 ├── domain
@@ -573,23 +575,26 @@ com.ubidict.backend.reviewrequest
 
 | 포트 | 시그니처 | 제공 도메인 | 스텁 동작 | Phase |
 | --- | --- | --- | --- | --- |
-| `WorkspacePolicyPort` | `int requiredReviewerCount(Long workspaceId, ReviewRequestType type)`, `boolean isParticipant(Long workspaceId, Long memberId)`, `boolean hasAdminPermission(Long workspaceId, Long memberId)` | Workspace(**머지됨**) | `0` / `true` / `true` | **3c** |
+| `WorkspacePolicyPort` | `int requiredReviewerCount(Long workspaceId, ReviewRequestType type)` | Workspace(**머지됨**) | `0` | **3c** |
 | `DraftDocumentQueryPort` | `Optional<DraftDocumentSnapshot> read(Long draftDocumentId)` | DraftDocument | 고정 스냅샷 | 4 |
-| `DraftDictionaryQueryPort` | `Optional<DraftDictionarySnapshot> read(Long draftDictionaryId)` | DraftDictionary | 고정 스냅샷 | 4 |
-| `DocumentVersionPublishPort` | `int publish(Long documentId, int baseVersionNo, String body)` → 새 versionNo | Document(미착수) | 증가하는 더미 번호 | 4b |
-| `DictionaryVersionPublishPort` | `int publish(Long dictionaryId, int baseVersionNo, List<Long> approvedCandidateTermIds)` → 새 versionNo | Dictionary(미착수) | 증가하는 더미 번호 | 4b |
+| `DraftDictionaryQueryPort` | `Optional<DraftDictionarySnapshot> read(Long draftDictionaryId)`, `List<NewTermSnapshot> readFinalTerms(Long draftDictionaryId)` | DraftDictionary | 고정 스냅샷·통합 용어 목록 | 4 |
+| `ActiveDictionaryVersionQueryPort` | `int activeVersionNo(Long workspaceId)` | Dictionary(**머지됨**) | 미연결 예외 | **4b** |
+| `DocumentVersionPublishPort` | `int publish(Long documentId, int baseVersionNo, String body, int dictionaryVersionNo, Long publishedBy)` → 새 versionNo | Document(**머지됨**) | 미연결 예외 | 4b |
+| `DictionaryVersionPublishPort` | `int publish(Long workspaceId, int baseVersionNo, List<NewTermSnapshot> terms, Long publishedBy)` → 새 versionNo | Dictionary(**머지됨**) | 미연결 예외 | 4b |
 
-스냅샷 record — `DraftDocumentSnapshot(Long documentId, int baseVersionNo, String draftBody, boolean examined)`, `DraftDictionarySnapshot(Long dictionaryId, DraftDictionaryStatus status, List<Long> approvedCandidateTermIds)`. **엔티티를 포트 시그니처에 노출하지 않는다.**
+스냅샷 record — `DraftDocumentSnapshot(Long draftDocumentId, Long documentId, int baseVersionNo, String draftBody)`, `DraftDictionarySnapshot(Long draftDictionaryId, Long workspaceId, Long dictionaryId)`, `NewTermSnapshot(String preferredForm, String englishName, String definition)`. **엔티티를 포트 시그니처에 노출하지 않는다.**
 
 **`WorkspacePolicyPort`가 Phase 3부터 필요하다** — `ReviseEligibilityCalculator`가 정족수를 실시간 조회하기 때문이다(D-12).
 
 `participantCount`는 **두지 않는다.** 실효 정족수가 `ruleSet` 값 그대로이므로 참여자 수가 필요 없다(2-1절).
 
+문서 개정안을 발행할 때 `ReviseProcessor`는 `ActiveDictionaryVersionQueryPort`로 **발행 직전의 활성 사전집 버전**을 조회한 뒤 `DocumentVersionPublishPort`에 전달한다(`G-7`·`R-13`). 이 조회는 발행 결과에 기록할 기준 버전을 결정하는 ReviewRequest의 책임이며, Document가 Dictionary를 다시 조회하지 않는다. 활성 사전집이 없으면 `DICTIONARY_NOT_FOUND`로 발행을 거절한다. 문서 갱신 초안은 활성 사전집과 대조한 결과이므로 기준 사전집 없이 반영될 수 없다.
+
 ### 어댑터 배치 (2026-09-10 확정)
 
 **포트는 우리가 정의하고 어댑터도 우리가 구현한다.** 어댑터는 `reviewrequest/infra/adapter/`에 두고 **제공 도메인의 `infra`(Repository)만 참조한다** — 같은 레이어끼리라 방향 위반이 아니다. 제공 도메인의 `implement`(`ParticipantReader`·`WorkspaceAccessValidator` 등)를 참조하면 `infra -> implement`가 되어 `docs/ARCHITECTURE.md`의 역방향 참조 금지를 어긴다. 이 규약 덕분에 **`workspace` 패키지의 파일을 한 줄도 고치지 않는다.**
 
-`WorkspacePolicyPort`의 실제 어댑터는 `workspace/infra/WorkspaceRepository`(룰셋)와 `ParticipantRepository`(참여 여부·권한)를 참조한다. `WorkspaceAccessValidator.validateAtLeast(...)`는 예외를 던지고 값을 돌려주지 않으므로 `boolean`을 반환하는 포트에 그대로 쓸 수 없다 — 어댑터가 `Participant.permission`을 읽어 `Permission.isAtLeast(...)`로 판단한다.
+`WorkspacePolicyPort`의 실제 어댑터는 `workspace/infra/WorkspaceRepository`에서 룰셋을 조회한다. 참여 여부와 권한은 `WorkspaceAccessValidator`를 직접 사용한다(`D-19`). `ActiveDictionaryVersionQueryPort`의 실제 어댑터는 같은 조회 포트 규칙에 따라 소비 도메인인 `reviewrequest/infra/adapter/`에 두고 `dictionary/infra/DictionaryRepository`만 참조한다(`D-33`).
 
 어댑터 선택은 프로퍼티로 한다 — `app.crossdomain.{name}.mode=stub|real`(기본 `stub`, `matchIfMissing = true`). `InMemoryEventPublisher`의 `@ConditionalOnProperty` 패턴을 따르고 `@ConditionalOnMissingBean`은 쓰지 않는다.
 
@@ -739,7 +744,7 @@ AssertJ를 쓴다. JUnit `assertEquals`·`assertThrows`는 쓰지 않는다. Moc
 | **RR-3b** | 코멘트 | `Comment` + Repository + implement 2 + Service + 모델 3 + Controller + DTO 3 + 테스트 3 | 2 | RR-3a(도메인), **DD-2**(`TextRange`) | |
 | **RR-3c** | 상태 전이 + 발행 판정 | 전이 메서드 7 + `LatestReviewAggregator` + `ReviseEligibilityCalculator` + `StatusPolicy` + `WorkspacePolicyPort` + 스텁 + 모델 1 + DTO 1 + 테스트 3 | 2 | RR-3a | — |
 | **RR-4a** | 재교정 | `Reexamine` + `V640__`(공유) + Repository + implement 2 + Service + 모델 1 + Controller + DTO 2 + 테스트 3 | 2 | RR-3c | 4b와 병렬 |
-| **RR-4b** | 발행 | `Revise` + Repository + `ReviseProcessor` + 발행 포트 2 + 스텁 2 + Service + 모델 1 + Controller + DTO 1 + 테스트 3 | 2 | RR-3c | |
+| **RR-4b** | 발행 | `Revise` + Repository + `ReviseProcessor` + 발행 포트 2 + 활성 사전집 버전 조회 포트·어댑터 + 스텁 3 + Service + 모델 1 + Controller + DTO 1 + 테스트 3 | 2 | RR-3c | |
 | **RR-4c** | 인가 + 낙관적 락 | `ApprovalAuthorityValidator` + `@Version` + `V650__` + 테스트 3 | 1.5 | RR-4a, RR-4b | — |
 | **RR-4d** | 이벤트 | 이벤트 record 5 + `EventPublisher` + 어댑터 2 + 테스트 2 | 1.5 | RR-4a, RR-4b | — |
 

@@ -2,15 +2,23 @@ package com.ubidict.backend.reviewrequest.service;
 
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequest;
+import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
+import com.ubidict.backend.reviewrequest.domain.RevisionDictionary;
+import com.ubidict.backend.reviewrequest.domain.RevisionDocument;
+import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
+import com.ubidict.backend.reviewrequest.implement.ReviewRequestEventPublisher;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestRemover;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
+import com.ubidict.backend.reviewrequest.implement.RevisionDictionaryReader;
+import com.ubidict.backend.reviewrequest.implement.RevisionDocumentReader;
 import com.ubidict.backend.reviewrequest.service.model.CancelReviewRequestCommand;
 import com.ubidict.backend.reviewrequest.service.model.CreateReviewRequestCommand;
 import com.ubidict.backend.reviewrequest.service.model.ReviewRequestResult;
 import com.ubidict.backend.reviewrequest.service.model.ReviewRequestSearchQuery;
 import com.ubidict.backend.reviewrequest.service.model.UpdateReviewRequestCommand;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
+import java.util.Comparator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +33,10 @@ public class ReviewRequestService {
     private final ReviewRequestWriter reviewRequestWriter;
     private final ReviewRequestRemover reviewRequestRemover;
     private final WorkspaceAccessValidator workspaceAccessValidator;
+    private final ApprovalAuthorityValidator approvalAuthorityValidator;
+    private final RevisionDocumentReader revisionDocumentReader;
+    private final RevisionDictionaryReader revisionDictionaryReader;
+    private final ReviewRequestEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public PageResult<ReviewRequestResult> search(ReviewRequestSearchQuery query) {
@@ -76,7 +88,16 @@ public class ReviewRequestService {
     @Transactional
     public ReviewRequestResult cancel(CancelReviewRequestCommand command) {
         ReviewRequest reviewRequest = readAccessible(command.reviewRequestId(), command.actorId());
-        reviewRequestRemover.remove(reviewRequest, command.actorId());
+        approvalAuthorityValidator.validateRequesterOrAdmin(reviewRequest, command.actorId());
+        if (reviewRequest.getRequesterId().equals(command.actorId())) {
+            reviewRequestRemover.remove(reviewRequest, command.actorId());
+        } else {
+            reviewRequestRemover.removeByAdministrator(reviewRequest);
+        }
+        Long sourceDraftId = sourceDraftId(reviewRequest);
+        if (sourceDraftId != null) {
+            eventPublisher.publishCanceled(reviewRequest, sourceDraftId);
+        }
 
         log.info(
                 "[ReviewRequestService.cancel] Review request canceled. reviewRequestId={}, actorId={}",
@@ -91,5 +112,18 @@ public class ReviewRequestService {
         workspaceAccessValidator.validateParticipant(reviewRequest.getWorkspaceId(), memberId);
 
         return reviewRequest;
+    }
+
+    private Long sourceDraftId(ReviewRequest reviewRequest) {
+        if (reviewRequest.getType() == ReviewRequestType.DOCUMENT) {
+            return revisionDocumentReader.read(reviewRequest.getId()).stream()
+                    .max(Comparator.comparingInt(RevisionDocument::getReexamineRound))
+                    .map(RevisionDocument::getDraftDocumentId)
+                    .orElse(null);
+        }
+        return revisionDictionaryReader.read(reviewRequest.getId()).stream()
+                .max(Comparator.comparingInt(RevisionDictionary::getReexamineRound))
+                .map(RevisionDictionary::getDraftDictionaryId)
+                .orElse(null);
     }
 }

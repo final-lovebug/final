@@ -33,9 +33,9 @@ app:
     workspace:
       mode: ${WORKSPACE_CROSSDOMAIN_MODE:real}
     document-publish:
-      mode: ${DOCUMENT_PUBLISH_CROSSDOMAIN_MODE:stub}
+      mode: ${DOCUMENT_PUBLISH_CROSSDOMAIN_MODE:real}
     dictionary-publish:
-      mode: ${DICTIONARY_PUBLISH_CROSSDOMAIN_MODE:stub}
+      mode: ${DICTIONARY_PUBLISH_CROSSDOMAIN_MODE:real}
   ai:
     extractor:
       mode: ${AI_EXTRACTOR_MODE:stub}

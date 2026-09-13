@@ -1,6 +1,8 @@
 package com.ubidict.backend.reviewrequest.domain;
 
 import com.ubidict.backend.common.domain.BaseEntity;
+import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.exception.CommonErrorCode;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -42,5 +44,23 @@ public class RevisionDictionary extends BaseEntity {
 
     public static RevisionDictionary create(Long r, Long d, int v, Long dd, Long by) {
         return new RevisionDictionary(r, d, v, dd, by);
+    }
+
+    public static RevisionDictionary reexamine(RevisionDictionary previous, int round, Long createdBy) {
+        RevisionDictionary revision = new RevisionDictionary(
+                previous.reviewRequestId,
+                previous.dictionaryId,
+                previous.baseVersionNo,
+                previous.draftDictionaryId,
+                createdBy);
+        revision.reexamineRound = round;
+        return revision;
+    }
+
+    public void recordResult(int resultVersionNo) {
+        if (resultVersionNo < 1 || this.resultVersionNo != null) {
+            throw new BusinessException(CommonErrorCode.COMMON_INVALID_REQUEST);
+        }
+        this.resultVersionNo = resultVersionNo;
     }
 }

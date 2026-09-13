@@ -2,7 +2,6 @@ package com.ubidict.backend.reviewrequest.presentation;
 
 import com.ubidict.backend.common.presentation.PageResponse;
 import com.ubidict.backend.reviewrequest.domain.*;
-import com.ubidict.backend.reviewrequest.presentation.dto.CreateReviewRequestRequest;
 import com.ubidict.backend.reviewrequest.presentation.dto.ReviewRequestResponse;
 import com.ubidict.backend.reviewrequest.presentation.dto.UpdateReviewRequestRequest;
 import com.ubidict.backend.reviewrequest.service.ReviewRequestService;
@@ -11,7 +10,6 @@ import com.ubidict.backend.reviewrequest.service.model.ReviewRequestSearchQuery;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -47,15 +45,6 @@ public class ReviewRequestController {
         var result = reviewRequestService.search(new ReviewRequestSearchQuery(
                 workspaceId, type, status, requesterId, reviewerMemberId, page, size, sort));
         return ResponseEntity.ok(PageResponse.from(result.map(ReviewRequestResponse::from)));
-    }
-
-    @PostMapping
-    public ResponseEntity<ReviewRequestResponse> create(
-            @RequestParam Long memberId, @Valid @RequestBody CreateReviewRequestRequest request) {
-        ReviewRequestResponse response =
-                ReviewRequestResponse.from(reviewRequestService.create(request.toCommand(memberId)));
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{reviewRequestId}")
