@@ -84,10 +84,27 @@ public class DraftDictionary extends BaseEntity {
     }
 
     public void markReviewRequested() {
-        if (status == DraftDictionaryStatus.REVIEW_REQUESTED)
-            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED);
+        if (status == DraftDictionaryStatus.REVIEW_REQUESTED) return;
         if (!isExamined()) throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NOT_EXAMINED);
         status = DraftDictionaryStatus.REVIEW_REQUESTED;
+    }
+
+    public void reopen() {
+        if (status == DraftDictionaryStatus.EXAMINED) return;
+        validateReviewRequestedTransition();
+        status = DraftDictionaryStatus.EXAMINED;
+    }
+
+    public void reopenForRedecision() {
+        if (status == DraftDictionaryStatus.EXAMINING) return;
+        validateReviewRequestedTransition();
+        status = DraftDictionaryStatus.EXAMINING;
+    }
+
+    public void markRevised() {
+        if (status == DraftDictionaryStatus.REVISED) return;
+        validateReviewRequestedTransition();
+        status = DraftDictionaryStatus.REVISED;
     }
 
     public void validateExamining() {
@@ -107,6 +124,12 @@ public class DraftDictionary extends BaseEntity {
         }
         if (status != DraftDictionaryStatus.EXAMINED) {
             throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NOT_EXAMINED);
+        }
+    }
+
+    private void validateReviewRequestedTransition() {
+        if (status != DraftDictionaryStatus.REVIEW_REQUESTED) {
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_INVALID_STATUS_TRANSITION);
         }
     }
 
