@@ -1,6 +1,8 @@
 package com.ubidict.backend.revisionlog.infra.event;
 
 import com.ubidict.backend.dictionary.domain.event.DictionaryRevisedEvent;
+import com.ubidict.backend.document.domain.event.DocumentEditedEvent;
+import com.ubidict.backend.reviewrequest.domain.event.ReviewRequestRevisedEvent;
 import com.ubidict.backend.revisionlog.service.RevisionLogEventHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -19,6 +21,18 @@ public class InMemoryRevisionLogEventListener {
     @Async
     @TransactionalEventListener
     public void on(DictionaryRevisedEvent event) {
+        handler.handle(event);
+    }
+
+    @Async
+    @TransactionalEventListener
+    public void on(DocumentEditedEvent event) {
+        handler.handle(event);
+    }
+
+    @Async
+    @TransactionalEventListener
+    public void on(ReviewRequestRevisedEvent event) {
         handler.handle(event);
     }
 }

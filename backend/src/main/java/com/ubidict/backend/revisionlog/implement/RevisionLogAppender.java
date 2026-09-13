@@ -20,7 +20,20 @@ public class RevisionLogAppender {
     private final RevisionLogRepository revisionLogRepository;
     private final RevisionLogEntryRepository revisionLogEntryRepository;
 
-    public Optional<RevisionLog> append(RevisionLog revisionLog, List<DictionaryTermChange> changes) {
+    public Optional<RevisionLog> appendDictionary(RevisionLog revisionLog, List<DictionaryTermChange> changes) {
+        return append(
+                revisionLog,
+                changes.stream()
+                        .map(change -> RevisionLogEntry.term(
+                                null,
+                                change.changeType(),
+                                change.term().preferredForm(),
+                                change.term().englishName(),
+                                change.detail()))
+                        .toList());
+    }
+
+    public Optional<RevisionLog> append(RevisionLog revisionLog, List<RevisionLogEntry> entries) {
         if (revisionLogRepository.existsByWorkspaceIdAndTargetTypeAndTargetIdAndVersionNo(
                 revisionLog.getWorkspaceId(),
                 revisionLog.getTargetType(),
@@ -36,14 +49,8 @@ public class RevisionLogAppender {
 
         try {
             RevisionLog saved = revisionLogRepository.saveAndFlush(revisionLog);
-            revisionLogEntryRepository.saveAll(changes.stream()
-                    .map(change -> RevisionLogEntry.term(
-                            saved.getId(),
-                            change.changeType(),
-                            change.term().preferredForm(),
-                            change.term().englishName(),
-                            change.detail()))
-                    .toList());
+            revisionLogEntryRepository.saveAll(
+                    entries.stream().map(entry -> copyFor(saved.getId(), entry)).toList());
             return Optional.of(saved);
         } catch (DataIntegrityViolationException exception) {
             log.debug(
@@ -53,5 +60,17 @@ public class RevisionLogAppender {
                     revisionLog.getVersionNo());
             return Optional.empty();
         }
+    }
+
+    private static RevisionLogEntry copyFor(Long revisionLogId, RevisionLogEntry entry) {
+        if (entry.getReplacement() != null) {
+            return RevisionLogEntry.replacement(revisionLogId, entry.getSubject(), entry.getReplacement());
+        }
+        return RevisionLogEntry.term(
+                revisionLogId,
+                entry.getChangeType(),
+                entry.getSubject(),
+                entry.getSubjectEnglishName(),
+                entry.getDetail());
     }
 }

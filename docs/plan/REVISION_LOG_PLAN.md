@@ -283,7 +283,8 @@ record TermSnapshot(String preferredForm, String englishName, String definition)
 record DictionaryVersionSnapshot(Long dictionaryId, Long publishedBy, OffsetDateTime publishedAt) {}
 record DocumentVersionSnapshot(int versionNo, Integer dictionaryVersionNo, boolean edited,
                                OffsetDateTime publishedAt, Long publishedBy) {}
-record DocumentRevisionSnapshot(Long documentId, Long draftDocumentId, int resultVersionNo, Long performedBy) {}
+record DocumentRevisionSnapshot(Long workspaceId, Long documentId, Long draftDocumentId, int resultVersionNo,
+                                Long performedBy) {}
 record AppliedSuggestion(String originTerm, String suggestionTerm) {}
 ```
 

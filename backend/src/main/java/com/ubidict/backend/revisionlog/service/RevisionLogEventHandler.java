@@ -1,16 +1,21 @@
 package com.ubidict.backend.revisionlog.service;
 
 import com.ubidict.backend.dictionary.domain.event.DictionaryRevisedEvent;
+import com.ubidict.backend.document.domain.event.DocumentEditedEvent;
+import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
+import com.ubidict.backend.reviewrequest.domain.event.ReviewRequestRevisedEvent;
 import com.ubidict.backend.revisionlog.domain.RevisionLog;
 import com.ubidict.backend.revisionlog.domain.RevisionLogGrade;
 import com.ubidict.backend.revisionlog.implement.DictionaryDiff;
 import com.ubidict.backend.revisionlog.implement.DictionaryDiffCalculator;
 import com.ubidict.backend.revisionlog.implement.DictionaryGradeDecider;
 import com.ubidict.backend.revisionlog.implement.DocumentImpactCounter;
+import com.ubidict.backend.revisionlog.implement.DocumentRevisionAssembler;
 import com.ubidict.backend.revisionlog.implement.RevisionLogAppender;
 import com.ubidict.backend.revisionlog.implement.RevisionSummaryFactory;
 import com.ubidict.backend.revisionlog.infra.port.DictionaryTermQueryPort;
 import com.ubidict.backend.revisionlog.infra.port.DictionaryVersionSnapshot;
+import com.ubidict.backend.revisionlog.infra.port.ReviewRequestQueryPort;
 import com.ubidict.backend.revisionlog.infra.port.TermSnapshot;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +35,8 @@ public class RevisionLogEventHandler {
     private final DocumentImpactCounter documentImpactCounter;
     private final RevisionSummaryFactory revisionSummaryFactory;
     private final RevisionLogAppender revisionLogAppender;
+    private final DocumentRevisionAssembler documentRevisionAssembler;
+    private final ReviewRequestQueryPort reviewRequestQueryPort;
 
     @Transactional
     public void handle(DictionaryRevisedEvent event) {
@@ -41,6 +48,26 @@ public class RevisionLogEventHandler {
                                 "[RevisionLogEventHandler.handle] Dictionary version not found. workspaceId={}, versionNo={}",
                                 event.workspaceId(),
                                 event.versionNo()));
+    }
+
+    @Transactional
+    public void handle(DocumentEditedEvent event) {
+        documentRevisionAssembler.appendDirectEdit(event.workspaceId(), event.documentId(), event.versionNo());
+    }
+
+    @Transactional
+    public void handle(ReviewRequestRevisedEvent event) {
+        if (event.type() != ReviewRequestType.DOCUMENT) {
+            return;
+        }
+
+        reviewRequestQueryPort
+                .findDocumentRevision(event.reviewRequestId())
+                .ifPresentOrElse(
+                        revision -> documentRevisionAssembler.appendReviewRevision(revision.workspaceId(), revision),
+                        () -> log.warn(
+                                "[RevisionLogEventHandler.handle] Document revision not found. reviewRequestId={}",
+                                event.reviewRequestId()));
     }
 
     private void appendDictionaryRevision(DictionaryRevisedEvent event, DictionaryVersionSnapshot current) {
@@ -68,7 +95,7 @@ public class RevisionLogEventHandler {
                 revisionSummaryFactory.forDictionary(grade, diff),
                 current.publishedBy(),
                 current.publishedAt());
-        revisionLogAppender.append(revisionLog, diff.changes());
+        revisionLogAppender.appendDictionary(revisionLog, diff.changes());
     }
 
     private List<TermSnapshot> readPreviousTerms(Long workspaceId, Integer previousVersionNo) {
