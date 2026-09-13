@@ -22,11 +22,12 @@
 | `DI-` | **DraftDictionary(사전 초안)** | `DRAFT_DICTIONARY_PLAN.md` |
 | `RR-` | ReviewRequest | `REVIEW_REQUEST_PLAN.md` |
 | `NT-` | Notification | `NOTIFICATION_PLAN.md` |
+| `RL-` | **RevisionLog(개정 이력)** | `REVISION_LOG_PLAN.md` |
 | `T-` | 통합·공통 | 이 문서 6절 |
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다. 세션 지시문에 태스크 ID를 적을 때 한 글자 차이로 다른 도메인을 구현하게 된다.
 
-**결정 ID**는 `D-1`~`D-18`(초안·리뷰 3개 문서 전역 공유), `G-1`~`G-15`(큰 흐름), `D-19`~`D-32`(2026-09-10), `D-33`~`D-37`(2026-09-12 잔여 병렬화), `D-38`~`D-43`(도메인 Phase 3~4), `D-44`~`D-46`(2026-09-13 마무리 통합), `D-47`~`D-54`(2026-09-13 Notification 신설)를 쓴다. **새 결정은 `D-55`부터**다.
+**결정 ID**는 `D-1`~`D-18`(초안·리뷰 3개 문서 전역 공유), `G-1`~`G-15`(큰 흐름), `D-19`~`D-32`(2026-09-10), `D-33`~`D-37`(2026-09-12 잔여 병렬화), `D-38`~`D-43`(도메인 Phase 3~4), `D-44`~`D-46`(2026-09-13 마무리 통합), `D-47`~`D-54`(2026-09-13 Notification 신설), `D-55`~`D-61`(2026-09-13 RevisionLog 신설)를 쓴다. **새 결정은 `D-62`부터**다.
 
 **태스크 두 개가 늘고 하나가 폐기됐다**(2026-09-12).
 
@@ -204,7 +205,7 @@ chore/WLSH-145-contracts   크로스 도메인 계약        ← 단독 선행
 | `workspace/domain/Permission` | **Workspace** | 다른 도메인이 `Permission.ADMIN`을 인자로 넘긴다. 상수를 지우거나 이름을 바꾸지 않는다 |
 | `docs/API.md` | **도메인별 자기 절만** | 각 도메인은 파일 **끝에 자기 `# **{도메인} API**` 절을 추가**한다. Workspace 절의 골격(도입 문단 → 요약 표 → 엔드포인트 절 → 에러 표)을 따른다. **공통 규칙·페이징·버저닝·에러 응답 형식 절은 건드리지 않는다** — 그 절들은 `T-DOC-1`이 고친다 |
 | `backend/src/main/resources/application.yml`, `backend/src/test/resources/application.yml` | **선행 PR이 키를 전부 선언한다** | `app.messaging.mode`·`app.crossdomain.*`·`app.ai.*`를 미리 깔아 두고, **이후 각 PR은 자기 한 줄의 `stub`을 `real`로 뒤집기만 한다.** 새 키가 필요하면 그 PR이 두 파일에 함께 넣는다 — **테스트 쪽 파일이 main을 병합이 아니라 대체하므로 한쪽만 고치면 컨텍스트 로딩이 깨진다**(그 파일 상단 주석이 근거를 갖고 있다). `app.crossdomain.review-request.*`·`app.messaging.sqs.*`·`spring.cloud.aws.region.*`의 주인은 **Notification**이다 |
-| Flyway 마이그레이션 | 대역으로 분리 | member 1–99 / **workspace 100–199** / **document 200–299** / **dictionary 300–399** / DraftDocument 400–499 / DraftDictionary 500–599 / ReviewRequest 600–699 / **Notification 700–799**(`D-48`) / 공통·사후 정리 900–999. 도메인 내부는 10 단위로 증가시킨다. **개발 브랜치 DB를 항상 리셋하므로 머지 순서와 번호 순서가 어긋나도 무방하다**(`T-INT-1` 폐기) |
+| Flyway 마이그레이션 | 대역으로 분리 | member 1–99 / **workspace 100–199** / **document 200–299** / **dictionary 300–399** / DraftDocument 400–499 / DraftDictionary 500–599 / ReviewRequest 600–699 / **Notification 700–799**(`D-48`) / **RevisionLog 800–899**(`D-55`) / 공통·사후 정리 900–999. 도메인 내부는 10 단위로 증가시킨다. **개발 브랜치 DB를 항상 리셋하므로 머지 순서와 번호 순서가 어긋나도 무방하다**(`T-INT-1` 폐기) |
 
 **기존 마이그레이션 파일은 고치지 않는다.** `V1`(member)·`V2`(workspace)·`V200`·`V201`(document)·`V300`(dictionary)은 이미 머지됐고, 파일명이나 내용을 바꾸면 Flyway 체크섬이 어긋난다. `V2`가 대역 밖인 것은 `T-INT-1`이 `out-of-order`로 덮는다.
 
@@ -278,7 +279,7 @@ Phase가 아니라 태스크(`WS-4`, `DOC-2`, `RR-1`)를 단위로 삼는다. Dr
 
 `feat/WLSH-{티켓번호}-{도메인}-phase-{번호}` — 예: `feat/WLSH-124-workspace-phase-2`, `feat/WLSH-135-document-phase-2`.
 
-**도메인 슬러그는 기존에 쓰던 것을 그대로 쓴다** — `workspace` · `document` · `dictionary` · `draft-doc` · `draft-dict` · `review-req`.
+**도메인 슬러그는 기존에 쓰던 것을 그대로 쓴다** — `workspace` · `document` · `dictionary` · `draft-doc` · `draft-dict` · `review-req` · `notification` · `revision-log`.
 
 **Phase 번호는 각 문서 12절의 Phase를 그대로 잇는다.** 잔여 작업은 `phase-3`·`phase-4`가 된다(2절). Phase 경계와 어긋나게 담아야 할 때는 PR 설명에 이유를 적는다 — 지금 해당하는 것은 `dictionary-phase-3`이 `DIC-3`(Phase 2 잔여)을 함께 담는 것 하나다.
 
