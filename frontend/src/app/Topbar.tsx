@@ -1,8 +1,11 @@
-import { useMatches, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useMatches, useNavigate, useParams } from 'react-router-dom'
 import { logout as logoutRequest } from '../features/auth/api/logout'
 import { useAuthStore } from '../shared/stores/authStore'
 import { routes } from '../shared/config/routes'
 import { Avatar, Button, Pill } from '../shared/ui'
+import { NotificationPanel } from './NotificationPanel'
+import { useUnreadCount } from '../features/notification/hooks/useUnreadCount'
 
 interface RouteHandle {
   title?: string
@@ -10,8 +13,10 @@ interface RouteHandle {
 
 // ui/main.js renderTopbar() 이식. 제목은 SCREEN_TITLES 같은 별도 표를 다시 만들지 않고,
 // 각 라우트 정의(src/app/router.tsx)의 handle.title을 그대로 읽어온다 — 라우트와 제목이
-// 어긋날 일이 없다. 알림 패널(bell)과 아바타 스택은 실제 데이터가 붙는 Phase 5~6에서 채운다.
+// 어긋날 일이 없다. 알림 벨은 NotificationPanel(docs/API.md "Notification API")로 뺐다 —
+// 미읽음 수만 여기서 폴링하고, 목록·읽음 처리는 패널이 열렸을 때만 불러온다.
 export function Topbar() {
+  const { workspaceId = '' } = useParams<{ workspaceId: string }>()
   const matches = useMatches()
   const navigate = useNavigate()
   const clearAuth = useAuthStore((state) => state.logout)
@@ -19,6 +24,21 @@ export function Topbar() {
     .reverse()
     .map((match) => match.handle as RouteHandle | undefined)
     .find((h) => h?.title)
+
+  const { data: unreadCount } = useUnreadCount(workspaceId)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const bellRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!panelOpen) return
+    function handleClickOutside(event: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(event.target as Node)) {
+        setPanelOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [panelOpen])
 
   async function handleLogout() {
     try {
@@ -44,14 +64,22 @@ export function Topbar() {
           <Avatar initial="" tone="warn" size={26} className="-ml-2 border-2 border-surface" />
           <Avatar initial="" tone="success" size={26} className="-ml-2 border-2 border-surface" />
         </div>
-        <button
-          type="button"
-          className="relative flex h-8 w-8 items-center justify-center rounded-sm hover:bg-bg"
-          aria-label="알림"
-        >
-          <span className="block h-4 w-4 rounded-[50%_50%_50%_4px] border-[1.6px] border-text-tertiary" />
-          <span className="absolute right-[7px] top-[6px] h-[7px] w-[7px] rounded-full border-[1.5px] border-surface bg-red-500" />
-        </button>
+        <div ref={bellRef} className="relative">
+          <button
+            type="button"
+            className="relative flex h-8 w-8 items-center justify-center rounded-sm hover:bg-bg"
+            aria-label="알림"
+            onClick={() => setPanelOpen((open) => !open)}
+          >
+            <span className="block h-4 w-4 rounded-[50%_50%_50%_4px] border-[1.6px] border-text-tertiary" />
+            {Boolean(unreadCount) && (
+              <span className="absolute right-[7px] top-[6px] h-[7px] w-[7px] rounded-full border-[1.5px] border-surface bg-red-500" />
+            )}
+          </button>
+          {panelOpen && (
+            <NotificationPanel workspaceId={workspaceId} onNavigate={() => setPanelOpen(false)} />
+          )}
+        </div>
         <Button variant="dangerText" size="sm" onClick={handleLogout}>
           로그아웃
         </Button>
