@@ -111,7 +111,7 @@
 
 **`T-INT-4`는 신설하지 않는다** — `D-26`(유래 리비전을 두지 않는다)으로 필요가 사라졌다.
 
-> **발행 포트의 의존은 한 방향이다.** `RR-4b`가 `DocumentVersionPublishPort`·`DictionaryVersionPublishPort`를 **정의하고 스텁까지 만들어** 자기 태스크를 완결한다(`docs/ARCHITECTURE.md` 「제공 도메인이 아직 없으면 스텁을 함께 만든다」). 그 뒤 제공 도메인이 real 어댑터로 갈아끼운다 — `DIC-3`·`DOC-6`이 `RR-4b`를 기다리고, **`RR-4b`는 둘을 기다리지 않는다.** 반대로 읽으면 순환이 생긴다.
+> **발행 포트의 의존은 한 방향이다.** `RR-4b`가 `DocumentVersionPublishPort`·`DictionaryVersionPublishPort`를 **정의하고 스텁까지 만들어** 자기 태스크를 완결한다(`docs/ARCHITECTURE.md` 「제공 도메인이 아직 없으면 스텁을 함께 만든다」). 그 뒤 제공 도메인이 real 어댑터로 갈아끼운다 — `DIC-3`·`DOC-6`이 `RR-4b`를 기다리고, **`RR-4b`는 둘을 기다리지 않는다.** 반대로 읽으면 순환이 생긴다. 다만 문서 발행에 필요한 활성 사전집 버전은 발행 위임이 아니라 **조회**이므로, `RR-4b`가 소비 측 `ActiveDictionaryVersionQueryPort`와 Dictionary Repository 기반 real 어댑터를 함께 소유한다(`D-33`).
 
 ### 크리티컬 패스가 둘로 늘었다
 
@@ -156,6 +156,7 @@ chore/WLSH-145-contracts   크로스 도메인 계약        ← 단독 선행
 | 끊는 대상 | 방법 |
 | --- | --- |
 | `DIC-3`·`DOC-6` → `RR-4b` | `reviewrequest/infra/port/`에 발행 위임 포트 2개와 **스텁**을 만든다. 제공 도메인이 각자 real 어댑터로 갈아끼운다 |
+| `RR-4b` → 활성 사전집 | `reviewrequest/infra/port/`에 `ActiveDictionaryVersionQueryPort`를 정의하고, 소비 측에 Dictionary Repository 기반 real 어댑터와 스텁을 둔다 |
 | `DD-4`·`DI-4`·`DD-5`·`DI-5` → `DOC-4` | 소비 도메인에 `DocumentQueryPort`를 정의하고 **real 어댑터까지** 만든다(`DOC-4`의 실질 산출물 흡수) |
 | `RR-4b` → 초안 2개 | `reviewrequest/infra/port/`에 초안 스냅샷 조회 포트 2개 + real 어댑터 |
 | `DD-4` ↔ `DI-4` 상호 배타(`G-14`·`D-22`) | 두 초안 도메인이 서로를 보는 조회 포트 + real 어댑터 |
