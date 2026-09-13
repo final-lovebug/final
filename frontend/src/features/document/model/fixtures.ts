@@ -6,11 +6,17 @@ import type { Document, Label } from './types'
 // 이름은 DocumentListItem에 별도로 얹었다 — 실제로는 회원 도메인과 조인해서 나와야 할
 // 값이라, 여기 있는 ownerName/updaterName은 백엔드 연동 시 없어질 목업 전용 편의 필드다.
 export interface DocumentListItem extends Document {
-  ownerName: string
-  updaterName: string
-  /** docs/DOMAIN.md 미확정(Label 엔티티 없음) — features/document/model/types.ts의 Label 참고 */
+  /** 실 API엔 이름 조회 수단이 없다(T-INT-18, 2026-09-14 발견) — 실연동에서는 항상
+   * undefined이고 화면은 "—"로 표시한다. 목업에서는 계속 채워서 쓴다. */
+  ownerName?: string
+  updaterName?: string
+  /** docs/DOMAIN.md 미확정(Label 엔티티 없음) — features/document/model/types.ts의 Label 참고.
+   * 실 API는 라벨을 배열(`labels: string[]`, 최대 5개)로 주지만 화면은 아직 1개만
+   * 보여준다 — 실연동에서는 첫 번째 라벨만 채운다(후속 과제: 다중 라벨 표시). */
   label?: Label
-  /** 재검사 필요 / 뒤처짐. outdated 판별 속성도 아직 미확정이라 화면 표시용 값만 둔다 */
+  /** 재검사 필요 / 뒤처짐. 실연동에서는 `aligned`/`edited`(G-12, D-31)로 유도해서 채운다 —
+   * edited===true(직접 편집됨) → 'danger', aligned===false(사전집 갱신 후 안 맞춰짐)
+   * → 'warn', aligned===true → 배지 없음 */
   badge?: 'danger' | 'warn'
 }
 

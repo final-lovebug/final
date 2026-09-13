@@ -20,10 +20,18 @@ export interface Document {
   /** 작업 중 최신 본문. 10,000자 이내(docs/DOMAIN.md 정책) */
   content: string
   currentVersionNo: number
-  ownerId: MemberId
-  updaterId: MemberId
+  /** 실 API(`DocumentResponse`)는 작성자·최종 수정자를 구분하지 않고 `uploaderId` 하나만
+   * 준다 — 목업 전용 구분이라 옵셔널로 둔다(실연동에서는 ownerId만 uploaderId로 채움). */
+  ownerId?: MemberId
+  updaterId?: MemberId
+  /** G-12/D-31 — 사전집 기준에 맞춰져 있고 그 뒤로 편집되지 않았는지. 실 API에서만 옴. */
+  aligned?: boolean
+  /** 직접 편집으로 발행된 버전인지(G-9). 실 API에서만 옴. */
+  edited?: boolean
+  /** 최신 확정 버전이 기준으로 삼은 사전집 버전. 사전집이 없으면 null. */
+  dictionaryVersionNo?: number | null
   createdAt: string
-  createdBy: MemberId
+  createdBy?: MemberId
   updatedAt: string
 }
 
@@ -31,15 +39,17 @@ export interface DocumentVersion {
   id: DocumentVersionId
   documentId: DocumentId
   versionNo: number
-  /** 불변 스냅샷 */
-  body: string
+  /** 불변 스냅샷. 실 API의 버전 "목록" 응답엔 본문이 없다(docs/API.md 738행 —
+   * 특정 버전 단건 조회에만 있음) — 실연동에서는 undefined, 화면은 "—"로 표시한다.
+   * 본문이 꼭 필요하면 버전 클릭 시 단건 조회로 후속 과제화한다. */
+  body?: string
   publishedAt: string
   originRevisionId?: RevisionDocumentId
   /** 발행 시점 기준 사전집 버전 */
   dictionaryVersionNo?: number
-  createdAt: string
-  createdBy: MemberId
-  updatedAt: string
+  createdAt?: string
+  createdBy?: MemberId
+  updatedAt?: string
 }
 
 export type DraftDocumentStatus = 'IN_PROGRESS' | 'DONE' // 교정 중 / 교정완료
