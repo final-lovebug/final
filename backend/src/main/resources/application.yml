@@ -13,6 +13,11 @@ spring:
           google:
             client-id: "${GOOGLE_CLIENT_ID}"
             client-secret: "${GOOGLE_CLIENT_SECRET}"
+            # 실명(profile scope)을 받지 않는다 — 최초 로그인 시 사용자가 직접 입력한 닉네임을
+            # displayName으로 쓴다(REQ-USR-001 9/11 번복, docs/REQUIREMENTS.md 참고).
+            scope:
+              - openid
+              - email
 
 app:
   messaging:
