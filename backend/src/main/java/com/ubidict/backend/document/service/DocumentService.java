@@ -1,6 +1,8 @@
 package com.ubidict.backend.document.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.exception.CommonErrorCode;
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.document.domain.Document;
 import com.ubidict.backend.document.domain.DocumentVersion;
 import com.ubidict.backend.document.domain.Label;
@@ -31,6 +33,8 @@ import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,12 +79,21 @@ public class DocumentService {
      * 문서 수와 무관하게 질의는 네 번이다. 문서 목록, 문서별 최신 버전, 문서별 라벨 연결, 라벨 이름.
      */
     @Transactional(readOnly = true)
-    public List<DocumentSummaryResult> readAll(Long workspaceId, Long memberId, String labelName) {
+    public PageResult<DocumentSummaryResult> readAll(
+            Long workspaceId, Long memberId, String labelName, int page, int size, String sort) {
+        validatePagination(page, size);
         workspaceAccessValidator.validateParticipant(workspaceId, memberId);
 
-        List<Document> documents = labelName == null
-                ? documentReader.readAll(workspaceId)
-                : documentReader.readAllByLabel(workspaceId, Label.normalizeName(labelName));
+        String[] sortParts = parseDocumentSort(sort);
+        var pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        "desc".equalsIgnoreCase(sortParts[1]) ? Sort.Direction.DESC : Sort.Direction.ASC,
+                        sortParts[0]));
+        PageResult<Document> documentPage = documentReader.readPage(
+                workspaceId, labelName == null ? null : Label.normalizeName(labelName), pageable);
+        List<Document> documents = documentPage.content();
         List<Long> documentIds = documents.stream().map(Document::getId).toList();
 
         Map<Long, DocumentVersionSummary> currentVersions = documentVersionReader.readCurrentSummaries(documentIds);
@@ -89,13 +102,16 @@ public class DocumentService {
                 labelIds.values().stream().flatMap(List::stream).distinct().toList());
         Integer activeDictionaryVersionNo = activeDictionaryVersionNo(workspaceId);
 
-        return documents.stream()
-                .map(document -> DocumentSummaryResult.of(
-                        document,
-                        currentVersions.get(document.getId()),
-                        namesOf(labelIds.getOrDefault(document.getId(), List.of()), labelNames),
-                        activeDictionaryVersionNo))
-                .toList();
+        return documentPage.map(document -> DocumentSummaryResult.of(
+                document,
+                currentVersions.get(document.getId()),
+                namesOf(labelIds.getOrDefault(document.getId(), List.of()), labelNames),
+                activeDictionaryVersionNo));
+    }
+
+    public List<DocumentSummaryResult> readAll(Long workspaceId, Long memberId, String labelName) {
+        return readAll(workspaceId, memberId, labelName, 0, 100, "createdAt,desc")
+                .content();
     }
 
     @Transactional(readOnly = true)
@@ -158,14 +174,21 @@ public class DocumentService {
      * 문서 소속을 먼저 확인한다. 확인하지 않으면 다른 워크스페이스 문서의 버전이 새어 나간다.
      */
     @Transactional(readOnly = true)
-    public List<DocumentVersionSummaryResult> readVersions(Long workspaceId, Long documentId, Long memberId) {
+    public PageResult<DocumentVersionSummaryResult> readVersions(
+            Long workspaceId, Long documentId, Long memberId, int page, int size) {
+        validatePagination(page, size);
         workspaceAccessValidator.validateParticipant(workspaceId, memberId);
 
         Document document = documentReader.read(documentId, workspaceId);
 
-        return documentVersionReader.readHistory(document).stream()
-                .map(DocumentVersionSummaryResult::from)
-                .toList();
+        return documentVersionReader
+                .readHistoryPage(
+                        document, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "version.versionNo")))
+                .map(DocumentVersionSummaryResult::from);
+    }
+
+    public List<DocumentVersionSummaryResult> readVersions(Long workspaceId, Long documentId, Long memberId) {
+        return readVersions(workspaceId, documentId, memberId, 0, 100).content();
     }
 
     @Transactional(readOnly = true)
@@ -211,5 +234,21 @@ public class DocumentService {
 
     private Integer activeDictionaryVersionNo(Long workspaceId) {
         return documentAlignmentReader.activeVersionNo(workspaceId).orElse(null);
+    }
+
+    private static void validatePagination(int page, int size) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw new BusinessException(CommonErrorCode.COMMON_INVALID_REQUEST);
+        }
+    }
+
+    private static String[] parseDocumentSort(String sort) {
+        String[] parts = sort == null ? new String[0] : sort.split(",", -1);
+        if (parts.length != 2
+                || (!parts[0].equals("createdAt") && !parts[0].equals("title"))
+                || (!parts[1].equalsIgnoreCase("asc") && !parts[1].equalsIgnoreCase("desc"))) {
+            throw new BusinessException(CommonErrorCode.COMMON_INVALID_REQUEST);
+        }
+        return parts;
     }
 }
