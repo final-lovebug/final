@@ -3,6 +3,7 @@ package com.ubidict.backend.reviewrequest.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.reviewrequest.domain.Review;
@@ -15,6 +16,7 @@ import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator;
 import com.ubidict.backend.reviewrequest.implement.ReviewReader;
+import com.ubidict.backend.reviewrequest.implement.ReviewRequestEventPublisher;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
 import com.ubidict.backend.reviewrequest.implement.ReviseEligibilityCalculator;
@@ -63,6 +65,9 @@ class ReviseServiceTest {
     @Mock
     private ApprovalAuthorityValidator approvalAuthorityValidator;
 
+    @Mock
+    private ReviewRequestEventPublisher eventPublisher;
+
     private ReviseService reviseService;
 
     @BeforeEach
@@ -78,7 +83,8 @@ class ReviseServiceTest {
                 reviseWriter,
                 reviewRequestWriter,
                 workspacePolicyPort,
-                approvalAuthorityValidator);
+                approvalAuthorityValidator,
+                eventPublisher);
     }
 
     @DisplayName("발행하면 반영완료가 되고 반영일시가 기록된다.")
@@ -104,6 +110,7 @@ class ReviseServiceTest {
         assertThat(result.resultVersionNo()).isEqualTo(2);
         assertThat(request.getStatus()).isEqualTo(ReviewRequestStatus.REVISED);
         assertThat(request.getRevisedAt()).isNotNull();
+        verify(eventPublisher).publishRevised(request, 30L, 2);
     }
 
     @DisplayName("발행 조건을 충족하지 못하면 발행할 수 없다.")

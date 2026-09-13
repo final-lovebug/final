@@ -1,9 +1,11 @@
 package com.ubidict.backend.reviewrequest.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.reviewrequest.domain.ReviewRequest;
 import com.ubidict.backend.reviewrequest.domain.RevisionDictionary;
 import com.ubidict.backend.reviewrequest.domain.RevisionDocument;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
+import com.ubidict.backend.reviewrequest.implement.ReviewRequestEventPublisher;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.RevisionDictionaryReader;
 import com.ubidict.backend.reviewrequest.implement.RevisionDictionaryWriter;
@@ -26,20 +28,24 @@ public class RevisionService {
     private final RevisionDictionaryWriter dictionaryWriter;
     private final ReviewRequestReader requestReader;
     private final RevisionTypeValidator typeValidator;
+    private final ReviewRequestEventPublisher eventPublisher;
 
     @Transactional
     public RevisionResult submitDocument(SubmitRevisionCommand command) {
-        typeValidator.validate(requestReader.read(command.reviewRequestId()), true);
+        ReviewRequest request = requestReader.read(command.reviewRequestId());
+        typeValidator.validate(request, true);
         if (documents.exists(command.reviewRequestId(), 0)) {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_REVISION_ALREADY_EXISTS);
         }
-        return RevisionResult.from(documentWriter.write(RevisionDocument.create(
+        RevisionDocument revision = documentWriter.write(RevisionDocument.create(
                 command.reviewRequestId(),
                 command.targetId(),
                 command.baseVersionNo(),
                 command.draftId(),
                 command.proposedBody(),
-                command.actorId())));
+                command.actorId()));
+        eventPublisher.publishCreated(request, revision.getDraftDocumentId());
+        return RevisionResult.from(revision);
     }
 
     @Transactional(readOnly = true)
@@ -51,16 +57,19 @@ public class RevisionService {
 
     @Transactional
     public RevisionResult submitDictionary(SubmitRevisionCommand command) {
-        typeValidator.validate(requestReader.read(command.reviewRequestId()), false);
+        ReviewRequest request = requestReader.read(command.reviewRequestId());
+        typeValidator.validate(request, false);
         if (dictionaries.exists(command.reviewRequestId(), 0)) {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_REVISION_ALREADY_EXISTS);
         }
-        return RevisionResult.from(dictionaryWriter.write(RevisionDictionary.create(
+        RevisionDictionary revision = dictionaryWriter.write(RevisionDictionary.create(
                 command.reviewRequestId(),
                 command.targetId(),
                 command.baseVersionNo(),
                 command.draftId(),
-                command.actorId())));
+                command.actorId()));
+        eventPublisher.publishCreated(request, revision.getDraftDictionaryId());
+        return RevisionResult.from(revision);
     }
 
     @Transactional(readOnly = true)

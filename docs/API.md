@@ -1037,32 +1037,30 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 # **ReviewRequest API**
 
-초안에서 만든 개정안의 검토 흐름을 관리한다. Phase 1에서는 리뷰 요청 한 건의 생성·조회·수정·취소를 제공한다. 관련 도메인은 `reviewrequest`다.
+초안에서 만든 개정안의 검토·재교정·반영 흐름을 관리한다. 리뷰 요청과 최초 개정안은 초안 흐름에서 함께 생성하며, 관련 도메인은 `reviewrequest`다.
 
 ## **요청자 식별 — 임시 방식**
 
 Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다. **인증 전까지 운영 배포 대상이 아니다.**
 
-## **알아 둘 것 둘**
+## **알아 둘 것 셋**
 
-- 리뷰 요청은 `DOCUMENT` 또는 `DICTIONARY` 유형을 갖고 `PENDING_REVIEW` 상태로 시작한다. 리뷰어 지정과 개정안 등록은 후속 Phase에서 제공한다.
-- `POST /api/review-requests`는 초안 흐름이 완성되기 전까지만 쓰는 **INTERNALIZE** 엔드포인트다. 최종 흐름에서는 초안의 리뷰 요청 API가 요청과 개정안을 한 트랜잭션에서 함께 만든다.
+- 리뷰 요청은 `DOCUMENT` 또는 `DICTIONARY` 유형을 갖고 `PENDING_REVIEW` 상태로 시작한다.
+- 리뷰 요청과 개정안을 직접 생성하던 임시 API 3개는 제거했다. 생성은 초안의 리뷰 요청 흐름에서 시작한다.
+- 정족수가 1 이상이면 승인 수가 정족수를 충족하고 변경요청이 없어야 발행할 수 있다. 정족수가 0이면 판정과 무관하게 ADMIN 이상이 발행할 수 있다.
 
 ## **엔드포인트**
 
 | **Method** | **Path** | **권한** | **성공** | **태그** |
 | --- | --- | --- | --- | --- |
-| POST | `/api/review-requests` | 참여자 | `201` | **INTERNALIZE** |
 | GET | `/api/review-requests` | 참여자 | `200` | KEEP |
 | GET | `/api/review-requests/{reviewRequestId}` | 참여자 | `200` | KEEP |
 | PATCH | `/api/review-requests/{reviewRequestId}` | 참여자 | `200` | KEEP |
-| POST | `/api/review-requests/{reviewRequestId}/cancellation` | 요청자 | `200` | KEEP |
+| POST | `/api/review-requests/{reviewRequestId}/cancellation` | 요청자 또는 ADMIN 이상 | `200` | KEEP |
 | POST | `/api/review-requests/{reviewRequestId}/reviewers` | 참여자 | `201` | KEEP |
 | GET | `/api/review-requests/{reviewRequestId}/reviewers` | 참여자 | `200` | KEEP |
 | DELETE | `/api/review-requests/{reviewRequestId}/reviewers/{reviewerId}` | 참여자 | `204` | KEEP |
-| POST | `/api/review-requests/{reviewRequestId}/revision-documents` | 참여자 | `201` | **INTERNALIZE** |
 | GET | `/api/review-requests/{reviewRequestId}/revision-documents` | 참여자 | `200` | KEEP |
-| POST | `/api/review-requests/{reviewRequestId}/revision-dictionaries` | 참여자 | `201` | **INTERNALIZE** |
 | GET | `/api/review-requests/{reviewRequestId}/revision-dictionaries` | 참여자 | `200` | KEEP |
 | POST | `/api/review-requests/{reviewRequestId}/reviews` | 참여자 | `201` | KEEP |
 | GET | `/api/review-requests/{reviewRequestId}/reviews` | 참여자 | `200` | KEEP |
@@ -1070,41 +1068,13 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | POST | `/api/reviews/{reviewId}/comments` | 참여자 | `201` | KEEP |
 | GET | `/api/review-requests/{reviewRequestId}/comments` | 참여자 | `200` | KEEP |
 | PATCH | `/api/comments/{commentId}/resolution` | 참여자 | `200` | KEEP |
+| POST | `/api/review-requests/{reviewRequestId}/reexaminations` | 요청자 또는 ADMIN 이상 | `201` | KEEP |
+| GET | `/api/review-requests/{reviewRequestId}/reexaminations` | 참여자 | `200` | KEEP |
+| POST | `/api/review-requests/{reviewRequestId}/revision` | ADMIN 이상 | `200` | KEEP |
 
 목록 조회는 `workspaceId`가 필수이며 `type`, `status`, `requesterId`, `reviewerMemberId`로 필터링한다. `page`는 0부터 시작하고 `size`는 1~100, `sort`는 `createdAt`, `updatedAt`, `id`와 `asc`/`desc` 조합만 허용한다.
 
 리비전 조회는 선택적인 `round` 파라미터로 재교정 회차를 지정할 수 있다. 첫 사전집의 사전 개정안은 `dictionaryId`를 생략하고 `baseVersionNo`를 `0`으로 보낸다.
-
-## **리뷰 요청 생성**
-
-`POST /api/review-requests?memberId={memberId}` → `201 Created`
-
-```json
-{
-  "workspaceId": 10,
-  "type": "DOCUMENT",
-  "title": "결제 문서 리뷰",
-  "description": "결제 문서의 개정안을 검토합니다."
-}
-```
-
-`type`은 `DOCUMENT` 또는 `DICTIONARY`다. 제목은 필수이고 255자 이하다. 설명은 생략할 수 있다.
-
-```json
-{
-  "reviewRequestId": 100,
-  "workspaceId": 10,
-  "type": "DOCUMENT",
-  "title": "결제 문서 리뷰",
-  "description": "결제 문서의 개정안을 검토합니다.",
-  "requesterId": 7,
-  "status": "PENDING_REVIEW",
-  "approvedAt": null,
-  "revisedAt": null,
-  "createdAt": "2026-09-11T10:00:00.000000Z",
-  "updatedAt": "2026-09-11T10:00:00.000000Z"
-}
-```
 
 ## **리뷰 요청 상세 조회**
 
@@ -1129,7 +1099,7 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 `POST /api/review-requests/{reviewRequestId}/cancellation?memberId={memberId}` → `200 OK`
 
-요청자만 취소할 수 있다. 반영 완료 또는 이미 취소된 요청은 다시 취소할 수 없다. 응답의 `status`는 `CANCELED`다.
+요청자 또는 ADMIN 이상만 취소할 수 있다. 반영 완료 또는 이미 취소된 요청은 다시 취소할 수 없다. 응답의 `status`는 `CANCELED`다.
 
 ## **리뷰 제출과 이력 조회**
 
@@ -1160,6 +1130,36 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 ```
 
 집계는 회원별 최신 판정 하나만 사용하며 재교정 회차로 필터링하지 않는다. `requiredReviewerCount`는 조회 시점 워크스페이스 룰셋 값이고, 정족수가 `0`이면 변경요청 유무와 관계없이 `reviseEligible`이 `true`다.
+
+## **재교정 수행과 이력 조회**
+
+`POST /api/review-requests/{reviewRequestId}/reexaminations?memberId={memberId}` → `201 Created`
+
+```json
+{
+  "proposedBody": "변경요청을 반영한 문서 본문",
+  "addressedCommentIds": [31, 32]
+}
+```
+
+변경요청 상태에서 요청자 또는 ADMIN 이상이 수행한다. 문서 리뷰는 `proposedBody`로 새 본문 스냅샷을 만들고, 사전집 리뷰는 교정한 사전 초안을 다음 회차에서 다시 참조한다. 이전 회차의 승인은 유지된다.
+
+`GET /api/review-requests/{reviewRequestId}/reexaminations?memberId={memberId}` → `200 OK`
+
+응답은 회차 오름차순이며 각 항목은 `round`와 `performedAt`을 담는다.
+
+## **승인된 개정안 반영**
+
+`POST /api/review-requests/{reviewRequestId}/revision?memberId={memberId}` → `200 OK`
+
+```json
+{
+  "resultVersionNo": 2,
+  "performedAt": "2026-09-13T04:00:00.000000Z"
+}
+```
+
+ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전집 버전을 기준으로 새 버전을 만들며 기존 버전을 보존한다. 같은 리뷰 요청의 동시 반영은 낙관적 락으로 하나만 허용한다.
 
 ## **코멘트 추가와 조회**
 
@@ -1216,6 +1216,11 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 코멘트를 찾을 수 없음 | 404 | `REVIEW_REQUEST_COMMENT_NOT_FOUND` |
 | 코멘트 내용이 비어 있음 | 400 | `REVIEW_REQUEST_COMMENT_CONTENT_REQUIRED` |
 | 상위 코멘트가 다른 리뷰에 속함 | 400 | `REVIEW_REQUEST_INVALID_COMMENT_PARENT` |
+| 변경요청 상태가 아닌 요청을 재교정 | 409 | `REVIEW_REQUEST_NOT_REEXAMINABLE` |
+| 발행 정족수 미충족 또는 변경요청 잔존 | 409 | `REVIEW_REQUEST_NOT_ELIGIBLE_FOR_REVISE` |
+| 이미 반영된 요청을 다시 발행 | 409 | `REVIEW_REQUEST_ALREADY_REVISED` |
+| ADMIN 미만이 반영 시도 | 403 | `REVIEW_REQUEST_ACCESS_DENIED` |
+| 같은 요청이 동시에 변경됨 | 409 | `REVIEW_REQUEST_CONCURRENT_MODIFICATION` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---

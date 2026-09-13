@@ -4,11 +4,14 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequest;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
 import com.ubidict.backend.reviewrequest.domain.Revise;
+import com.ubidict.backend.reviewrequest.domain.RevisionDictionary;
+import com.ubidict.backend.reviewrequest.domain.RevisionDocument;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator.ReviewAggregate;
 import com.ubidict.backend.reviewrequest.implement.ReviewReader;
+import com.ubidict.backend.reviewrequest.implement.ReviewRequestEventPublisher;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
 import com.ubidict.backend.reviewrequest.implement.ReviseEligibilityCalculator;
@@ -41,6 +44,7 @@ public class ReviseService {
     private final ReviewRequestWriter reviewRequestWriter;
     private final WorkspacePolicyPort workspacePolicyPort;
     private final ApprovalAuthorityValidator approvalAuthorityValidator;
+    private final ReviewRequestEventPublisher eventPublisher;
 
     @Transactional
     public ReviseResult perform(PerformReviseCommand command) {
@@ -50,19 +54,17 @@ public class ReviseService {
         validateNotRevised(reviewRequest);
         validateEligible(reviewRequest);
 
-        int resultVersionNo = reviewRequest.getType() == ReviewRequestType.DOCUMENT
-                ? reviseProcessor.processDocument(
-                        reviewRequest, revisionDocumentReader.readCurrent(reviewRequest.getId()), command.actorId())
-                : reviseProcessor.processDictionary(
-                        reviewRequest, revisionDictionaryReader.readCurrent(reviewRequest.getId()), command.actorId());
+        PublishResult publishResult = publish(reviewRequest, command.actorId());
 
-        Revise revise = reviseWriter.write(Revise.perform(reviewRequest.getId(), resultVersionNo, command.actorId()));
+        Revise revise = reviseWriter.write(
+                Revise.perform(reviewRequest.getId(), publishResult.resultVersionNo(), command.actorId()));
         reviewRequest.markRevised(revise.getPerformedAt());
+        eventPublisher.publishRevised(reviewRequest, publishResult.targetDraftId(), publishResult.resultVersionNo());
 
         log.info(
                 "[ReviseService.perform] Review request revised. reviewRequestId={}, resultVersionNo={}, actorId={}",
                 reviewRequest.getId(),
-                resultVersionNo,
+                publishResult.resultVersionNo(),
                 command.actorId());
 
         return ReviseResult.from(revise);
@@ -83,6 +85,18 @@ public class ReviseService {
         }
     }
 
+    private PublishResult publish(ReviewRequest reviewRequest, Long actorId) {
+        if (reviewRequest.getType() == ReviewRequestType.DOCUMENT) {
+            RevisionDocument revision = revisionDocumentReader.readCurrent(reviewRequest.getId());
+            int versionNo = reviseProcessor.processDocument(reviewRequest, revision, actorId);
+            return new PublishResult(revision.getDraftDocumentId(), versionNo);
+        }
+
+        RevisionDictionary revision = revisionDictionaryReader.readCurrent(reviewRequest.getId());
+        int versionNo = reviseProcessor.processDictionary(reviewRequest, revision, actorId);
+        return new PublishResult(revision.getDraftDictionaryId(), versionNo);
+    }
+
     private ReviewRequest lockForRevision(Long reviewRequestId) {
         try {
             ReviewRequest reviewRequest = reviewRequestReader.readForRevision(reviewRequestId);
@@ -92,4 +106,6 @@ public class ReviseService {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_CONCURRENT_MODIFICATION);
         }
     }
+
+    private record PublishResult(Long targetDraftId, int resultVersionNo) {}
 }

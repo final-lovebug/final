@@ -11,6 +11,7 @@ import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator;
 import com.ubidict.backend.reviewrequest.implement.ReviewReader;
+import com.ubidict.backend.reviewrequest.implement.ReviewRequestEventPublisher;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
 import com.ubidict.backend.reviewrequest.implement.ReviseEligibilityCalculator;
@@ -58,6 +59,9 @@ class ReviewRequestConcurrencyTest {
     @Mock
     private ApprovalAuthorityValidator approvalAuthorityValidator;
 
+    @Mock
+    private ReviewRequestEventPublisher eventPublisher;
+
     private ReviseService reviseService;
 
     @BeforeEach
@@ -73,7 +77,8 @@ class ReviewRequestConcurrencyTest {
                 reviseWriter,
                 reviewRequestWriter,
                 workspacePolicyPort,
-                approvalAuthorityValidator);
+                approvalAuthorityValidator,
+                eventPublisher);
     }
 
     @DisplayName("같은 요청을 동시에 발행하면 충돌을 감지한다.")
