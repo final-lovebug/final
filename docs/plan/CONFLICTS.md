@@ -283,7 +283,7 @@
 | ID | 질문 | 남긴 문서 | 답 |
 | --- | --- | --- | --- |
 | **O-1** | 승인된 후보어를 `Term`으로 만들고 새 버전을 발행하는 주체가 Dictionary인지 ReviewRequest의 `Revise`인지 — 「Dictionary 도메인 착수 시 합의」로 미뤘다 | `DRAFT_DICTIONARY_PLAN.md` 13절 | **초안이 최종 목록을 제공하고 Dictionary가 발행한다.** ADMIN의 수동 반영(`G-3`)이 `DictionaryVersionPublishPort`를 호출하고, 포트는 통합 목록을 받는다(`R-12`) | 해소(`G-1`·`G-3`) |
-| **O-2** | 참여자 이탈 이벤트를 Workspace가 발행할지 미정 — 리뷰어였던 참여자가 빠질 때 | `REVIEW_REQUEST_PLAN.md` 9·13절(수신 이벤트 표에 `**미정**`) | **`WORKSPACE_PLAN.md`가 `ParticipantRemovedEvent(workspaceId, memberId, occurredAt)`를 정의하고 `WS-5`에서 발행한다** | `WS-5` |
+| **O-2** | 참여자 이탈 이벤트를 Workspace가 발행할지 미정 — 리뷰어였던 참여자가 빠질 때 | `REVIEW_REQUEST_PLAN.md` 9·13절(수신 이벤트 표에 `**미정**`) | **`WORKSPACE_PLAN.md`가 `ParticipantRemovedEvent(workspaceId, memberId, occurredAt)`를 정의하고 `WS-5`에서 발행한다** | 해소(`WS-5`) |
 | **O-3** | `SuggestionTerm.suggestionTerm` 값의 출처 — 「Dictionary 도메인이 생기면 `DictionaryQueryPort`로 승격 제안」 | `DRAFT_DOCUMENT_PLAN.md` 13절 | **이미 생겼다.** `DICTIONARY_PLAN.md` 9절이 표준어·정의 스냅샷 조회 포트를 제공한다(`DIC-4`) | `DIC-4` |
 | **O-4** | `DocumentQueryPort.isOutdated` 스텁(`false`)의 real 전환 시점 | `DRAFT_DICTIONARY_PLAN.md` 2-1절 `D-15` | 추출 대상 필터가 MVP1 필수라 즉시 필요하다. `DOC-1` 직후 전환하고 이름·의미는 `aligned`로 바뀐다 | 해소(`G-12`·`D-31`) |
 
