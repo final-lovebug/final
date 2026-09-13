@@ -3,6 +3,7 @@ import { AppLayout } from './AppLayout'
 import { RequireAuth } from './RequireAuth'
 import { LoginPage } from '../pages/LoginPage'
 import { OAuthCallbackPage } from '../pages/OAuthCallbackPage'
+import { NicknameOnboardingPage } from '../pages/onboarding/NicknameOnboardingPage'
 import { WorkspacesPage } from '../pages/WorkspacesPage'
 import { DocumentListPage } from '../pages/document/DocumentListPage'
 import { DocumentDraftListPage } from '../pages/document/DocumentDraftListPage'
@@ -35,6 +36,11 @@ export const router = createBrowserRouter([
     path: '/oauth/callback',
     element: <OAuthCallbackPage />,
     handle: { title: '로그인 처리 중' },
+  },
+  {
+    path: '/onboarding/nickname',
+    element: <NicknameOnboardingPage />,
+    handle: { title: '닉네임 설정' },
   },
   {
     element: <RequireAuth />,

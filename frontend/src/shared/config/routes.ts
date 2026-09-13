@@ -3,6 +3,8 @@
 // 이 파일도 함께 바꾼다. 화면-라우트 매핑 근거는 frontend/docs/ARCHITECTURE.md 참고.
 export const routes = {
   login: () => '/login',
+  oauthCallback: () => '/oauth/callback',
+  onboardingNickname: () => '/onboarding/nickname',
   workspaces: () => '/workspaces',
 
   documents: (workspaceId: string) => `/workspaces/${workspaceId}/documents`,
