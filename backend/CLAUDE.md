@@ -43,6 +43,7 @@
 - 500 - 599: draftdictionary 도메인
 - 600 - 699: reviewrequest 도메인
 - 700 - 799: notification 도메인
+- 800 - 899: revisionlog 도메인
 - 900 - 999: 공통 / 사후 정리
 
 ---

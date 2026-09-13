@@ -533,6 +533,56 @@
 
 ---
 
+## RevisionLog
+
+**개정 이력은 「개정안」이 아니다.** `RevisionDocument`·`RevisionDictionary`는 리뷰에 올라간 반영 **전**의 제안이고, `Revise`는 반영하는 **행위**이며, `RevisionLog`은 반영이 끝난 **뒤** 남는 결과 기록이다. 셋의 이름이 닮았으므로 문서와 코드에서 섞어 쓰지 않는다(`D-55`).
+
+### RevisionLog
+
+| 속성 | 영문 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- | --- |
+| 식별자 | id | RevisionLogId | O |  |
+| 워크스페이스 | workspaceId | WorkspaceId | O |  |
+| 대상 종류 | targetType | Enum | O | 사전집(DICTIONARY) / 문서(DOCUMENT). **두 축이 한 테이블에 산다**(`D-57`) |
+| 대상 | targetId | Long | O | 사전집이면 `Dictionary.id`, 문서면 `Document.id` |
+| 버전 번호 | versionNo | Int | O | 이 이력이 설명하는 확정 버전 |
+| 이전 버전 번호 | previousVersionNo | Int | X | **첫 버전이면 없다.** 비교 대상이 없다는 뜻이다 |
+| 경로 | origin | Enum | O | 업로드(UPLOAD) / 직접 편집(DIRECT_EDIT) / 리뷰 반영(REVIEW_REVISE). «문서» 정책의 「본문을 바꾸는 세 경로」와 1:1이다. **사전집은 언제나 REVIEW_REVISE** — 새 버전은 리뷰 승인의 반영으로만 생긴다 |
+| 요약 | summary | String | O | 타임라인 카드의 한 줄. 항목에서 자동으로 만든다 — 「용어 5개 추가」·「최초 업로드」 |
+| 추가 수 | addedCount | Int | O | 항목을 세지 않고 바로 읽도록 함께 저장한다 |
+| 변경 수 | changedCount | Int | O |  |
+| 삭제 수 | removedCount | Int | O |  |
+| 영향도 등급 | grade | Enum | X | **사전집 전용.** 첫 버전(INITIAL) / 영향 없음(NO_IMPACT) / 새 지적(NEW_TERMS) / 재검사(RECHECK_REQUIRED). 문서 축은 비어 있다(`D-59`) |
+| 재검사 대상 문서 수 | affectedDocumentCount | Int | O | **사전집 전용.** 재검사 등급일 때만 0보다 크다. **발행 시점의 스냅샷**이라 이후 올라온 문서는 세지 않는다 |
+| 기준 사전집 버전 | baseDictionaryVersionNo | Int | X | **문서 전용.** 그 버전이 어떤 사전집을 기준으로 확정됐는지. `DocumentVersion.dictionaryVersionNo`를 옮긴 값이다 |
+| 반영자 | publishedBy | MemberId | O | 반영·편집을 수행한 회원 |
+| 확정일시 | publishedAt | DateTime | O | 원본 버전의 확정일시와 같다. **행이 만들어진 시각(`createdAt`)과 다를 수 있다** — 이력 생성이 비동기다 |
+| 생성일시 | createdAt | DateTime | O |  |
+| 생성자 | createdBy | MemberId | X | 이벤트 핸들러가 만들므로 행위자가 없어 null이다 |
+| 수정일시 | updatedAt | DateTime | O | 만들어진 뒤 바뀌지 않으므로 생성일시와 같다 |
+
+**축마다 비는 칸이 셋이다**(`grade`·`affectedDocumentCount`·`baseDictionaryVersionNo`). 테이블을 둘로 가르지 않는 이유는 타임라인 조회가 두 축을 **같은 모양으로** 읽기 때문이다 — 가르면 목록 쿼리와 응답이 두 벌이 된다. 잘못된 조합은 **축별 정적 팩터리 둘**이 막는다(`D-57`).
+
+**화면 색(tone)과 배지 문구는 저장하지 않는다.** `grade`에서 프론트가 파생한다 — 알림이 CTA 문구를 저장하지 않는 것(`D-49`)과 같은 판단이다.
+
+### RevisionLogEntry
+
+| 속성 | 영문 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- | --- |
+| 식별자 | id | RevisionLogEntryId | O |  |
+| 개정 이력 | revisionLogId | RevisionLogId | O | 자식 FK 단방향. **개정 이력에 컬렉션을 매달지 않는다** — 항목이 수백 개가 될 수 있고 타임라인은 항목을 쓰지 않는다 |
+| 변경 종류 | changeType | Enum | O | 추가(ADDED) / 변경(CHANGED) / 삭제(REMOVED) |
+| 대상 표기 | subject | String | O | 사전집이면 표준어(`Term.preferredForm`), 문서면 바뀌기 전 표기(`SuggestionTerm.originTerm`). 상한 100자는 그 둘과 같은 값이다 |
+| 대상 영문명 | subjectEnglishName | String | X | **사전집 전용.** 화면이 「구독 일시정지(Subscription Pause)」로 합쳐 그린다 |
+| 대체어 | replacement | String | X | **문서 전용.** 실제로 적용된 대체어(`SuggestionTerm.suggestionTerm`) |
+| 상세 | detail | String | X | 「정의 수정」·「영문명 수정」처럼 무엇이 달라졌는지 |
+| 생성일시 | createdAt | DateTime | O |  |
+| 생성자 | createdBy | MemberId | X | 이벤트 핸들러가 만든다 |
+| 수정일시 | updatedAt | DateTime | O | 불변이라 생성 이후 변하지 않음 |
+
+**무시된 제안은 항목이 되지 않는다.** 문서 리뷰에서 `KEEP_ORIGINAL`로 판정된 제안어는 본문을 바꾸지 않았으므로 개정 이력에 남지 않는다 — 그 판단과 사유는 `DraftDocument`의 `SuggestionTerm`에 그대로 있다(`D-61`).
+
+---
 ## 정책 · 제약
 
 ### 워크스페이스 · 권한
@@ -687,6 +737,15 @@ Dictionary (새 버전)        ⑧ 초안의 최종 용어 목록이 그대로 �
 - **이전 버전과 달라진 항목이 0건이면 리뷰 요청을 만들 수 없다.** 기존 용어를 전부 유지하고 신규가 없으면 변경 없는 개정안이 된다(2026-09-10 확정).
 - **초안이 진행 중인 동안 그 원천 문서(`sourceDocumentIds`)를 직접 편집할 수 없다.** 위 「문서」 절의 편집 차단과 같은 규칙이다.
 
+### 개정 이력 (RevisionLog)
+- **개정 이력은 확정된 버전 하나당 한 행이다.** 사전집은 `Dictionary` 행 하나, 문서는 `DocumentVersion` 하나에 대응한다. `(workspaceId, targetType, targetId, versionNo)`가 유일하다(`D-58`).
+- **만들어진 뒤 바뀌지 않는다.** 수정·삭제 경로를 두지 않고 전 필드가 불변이다. 「이력 테이블에 append-only로 기록」(`NFR-DIC-001`)이 이 규칙이다.
+- **발행 시점에 만들어진다.** 확정 이벤트를 받아 이전 버전과 대조하고 그 결과를 저장한다. **조회할 때 다시 계산하지 않는다**(`D-56`) — 판정 규칙을 고치면 지나간 이력의 설명이 통째로 달라지기 때문이다.
+- **사전집 diff의 키는 표준어(`Term.preferredForm`)다**(`D-60`). 새 버전에만 있으면 추가, 이전 버전에만 있으면 삭제, 표기가 같고 정의나 영문명이 다르면 변경이다. **대표어 변경은 삭제 + 추가 한 쌍으로 나타나며 그것이 「재검사」 등급의 근거다** — 사라진 표준어를 쓰던 문서는 다시 봐야 한다.
+- **문서는 본문을 비교하지 않는다**(`D-61`). 경로·기준 사전집 버전·적용된 치환 용어만 남긴다. 업로드 v1은 발행하는 이벤트가 없어 그 문서의 첫 이력을 만들 때 **함께 백필한다.**
+- **사전집 반영 이벤트는 하나만 소비한다.** 리뷰 반영은 `ReviewRequestRevisedEvent`와 `DictionaryRevisedEvent`를 모두 흐르게 하므로, 사전집 축은 후자만 받는다. 둘 다 받으면 같은 버전에 행을 두 번 만들려 든다.
+- **개정 이력은 삭제하지 않는다.** 대상 문서가 소프트 삭제돼도 이력은 남는다 — 사전집을 삭제하지 않는 것과 같은 이유다.
+
 ### 인증 · 회원가입
 - 소셜 로그인은 **MVP1은 구글만** 지원한다. 카카오/네이버는 MVP2에서 확장한다.
 - 별도의 회원가입 절차는 없다 — 최초 Google 로그인 시 회원이 자동 생성된다.
@@ -747,3 +806,7 @@ Dictionary (새 버전)        ⑧ 초안의 최종 용어 목록이 그대로 �
 | 각 단계 | 이벤트 발행 | Notification | 그래프에는 선이 없지만 필요. **2026-09-13에 리뷰 5종의 소비자가 생겼다**(`D-47`) |
 | Workspace | 소유 | NotificationSetting | 워크스페이스당 유형별 1행. 채널이 비면 그 유형은 알림을 만들지 않는다 |
 | Notification | 참조 | Member | `recipientId`가 수신 회원을 가리킴 |
+| Dictionary | 개정 이력 기록 | RevisionLog | 새 버전이 확정되면 이전 버전과 대조한 결과가 한 행으로 남는다. `targetType = DICTIONARY` |
+| Document | 개정 이력 기록 | RevisionLog | 새 버전이 확정되면 경로·기준 사전집·적용 치환이 한 행으로 남는다. `targetType = DOCUMENT` |
+| RevisionLog | 소유 | RevisionLogEntry | 자식 FK 단방향. 컬렉션 매핑 없음 — 항목이 수백 개가 될 수 있다 |
+| RevisionLog | 참조 | Member | `publishedBy`가 반영·편집을 수행한 회원을 가리킴 |
