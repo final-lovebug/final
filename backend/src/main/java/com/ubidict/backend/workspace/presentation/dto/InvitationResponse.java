@@ -1,9 +1,9 @@
-package com.ubidict.backend.workspace.presentation;
+package com.ubidict.backend.workspace.presentation.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ubidict.backend.workspace.domain.InvitationStatus;
 import com.ubidict.backend.workspace.domain.Permission;
-import com.ubidict.backend.workspace.service.InvitationResult;
+import com.ubidict.backend.workspace.service.model.InvitationResult;
 import java.time.OffsetDateTime;
 
 public record InvitationResponse(

@@ -1,6 +1,9 @@
 package com.ubidict.backend.workspace.presentation;
 
 import com.ubidict.backend.workspace.domain.InvitationStatus;
+import com.ubidict.backend.workspace.presentation.dto.InvitationResponse;
+import com.ubidict.backend.workspace.presentation.dto.IssueInvitationRequest;
+import com.ubidict.backend.workspace.presentation.dto.WorkspaceResponse;
 import com.ubidict.backend.workspace.service.InvitationService;
 import jakarta.validation.Valid;
 import java.util.List;

@@ -1,4 +1,4 @@
-package com.ubidict.backend.workspace.service;
+package com.ubidict.backend.workspace.service.model;
 
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.domain.RuleSet;
