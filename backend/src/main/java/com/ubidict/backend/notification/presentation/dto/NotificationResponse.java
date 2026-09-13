@@ -6,7 +6,7 @@ import com.ubidict.backend.notification.service.model.NotificationResult;
 import java.time.OffsetDateTime;
 
 /**
- * 버튼 문구와 이동 경로는 담지 않는다(D-46). {@code type}·{@code targetType}·{@code targetId}에서 화면이 파생한다.
+ * 버튼 문구와 이동 경로는 담지 않는다(D-49). {@code type}·{@code targetType}·{@code targetId}에서 화면이 파생한다.
  */
 public record NotificationResponse(
         Long notificationId,

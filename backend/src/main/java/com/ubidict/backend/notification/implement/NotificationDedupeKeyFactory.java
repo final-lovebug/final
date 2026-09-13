@@ -5,10 +5,10 @@ import java.util.Locale;
 import org.springframework.stereotype.Component;
 
 /**
- * 같은 사건으로 알림이 두 번 생기지 않게 하는 키를 만든다(D-48).
+ * 같은 사건으로 알림이 두 번 생기지 않게 하는 키를 만든다(D-51).
  *
  * <p><b>이벤트 내용에서만 파생한다.</b> 난수나 현재 시각을 섞지 않는 것이 핵심이다 — 같은 이벤트가 재수신되면 반드시 같은 키가 나와야 두 번째 insert가
- * {@code uq_notification_recipient_dedupe}에서 튕긴다. 표준 큐는 at-least-once라 재수신이 정상 동작이다(D-50).
+ * {@code uq_notification_recipient_dedupe}에서 튕긴다. 표준 큐는 at-least-once라 재수신이 정상 동작이다(D-53).
  *
  * <p>이벤트에 {@code eventId}를 더하지 않고 이 방식을 쓴 이유 — 6개 도메인이 이미 만들어 둔 이벤트 record를 건드리지 않아도 된다.
  *

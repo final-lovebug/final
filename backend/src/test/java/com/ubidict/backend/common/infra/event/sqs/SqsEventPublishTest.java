@@ -49,7 +49,7 @@ class SqsEventPublishTest {
         SqsSendOptions<String> sent = capture(sqsTemplate);
 
         verify(sent).queue(QUEUE);
-        // 표준 큐를 쓰므로 FIFO 전용 파라미터는 붙지 않는다(D-50) — 붙이면 AWS가 InvalidParameterValue로 거절한다
+        // 표준 큐를 쓰므로 FIFO 전용 파라미터는 붙지 않는다(D-53) — 붙이면 AWS가 InvalidParameterValue로 거절한다
         verify(sent, never()).messageGroupId(any());
         verify(sent, never()).messageDeduplicationId(any());
 

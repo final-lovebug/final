@@ -15,11 +15,11 @@ import tools.jackson.databind.JsonNode;
  * 정한다 — 소비 도메인만 자기가 구독하는 이벤트를 안다.
  *
  * <p>{@code eventId}는 발행마다 새로 만들어진다. <b>알림의 멱등은 이 값에 기대지 않는다</b> — 같은 사건이 재발행되면 다른 {@code eventId}를 달고
- * 오므로, 중복 판정은 이벤트 내용에서 파생한 {@code dedupeKey}가 맡는다(D-48).
+ * 오므로, 중복 판정은 이벤트 내용에서 파생한 {@code dedupeKey}가 맡는다(D-51).
  *
  * @param eventType 구현 클래스의 단순 이름. 수신 측이 이것으로 역직렬화 대상을 고른다
  * @param aggregateId 이 이벤트가 속한 집합체 식별자. 추적·집계에 쓰고, 나중에 FIFO 큐로 바꾸면 {@code MessageGroupId}가 될 값이다.
- *     <b>지금은 표준 큐라 순서 보장에 쓰이지 않는다</b>(D-50)
+ *     <b>지금은 표준 큐라 순서 보장에 쓰이지 않는다</b>(D-53)
  */
 public record EventEnvelope(
         String eventId, String eventType, String aggregateId, OffsetDateTime occurredAt, JsonNode payload) {

@@ -2,7 +2,7 @@
 
 2026-09-13 작성. 다른 6개 계획 문서와 같은 13절 목차를 쓴다. **이 문서는 큰 흐름 확정(2026-09-10) 이후에 쓰였으므로 `R-*`에 뒤집힌 서술이 없다.**
 
-결정 원장은 `docs/plan/CONFLICTS.md`이고 이 도메인의 결정은 `D-44`~`D-49`다. 실행 순서 규약은 `docs/plan/EXECUTION_ORDER.md`를 따른다.
+결정 원장은 `docs/plan/CONFLICTS.md`이고 이 도메인의 결정은 `D-47`~`D-52`다. 실행 순서 규약은 `docs/plan/EXECUTION_ORDER.md`를 따른다.
 
 ---
 
@@ -21,7 +21,7 @@
 - **추출·대조 완료 알림**(`REQ-NTF-001`). `ExtractionJob`·`CheckJob`이 폴링이라(`D-34`) 발행할 이벤트가 없다
 - **코멘트 등록 알림.** `Comment` 엔티티는 `RR-4a`로 들어왔지만 등록을 알리는 이벤트가 없다
 - **프론트엔드 알림 패널.** `frontend/docs/ARCHITECTURE.md`가 Phase 5~6으로 미뤄 뒀다
-- **LocalStack.** 브로커를 띄운 왕복 검증은 하지 않는다. 대신 **발행 측이 만든 그대로의 문자열을 수신 측에 넣는** 테스트로 우리 코드의 경계까지 덮는다 — 큐는 문자열을 옮길 뿐이다. 실제 AWS 동작(가시성 타임아웃·DLQ)은 배포 준비 시점에 검증한다. **표준 큐를 쓰므로 순서 보장은 애초에 없다**(`D-50`)
+- **LocalStack.** 브로커를 띄운 왕복 검증은 하지 않는다. 대신 **발행 측이 만든 그대로의 문자열을 수신 측에 넣는** 테스트로 우리 코드의 경계까지 덮는다 — 큐는 문자열을 옮길 뿐이다. 실제 AWS 동작(가시성 타임아웃·DLQ)은 배포 준비 시점에 검증한다. **표준 큐를 쓰므로 순서 보장은 애초에 없다**(`D-53`)
 - **Outbox**(`NFR-MSG-002`). `@TransactionalEventListener(AFTER_COMMIT)`이 로컬 원자성을 대신한다는 기존 판단 그대로
 
 ---
@@ -30,16 +30,16 @@
 
 ### 2-1. 확정된 결정
 
-`CONFLICTS.md` 3-2절의 `D-44`~`D-49`를 그대로 따른다. ID로만 참조한다.
+`CONFLICTS.md` 3-2절의 `D-47`~`D-52`를 그대로 따른다. ID로만 참조한다.
 
 | ID | 한 줄 요약 |
 | --- | --- |
-| `D-44` | Notification을 7번째 도메인으로 신설. MVP1 유형은 리뷰 5종 |
-| `D-45` | 태스크 접두사 `NT-`, Flyway 대역 700~799 |
-| `D-46` | `title`·`read` 신설. CTA 문구와 이동 경로는 저장하지 않는다 |
-| `D-47` | 알림 설정은 워크스페이스 단위 |
-| `D-48` | 멱등은 DB 유니크 키 |
-| `D-49` | SQS 발행 어댑터는 `common/infra/event/sqs/` |
+| `D-47` | Notification을 7번째 도메인으로 신설. MVP1 유형은 리뷰 5종 |
+| `D-48` | 태스크 접두사 `NT-`, Flyway 대역 700~799 |
+| `D-49` | `title`·`read` 신설. CTA 문구와 이동 경로는 저장하지 않는다 |
+| `D-50` | 알림 설정은 워크스페이스 단위 |
+| `D-51` | 멱등은 DB 유니크 키 |
+| `D-52` | SQS 발행 어댑터는 `common/infra/event/sqs/` |
 
 #### 수신자 규칙 — 이 도메인의 핵심 정책
 
@@ -147,7 +147,7 @@ boolean isMuted();        // channels가 비었음
 
 ## 5. 스키마와 Flyway
 
-대역 700~799(`D-45`). 도메인 내부는 10 단위로 증가시킨다.
+대역 700~799(`D-48`). 도메인 내부는 10 단위로 증가시킨다.
 
 | 파일 | 내용 |
 | --- | --- |
@@ -156,8 +156,8 @@ boolean isMuted();        // channels가 비었음
 
 핵심 제약 둘.
 
-- `uq_notification_recipient_dedupe (recipient_id, dedupe_key)` — **멱등의 근거**(`D-48`). at-least-once 재수신이 두 번째 insert에서 유니크 위반으로 튕긴다
-- `uq_notification_setting_workspace_type (workspace_id, type)` — 워크스페이스당 유형별 1행(`D-47`)
+- `uq_notification_recipient_dedupe (recipient_id, dedupe_key)` — **멱등의 근거**(`D-51`). at-least-once 재수신이 두 번째 insert에서 유니크 위반으로 튕긴다
+- `uq_notification_setting_workspace_type (workspace_id, type)` — 워크스페이스당 유형별 1행(`D-50`)
 
 조회 인덱스는 `idx_notification_recipient (recipient_id, workspace_id, is_read, deleted_at)` 하나다. 목록(최신순 페이징)과 미읽음 수가 모두 이 앞쪽 컬럼을 탄다.
 
@@ -203,7 +203,7 @@ notification
     └── dto/*Request · *Response
 ```
 
-`common/infra/event/sqs/`에 `SqsEventPublisher`·`EventEnvelope`가 더해진다(`D-49`).
+`common/infra/event/sqs/`에 `SqsEventPublisher`·`EventEnvelope`가 더해진다(`D-52`).
 
 ---
 
@@ -289,7 +289,7 @@ notification
 | `docs/API.md` | 파일 **끝**에 `# **Notification API**` 절만 추가. 공통 규칙·페이징·버저닝·에러 형식 절은 건드리지 않는다 |
 | `application.yml` (main·test **양쪽**) | `app.crossdomain.review-request.mode`·`app.messaging.sqs.queue`·**`spring.cloud.aws.region.static`** 추가. **테스트 파일이 main을 대체하므로 한쪽만 고치면 컨텍스트가 깨진다** |
 | `build.gradle` | `spring-cloud-aws-starter-sqs` 한 줄. BOM이 이미 있어 버전은 없다. **사전 승인 완료**. **리전 기본값을 함께 넣어야 한다** — 스타터가 spring-cloud-aws 오토컨피그를 켜면 SDK 클라이언트(`ssmClient` 포함)가 빈 생성 시점에 리전을 요구하고, 없으면 알림과 무관한 기존 `@SpringBootTest`까지 전부 깨진다 |
-| `common/infra/event/sqs/**` | `D-49`의 명시적 예외. 기존 `common` 파일을 고치지 않고 새 패키지를 더한다 |
+| `common/infra/event/sqs/**` | `D-52`의 명시적 예외. 기존 `common` 파일을 고치지 않고 새 패키지를 더한다 |
 
 ### 수정 금지 파일
 

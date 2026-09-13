@@ -25,7 +25,7 @@ final class DomainEventMetadata {
      * <p>{@code workspaceId}가 있으면 그것을 쓰고, 없으면 첫 식별자 컴포넌트로 대체한다. 이벤트 5종 중 {@code workspaceId}를 가진 것은
      * 하나뿐이라 이 대체 경로가 실제로 쓰인다.
      *
-     * <p><b>지금은 순서 보장에 쓰이지 않는다</b> — 표준 큐를 쓰기로 했고(D-50) {@code MessageGroupId}는 FIFO 전용이다. 나중에 FIFO로
+     * <p><b>지금은 순서 보장에 쓰이지 않는다</b> — 표준 큐를 쓰기로 했고(D-53) {@code MessageGroupId}는 FIFO 전용이다. 나중에 FIFO로
      * 바꾸면 이 값이 그대로 그룹 키가 된다.
      */
     static String aggregateId(DomainEvent event) {

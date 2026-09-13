@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 두 발행 어댑터가 {@code app.messaging.mode} 하나로 배타 선택되는지 확인한다(D-24·D-49).
+ * 두 발행 어댑터가 {@code app.messaging.mode} 하나로 배타 선택되는지 확인한다(D-24·D-52).
  *
  * <p>{@code InMemoryEventPublisher}가 package-private이라 이 테스트는 그 패키지에 있어야 한다. 봉투 왕복 검증은
  * {@code sqs} 패키지의 {@code EventEnvelopeCodecTest}가 맡는다.
