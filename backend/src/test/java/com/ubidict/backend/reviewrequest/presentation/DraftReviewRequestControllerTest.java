@@ -9,6 +9,7 @@ import com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
 import com.ubidict.backend.reviewrequest.service.DraftReviewRequestService;
 import com.ubidict.backend.reviewrequest.service.model.ReviewRequestResult;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(7L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(DraftReviewRequestController.class)
 class DraftReviewRequestControllerTest {
@@ -56,7 +58,7 @@ class DraftReviewRequestControllerTest {
                 .contentType(ContentType.JSON)
                 .body(Map.of("title", "정산 문서 리뷰", "reviewerMemberIds", List.of(11L)))
                 .when()
-                .post("/api/draft-documents/{draftDocumentId}/review-request?memberId={memberId}", DRAFT_ID, MEMBER_ID)
+                .post("/api/draft-documents/{draftDocumentId}/review-request", DRAFT_ID)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("type", equalTo("DOCUMENT"))
@@ -75,10 +77,7 @@ class DraftReviewRequestControllerTest {
                 .contentType(ContentType.JSON)
                 .body(Map.of("title", "사전집 리뷰"))
                 .when()
-                .post(
-                        "/api/draft-dictionaries/{draftDictionaryId}/review-request?memberId={memberId}",
-                        DRAFT_ID,
-                        MEMBER_ID)
+                .post("/api/draft-dictionaries/{draftDictionaryId}/review-request", DRAFT_ID)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("type", equalTo("DICTIONARY"));
@@ -91,7 +90,7 @@ class DraftReviewRequestControllerTest {
                 .contentType(ContentType.JSON)
                 .body(Map.of("title", " "))
                 .when()
-                .post("/api/draft-documents/{draftDocumentId}/review-request?memberId={memberId}", DRAFT_ID, MEMBER_ID)
+                .post("/api/draft-documents/{draftDocumentId}/review-request", DRAFT_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));

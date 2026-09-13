@@ -61,6 +61,9 @@ class DraftReviewRequestServiceTest extends IntegrationTestSupport {
     private DraftReviewRequestService draftReviewRequestService;
 
     @Autowired
+    private RevisionService revisionService;
+
+    @Autowired
     private DraftDictionaryService draftDictionaryService;
 
     @Autowired
@@ -250,6 +253,21 @@ class DraftReviewRequestServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NOT_EXAMINED);
+    }
+
+    @DisplayName("개정안 이력은 참여자만 조회할 수 있다.")
+    @Test
+    void revisionHistory_notParticipant() {
+        Long draftDocumentId = examinedDraftDocument("교정한 본문");
+        ReviewRequestResult created = draftReviewRequestService.requestDocumentReview(
+                new RequestDocumentReviewCommand(draftDocumentId, "리뷰", null, List.of(), ADMIN_ID));
+
+        assertThat(revisionService.documents(created.reviewRequestId(), null, ADMIN_ID))
+                .hasSize(1);
+        assertThatThrownBy(() -> revisionService.documents(created.reviewRequestId(), null, STRANGER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
     }
 
     @DisplayName("지정 리뷰어가 중복으로 넘어와도 한 번만 등록한다.")

@@ -13,6 +13,7 @@ import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -26,6 +27,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(DraftDocumentController.class)
 class DraftDocumentControllerTest {
@@ -56,7 +58,7 @@ class DraftDocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/draft-documents/{draftDocumentId}?memberId={memberId}", DRAFT_DOCUMENT_ID, MEMBER_ID)
+                .get("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("documentId", equalTo(10))
@@ -73,7 +75,7 @@ class DraftDocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/draft-documents/{draftDocumentId}?memberId={memberId}", DRAFT_DOCUMENT_ID, MEMBER_ID)
+                .get("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo("DRAFT_DOCUMENT_NOT_FOUND"));
@@ -87,7 +89,7 @@ class DraftDocumentControllerTest {
 
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/draft-documents/{draftDocumentId}?memberId={memberId}", DRAFT_DOCUMENT_ID, MEMBER_ID)
+                .get("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value());
     }
@@ -106,7 +108,7 @@ class DraftDocumentControllerTest {
                         {"draftBody": "수정 본문"}
                         """)
                 .when()
-                .patch("/api/draft-documents/{draftDocumentId}?memberId={memberId}", DRAFT_DOCUMENT_ID, MEMBER_ID)
+                .patch("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("draftBody", equalTo("수정 본문"));
@@ -118,7 +120,7 @@ class DraftDocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .delete("/api/draft-documents/{draftDocumentId}?memberId={memberId}", DRAFT_DOCUMENT_ID, MEMBER_ID)
+                .delete("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
@@ -142,10 +144,7 @@ class DraftDocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .post(
-                        "/api/draft-documents/{draftDocumentId}/examine-completion?memberId={memberId}",
-                        DRAFT_DOCUMENT_ID,
-                        MEMBER_ID)
+                .post("/api/draft-documents/{draftDocumentId}/examine-completion", DRAFT_DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("EXAMINED"))
@@ -162,10 +161,7 @@ class DraftDocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/draft-documents/{draftDocumentId}/examine-progress?memberId={memberId}",
-                        DRAFT_DOCUMENT_ID,
-                        MEMBER_ID)
+                .get("/api/draft-documents/{draftDocumentId}/examine-progress", DRAFT_DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("total", equalTo(3))

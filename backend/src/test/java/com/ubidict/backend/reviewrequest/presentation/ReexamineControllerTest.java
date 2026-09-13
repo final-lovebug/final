@@ -10,6 +10,7 @@ import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.service.ReexamineService;
 import com.ubidict.backend.reviewrequest.service.model.ReexamineResult;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(2L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ReexamineController.class)
 class ReexamineControllerTest {
@@ -59,7 +61,7 @@ class ReexamineControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/reexaminations?memberId={memberId}", 1L, 2L)
+                .post("/api/review-requests/{reviewRequestId}/reexaminations", 1L)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("round", equalTo(1));
@@ -78,7 +80,7 @@ class ReexamineControllerTest {
                 .contentType(ContentType.JSON)
                 .body("{}")
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/reexaminations?memberId={memberId}", 1L, 2L)
+                .post("/api/review-requests/{reviewRequestId}/reexaminations", 1L)
                 .then()
                 .statusCode(HttpStatus.CONFLICT.value())
                 .body("code", equalTo("REVIEW_REQUEST_NOT_REEXAMINABLE"));

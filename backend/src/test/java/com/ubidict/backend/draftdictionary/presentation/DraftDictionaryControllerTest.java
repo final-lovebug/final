@@ -13,6 +13,7 @@ import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
 import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -26,6 +27,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(2L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(DraftDictionaryController.class)
 class DraftDictionaryControllerTest {
@@ -55,7 +57,7 @@ class DraftDictionaryControllerTest {
 
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/draft-dictionaries/{draftDictionaryId}?memberId={memberId}", DRAFT_DICTIONARY_ID, MEMBER_ID)
+                .get("/api/draft-dictionaries/{draftDictionaryId}", DRAFT_DICTIONARY_ID)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo("DRAFT_DICTIONARY_NOT_FOUND"));
@@ -69,10 +71,7 @@ class DraftDictionaryControllerTest {
 
         RestAssuredMockMvc.given()
                 .when()
-                .post(
-                        "/api/draft-dictionaries/{draftDictionaryId}/examine-completion?memberId={memberId}",
-                        DRAFT_DICTIONARY_ID,
-                        MEMBER_ID)
+                .post("/api/draft-dictionaries/{draftDictionaryId}/examine-completion", DRAFT_DICTIONARY_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("EXAMINED"));
@@ -86,10 +85,7 @@ class DraftDictionaryControllerTest {
 
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/draft-dictionaries/{draftDictionaryId}/examine-progress?memberId={memberId}",
-                        DRAFT_DICTIONARY_ID,
-                        MEMBER_ID)
+                .get("/api/draft-dictionaries/{draftDictionaryId}/examine-progress", DRAFT_DICTIONARY_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("total", equalTo(7))

@@ -22,6 +22,7 @@ import com.ubidict.backend.document.service.model.DocumentSummaryResult;
 import com.ubidict.backend.document.service.model.DocumentVersionResult;
 import com.ubidict.backend.document.service.model.DocumentVersionSummaryResult;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -36,6 +37,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(DocumentController.class)
 class DocumentControllerTest {
@@ -75,7 +77,7 @@ class DocumentControllerTest {
                         {"title": "결제 도메인 설계", "content": "회원은 결제할 수 있다.", "labels": ["설계"]}
                         """)
                 .when()
-                .post("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("documentId", equalTo(DOCUMENT_ID.intValue()))
@@ -94,7 +96,7 @@ class DocumentControllerTest {
                         {"title": "  ", "content": "본문"}
                         """)
                 .when()
-                .post("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
@@ -111,7 +113,7 @@ class DocumentControllerTest {
                 .contentType(ContentType.JSON)
                 .body("{\"title\": \"제목\", \"content\": \"" + tooLong + "\"}")
                 .when()
-                .post("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
@@ -128,25 +130,10 @@ class DocumentControllerTest {
                          "labels": ["하나", "둘", "셋", "넷", "다섯", "여섯"]}
                         """)
                 .when()
-                .post("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
-    }
-
-    @DisplayName("memberId가 없으면 400을 응답한다.")
-    @Test
-    void create_memberIdIsMissing() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {"title": "제목", "content": "본문"}
-                        """)
-                .when()
-                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value());
     }
 
     /**
@@ -162,7 +149,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("content", hasSize(1))
@@ -180,7 +167,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("content[0].aligned", equalTo(true))
@@ -197,7 +184,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("content[0]", not(hasKey("outdated")));
@@ -213,7 +200,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}&label=설계", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents?label=설계", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("content", hasSize(1));
@@ -228,11 +215,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents/{documentId}", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("content", equalTo("회원은 결제할 수 있다."));
@@ -249,11 +232,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents/{documentId}", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo("DOCUMENT_NOT_FOUND"));
@@ -269,11 +248,7 @@ class DocumentControllerTest {
                         {"title": "정산 도메인 설계", "labels": ["정산"]}
                         """)
                 .when()
-                .patch(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}/documents/{documentId}", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
@@ -291,11 +266,7 @@ class DocumentControllerTest {
                         {"content": "편집한 본문"}
                         """)
                 .when()
-                .patch(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}/content?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}/documents/{documentId}/content", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("currentVersionNo", equalTo(2))
@@ -312,11 +283,7 @@ class DocumentControllerTest {
                         {"content": "  "}
                         """)
                 .when()
-                .patch(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}/content?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}/documents/{documentId}/content", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
@@ -328,11 +295,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .delete(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .delete("/api/workspaces/{workspaceId}/documents/{documentId}", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
@@ -351,11 +314,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}/versions?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents/{documentId}/versions", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("content[0].versionNo", equalTo(1))
@@ -372,11 +331,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}/versions/1?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents/{documentId}/versions/1", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("body", equalTo("첫 본문"));

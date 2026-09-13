@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -22,11 +23,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 요청자 memberId를 요청 파라미터로 받는다. 인증 계층이 아직 없어 생긴 임시 방식이며 인증 도입 전까지 운영 배포 대상이 아니다.
- *
- * <p>TODO(NFR-USR-001): 인증이 들어오면 memberId 파라미터를 걷어내고 인증 주체에서 해석한다.
- */
 @RestController
 @RequiredArgsConstructor
 public class SuggestionTermController {
@@ -34,7 +30,9 @@ public class SuggestionTermController {
 
     @PostMapping("/api/draft-documents/{id}/suggestion-terms")
     public ResponseEntity<SuggestionTermResponse> add(
-            @PathVariable Long id, @RequestParam Long memberId, @Valid @RequestBody AddSuggestionTermRequest r) {
+            @PathVariable Long id,
+            @AuthenticationPrincipal Long memberId,
+            @Valid @RequestBody AddSuggestionTermRequest r) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(SuggestionTermResponse.from(service.add(r.toCommand(id, memberId))));
     }
@@ -46,7 +44,7 @@ public class SuggestionTermController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt,desc") String sort,
-            @RequestParam Long memberId) {
+            @AuthenticationPrincipal Long memberId) {
         return ResponseEntity.ok(
                 PageResponse.from(service.search(new SuggestionTermSearchQuery(id, status, page, size, sort, memberId))
                         .map(SuggestionTermResponse::from)));
@@ -54,18 +52,21 @@ public class SuggestionTermController {
 
     @PatchMapping("/api/suggestion-terms/{id}")
     public ResponseEntity<SuggestionTermResponse> edit(
-            @PathVariable Long id, @RequestParam Long memberId, @Valid @RequestBody EditSuggestionTermRequest r) {
+            @PathVariable Long id,
+            @AuthenticationPrincipal Long memberId,
+            @Valid @RequestBody EditSuggestionTermRequest r) {
         return ResponseEntity.ok(SuggestionTermResponse.from(service.edit(r.toCommand(id, memberId))));
     }
 
     @DeleteMapping("/api/suggestion-terms/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id, @RequestParam Long memberId) {
+    public ResponseEntity<Void> delete(@PathVariable Long id, @AuthenticationPrincipal Long memberId) {
         service.delete(id, memberId);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/api/suggestion-terms/{id}/acceptance")
-    public ResponseEntity<SuggestionTermResponse> accept(@PathVariable Long id, @RequestParam Long memberId) {
+    public ResponseEntity<SuggestionTermResponse> accept(
+            @PathVariable Long id, @AuthenticationPrincipal Long memberId) {
         return ResponseEntity.ok(
                 SuggestionTermResponse.from(service.accept(new AcceptSuggestionTermCommand(id, memberId))));
     }
@@ -73,7 +74,7 @@ public class SuggestionTermController {
     @PostMapping("/api/suggestion-terms/{id}/rejection")
     public ResponseEntity<SuggestionTermResponse> reject(
             @PathVariable Long id,
-            @RequestParam Long memberId,
+            @AuthenticationPrincipal Long memberId,
             @Valid @RequestBody RejectSuggestionTermRequest request) {
         return ResponseEntity.ok(SuggestionTermResponse.from(service.reject(request.toCommand(id, memberId))));
     }

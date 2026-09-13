@@ -8,6 +8,7 @@ import com.ubidict.backend.draftdictionary.domain.ExtractionJobStatus;
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryExtractionService;
 import com.ubidict.backend.draftdictionary.service.model.ExtractionJobResult;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -21,6 +22,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(2L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(DraftDictionaryExtractionController.class)
 class DraftDictionaryExtractionControllerTest {
@@ -49,7 +51,7 @@ class DraftDictionaryExtractionControllerTest {
                 .body("""
                         {"workspaceId":1,"sourceDocumentIds":[10,20]}
                         """)
-                .post("/api/draft-dictionaries/extractions?memberId=2")
+                .post("/api/draft-dictionaries/extractions")
                 .then()
                 .statusCode(202)
                 .body("extractionJobId", equalTo(30))
@@ -62,7 +64,7 @@ class DraftDictionaryExtractionControllerTest {
         given(extractionService.read(30L, 2L)).willReturn(result());
 
         RestAssuredMockMvc.given()
-                .get("/api/draft-dictionaries/extractions/30?memberId=2")
+                .get("/api/draft-dictionaries/extractions/30")
                 .then()
                 .statusCode(200)
                 .body("sourceDocumentIds[0]", equalTo(10));

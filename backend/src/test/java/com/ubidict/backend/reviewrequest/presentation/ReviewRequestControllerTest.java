@@ -8,6 +8,7 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.service.ReviewRequestService;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ReviewRequestController.class)
 class ReviewRequestControllerTest {
@@ -56,7 +58,7 @@ class ReviewRequestControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/review-requests?memberId={memberId}", MEMBER_ID)
+                .post("/api/review-requests")
                 .then()
                 .statusCode(HttpStatus.METHOD_NOT_ALLOWED.value());
     }
@@ -72,7 +74,7 @@ class ReviewRequestControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/review-requests/{reviewRequestId}?memberId={memberId}", REVIEW_REQUEST_ID, MEMBER_ID)
+                .get("/api/review-requests/{reviewRequestId}", REVIEW_REQUEST_ID)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo("REVIEW_REQUEST_NOT_FOUND"));
