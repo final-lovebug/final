@@ -138,7 +138,7 @@ Authorization: Bearer {accessToken}
 
 ## **Google 로그인**
 
-Google OAuth2(Authorization Code Flow)로 로그인한다. 별도의 회원가입 API는 없다 — 최초 로그인 시 회원이 자동 생성된다.
+Google OAuth2(Authorization Code Flow)로 로그인한다. 별도의 회원가입 API는 없다 — 처음 보는 Google 계정으로 로그인하면 닉네임을 입력받아 그 시점에 회원이 생성된다("닉네임 등록 완료" 절 참고, REQ-USR-001 9/11 번복). Google 프로필 이름(실명)은 요청하지도 저장하지도 않는다.
 
 ### **로그인 시작**
 
@@ -159,8 +159,10 @@ Google 인증이 끝나면 서버가 프론트엔드로 리다이렉트하면서
 POST /api/auth/oauth/google/exchange
 ```
 
-- 성공 시 `200 OK`. Access token은 응답 본문으로, refresh token은 `Set-Cookie`로 내려간다.
-- refresh token 쿠키 속성: `HttpOnly`, `Secure`(로컬 프로필에서만 꺼짐), `SameSite=Strict`, `Path=/api/auth` — `/api/auth/**` 밖에서는 전송되지 않는다.
+- 성공 시 `200 OK`. 이미 가입된 회원이면 로그인(응답·쿠키는 아래 "기존 회원" 참고), 처음 보는
+  Google 계정이면 회원을 만들지 않고 닉네임 등록이 필요하다는 응답만 준다(아래 "신규 식별자" 참고 —
+  이 경우 refresh token 쿠키도 내려가지 않는다. 로그인은 "닉네임 등록 완료"에서 마무리된다).
+- refresh token 쿠키 속성(기존 회원 로그인 시): `HttpOnly`, `Secure`(로컬 프로필에서만 꺼짐), `SameSite=Strict`, `Path=/api/auth` — `/api/auth/**` 밖에서는 전송되지 않는다.
 - 인증이 필요 없다.
 
 #### Request Body
@@ -177,6 +179,8 @@ POST /api/auth/oauth/google/exchange
 
 #### Response Body
 
+**기존 회원** — 바로 로그인된다.
+
 ```json
 {
   "accessToken": "eyJ...",
@@ -184,10 +188,21 @@ POST /api/auth/oauth/google/exchange
 }
 ```
 
+**신규 식별자** — 아직 회원이 아니다. 닉네임을 입력받아 아래 "닉네임 등록 완료"를 호출해야 한다.
+
+```json
+{
+  "needsNickname": true,
+  "registrationToken": "b2c3d4e5-..."
+}
+```
+
 | **필드** | **타입** | **설명** |
 | --- | --- | --- |
-| `accessToken` | String | API 호출에 사용하는 access token. |
-| `role` | String | `REGULAR` 또는 `ADMIN`. |
+| `accessToken` | String | (기존 회원만) API 호출에 사용하는 access token. |
+| `role` | String | (기존 회원만) `REGULAR` 또는 `ADMIN`. |
+| `needsNickname` | Boolean | (신규 식별자만) 항상 `true`. |
+| `registrationToken` | String | (신규 식별자만) 닉네임 등록 완료에 쓰는 1회용 토큰. 발급 후 10분 이내 사용해야 한다. |
 
 #### 에러
 
@@ -195,8 +210,51 @@ POST /api/auth/oauth/google/exchange
 | --- | --- | --- |
 | `code`가 없거나 형식이 잘못됨 | 400 | `COMMON_INVALID_REQUEST` |
 | `code`가 만료됐거나 이미 사용됨 | 401 | `AUTH_TOKEN_INVALID` |
+| 정지·탈퇴 등으로 로그인할 수 없는 회원(기존 회원만 해당) | 403 | `MEMBER_LOGIN_NOT_ALLOWED` |
+
+### **닉네임 등록 완료**
+
+"콜백 및 토큰 교환"이 신규 식별자로 판정해 `registrationToken`을 내려준 경우에만 호출한다. 이
+시점에 비로소 회원이 생성되고(바로 `ACTIVE`) 로그인이 끝난다.
+
+```
+POST /api/auth/oauth/google/complete-registration
+```
+
+- 성공 시 `200 OK`. Access token은 응답 본문으로, refresh token은 `Set-Cookie`로 내려간다(속성은
+  "콜백 및 토큰 교환"의 refresh token 쿠키 속성과 동일).
+- 인증이 필요 없다.
+
+#### Request Body
+
+```json
+{
+  "registrationToken": "b2c3d4e5-...",
+  "displayName": "새로 정한 닉네임"
+}
+```
+
+| **필드** | **타입** | **제약** | **설명** |
+| --- | --- | --- | --- |
+| `registrationToken` | String | 필수 | "콜백 및 토큰 교환"이 내려준 1회용 등록 토큰. 발급 후 10분 이내 사용해야 한다. |
+| `displayName` | String | 필수, 공백 불가 | 사용자가 정한 닉네임. `Member.displayName`으로 저장된다. |
+
+#### Response Body
+
+```json
+{
+  "accessToken": "eyJ...",
+  "role": "REGULAR"
+}
+```
+
+#### 에러
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| `registrationToken`·`displayName`이 없거나 공백 | 400 | `COMMON_INVALID_REQUEST` |
+| `registrationToken`이 만료됐거나 이미 사용됨 | 401 | `AUTH_TOKEN_INVALID` |
 | 이미 다른 소셜 제공자로 가입된 이메일 | 409 | `MEMBER_DUPLICATE_SOCIAL_ACCOUNT` |
-| 정지·탈퇴 등으로 로그인할 수 없는 회원 | 403 | `MEMBER_LOGIN_NOT_ALLOWED` |
 
 ### **재발급**
 
@@ -235,6 +293,8 @@ POST /api/auth/logout
 - 인증이 필요 없다.
 
 > 위 Auth API는 `feat/WLSH-75-member-social-login-OAtuh2`에서 구현 완료됐다(9/10). 실제 구현 기준으로 최종화한 문서다.
+> "닉네임 등록 완료" 절은 `Refactor/WLSH-138-Member-personal-info-secure`에서 추가됐다(9/13) — Google 실명
+> 대신 사용자가 직접 입력한 닉네임을 쓰기로 REQ-USR-001을 재결정(9/8 결정 번복)한 결과다.
 
 ---
 

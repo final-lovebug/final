@@ -21,6 +21,11 @@ spring:
           google:
             client-id: "${GOOGLE_CLIENT_ID}"
             client-secret: "${GOOGLE_CLIENT_SECRET}"
+            # 실명(profile scope)을 받지 않는다 — 최초 로그인 시 사용자가 직접 입력한 닉네임을
+            # displayName으로 쓴다(REQ-USR-001 9/11 번복, docs/REQUIREMENTS.md 참고).
+            scope:
+              - openid
+              - email
 
 app:
   messaging:
@@ -75,3 +80,7 @@ app:
     # 프론트 dev 서버 origin. refresh token이 쿠키 기반이라 자격증명 포함 요청엔 "*"를 못 쓰고
     # origin을 명시해야 한다. 배포 시 실제 프론트 도메인으로 교체(콤마로 여러 개 지정 가능).
     allowed-origins: "${CORS_ALLOWED_ORIGINS:http://localhost:5173}"
+  member:
+    # email/displayName 컬럼 암호화 키(AES-256, MemberFieldEncryptor). JWT_SECRET과 같은 패턴 —
+    # 로컬 전용 기본값이 있어 안 정해도 동작하지만 실제 배포 환경에서는 반드시 실제 값으로 덮어써야 한다.
+    encryption-key: "${MEMBER_ENCRYPTION_KEY:local-dev-only-member-encryption-key-0123456789}"

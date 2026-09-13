@@ -1,6 +1,7 @@
 package com.ubidict.backend.member.presentation;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -12,10 +13,13 @@ import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.exception.AuthErrorCode;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.member.infra.security.OAuthExchangeCodeRedisRepository;
+import com.ubidict.backend.member.presentation.dto.CompleteRegistrationRequest;
 import com.ubidict.backend.member.presentation.dto.OAuthExchangeRequest;
 import com.ubidict.backend.member.service.LogoutService;
 import com.ubidict.backend.member.service.MemberOAuthLoginService;
 import com.ubidict.backend.member.service.TokenReissueService;
+import com.ubidict.backend.member.service.model.LoginSucceeded;
+import com.ubidict.backend.member.service.model.RegistrationRequired;
 import com.ubidict.backend.member.service.model.TokenPairResult;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -68,12 +72,13 @@ class AuthControllerTest {
         RestAssuredMockMvc.mockMvc(mockMvc);
     }
 
-    @DisplayName("교환 코드로 로그인하면 200과 access token, role을 응답하고 refresh token을 쿠키로 내려준다.")
+    @DisplayName("이미 가입된 회원이면 교환 코드로 로그인해 200과 access token, role을 응답하고 refresh token을 쿠키로 내려준다.")
     @Test
     void exchange() {
         // given
         given(memberOAuthLoginService.loginByExchangeCode("exchange-code"))
-                .willReturn(new TokenPairResult("access-token", "refresh-token", MemberRole.REGULAR));
+                .willReturn(
+                        new LoginSucceeded(new TokenPairResult("access-token", "refresh-token", MemberRole.REGULAR)));
 
         // when & then
         RestAssuredMockMvc.given()
@@ -86,6 +91,26 @@ class AuthControllerTest {
                 .body("accessToken", equalTo("access-token"))
                 .body("role", equalTo("REGULAR"))
                 .header("Set-Cookie", startsWith(RefreshTokenCookieProvider.COOKIE_NAME + "=refresh-token"));
+    }
+
+    @DisplayName("처음 보는 식별자면 needsNickname과 등록 토큰을 응답하고 refresh token 쿠키를 내려주지 않는다.")
+    @Test
+    void exchange_newIdentity_needsNickname() {
+        // given
+        given(memberOAuthLoginService.loginByExchangeCode("exchange-code"))
+                .willReturn(new RegistrationRequired("registration-token"));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body(new OAuthExchangeRequest("exchange-code"))
+                .when()
+                .post("/api/auth/oauth/google/exchange")
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("needsNickname", equalTo(true))
+                .body("registrationToken", equalTo("registration-token"))
+                .header("Set-Cookie", nullValue());
     }
 
     @DisplayName("교환 코드가 비어 있으면 400을 응답한다.")
@@ -114,6 +139,57 @@ class AuthControllerTest {
                 .body(new OAuthExchangeRequest("invalid-code"))
                 .when()
                 .post("/api/auth/oauth/google/exchange")
+                .then()
+                .statusCode(HttpStatus.UNAUTHORIZED.value())
+                .body("code", equalTo("AUTH_TOKEN_INVALID"));
+    }
+
+    @DisplayName("닉네임 등록을 완료하면 200과 access token, role을 응답하고 refresh token을 쿠키로 내려준다.")
+    @Test
+    void completeRegistration() {
+        // given
+        given(memberOAuthLoginService.completeRegistration("registration-token", "닉네임"))
+                .willReturn(new TokenPairResult("access-token", "refresh-token", MemberRole.REGULAR));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body(new CompleteRegistrationRequest("registration-token", "닉네임"))
+                .when()
+                .post("/api/auth/oauth/google/complete-registration")
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("accessToken", equalTo("access-token"))
+                .body("role", equalTo("REGULAR"))
+                .header("Set-Cookie", startsWith(RefreshTokenCookieProvider.COOKIE_NAME + "=refresh-token"));
+    }
+
+    @DisplayName("닉네임이 비어 있으면 400을 응답한다.")
+    @Test
+    void completeRegistration_blankDisplayName() {
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body(new CompleteRegistrationRequest("registration-token", " "))
+                .when()
+                .post("/api/auth/oauth/google/complete-registration")
+                .then()
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .body("code", equalTo("COMMON_INVALID_REQUEST"));
+    }
+
+    @DisplayName("등록 토큰이 만료됐거나 이미 쓰였으면 401을 응답한다.")
+    @Test
+    void completeRegistration_invalidToken() {
+        // given
+        given(memberOAuthLoginService.completeRegistration("invalid-token", "닉네임"))
+                .willThrow(new BusinessException(AuthErrorCode.AUTH_TOKEN_INVALID));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body(new CompleteRegistrationRequest("invalid-token", "닉네임"))
+                .when()
+                .post("/api/auth/oauth/google/complete-registration")
                 .then()
                 .statusCode(HttpStatus.UNAUTHORIZED.value())
                 .body("code", equalTo("AUTH_TOKEN_INVALID"));

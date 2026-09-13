@@ -1,5 +1,6 @@
 import { useMatches, useNavigate } from 'react-router-dom'
 import { logout as logoutRequest } from '../features/auth/api/logout'
+import { withdrawMember } from '../features/member/api/withdrawMember'
 import { useAuthStore } from '../shared/stores/authStore'
 import { routes } from '../shared/config/routes'
 import { Avatar, Button, Pill } from '../shared/ui'
@@ -32,6 +33,28 @@ export function Topbar() {
     }
   }
 
+  async function handleWithdraw() {
+    if (!window.confirm('정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+      return
+    }
+
+    try {
+      await withdrawMember()
+    } catch {
+      window.alert('탈퇴 처리 중 문제가 발생했습니다. 다시 시도해 주세요.')
+      return
+    }
+
+    try {
+      await logoutRequest()
+    } catch {
+      // 탈퇴 자체는 이미 끝났으니, 로그아웃(refresh token 폐기) 실패는 무시하고 진행한다.
+    } finally {
+      clearAuth()
+      navigate(routes.login(), { replace: true })
+    }
+  }
+
   return (
     <div className="flex h-16 shrink-0 items-center justify-between border-b border-border-soft bg-surface px-7">
       <div className="font-display text-[17px] font-bold">
@@ -54,6 +77,9 @@ export function Topbar() {
         </button>
         <Button variant="dangerText" size="sm" onClick={handleLogout}>
           로그아웃
+        </Button>
+        <Button variant="dangerText" size="sm" onClick={handleWithdraw}>
+          회원 탈퇴
         </Button>
       </div>
     </div>

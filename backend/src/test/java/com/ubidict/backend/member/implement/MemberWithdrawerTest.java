@@ -21,7 +21,7 @@ class MemberWithdrawerTest {
     private final MemberReader memberReader = new MemberReader(memberRepository);
     private final MemberWithdrawer memberWithdrawer = new MemberWithdrawer(memberReader, memberRepository);
 
-    @DisplayName("존재하는 회원을 탈퇴시키면 상태가 WITHDRAWN으로 바뀐다.")
+    @DisplayName("존재하는 회원을 탈퇴시키면 상태가 WITHDRAWN으로 바뀌고 email/providerId가 익명화된다.")
     @Test
     void withdraw() {
         // given
@@ -35,6 +35,9 @@ class MemberWithdrawerTest {
         // then
         assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
         assertThat(member.isDeleted()).isTrue();
+        assertThat(member.getEmail()).startsWith("withdrawn-").endsWith("@deleted.local");
+        assertThat(member.getDisplayName()).isEqualTo("탈퇴한 회원");
+        assertThat(member.getProviderId()).startsWith("withdrawn-");
     }
 
     @DisplayName("존재하지 않는 회원을 탈퇴시키려 하면 예외가 발생한다.")

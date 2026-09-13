@@ -7,8 +7,11 @@ import { routes } from '../shared/config/routes'
 
 // 백엔드가 Google 로그인 완료 후 리다이렉트하는 목적지(app.oauth.frontend-redirect-uri,
 // backend/CLAUDE.md 환경변수 표). docs/API.md "콜백 및 토큰 교환" 참고 — 쿼리로 1회용
-// code(성공) 또는 error=oauth_failed(실패)를 받는다. code를 실제 토큰으로 교환하고,
-// 내 정보를 조회해 authStore를 채운 뒤 워크스페이스 화면으로 이동한다.
+// code(성공) 또는 error=oauth_failed(실패)를 받는다. code를 실제 토큰으로 교환한다.
+//
+// 이미 가입된 회원이면 그대로 로그인을 마치고 워크스페이스로 이동한다. 처음 보는 Google
+// 계정이면(needsNickname) 아직 회원이 아니므로 로그인 상태로 만들지 않고 닉네임 온보딩
+// 화면으로 등록 토큰을 들고 이동한다 — 로그인은 그 화면에서 마무리된다.
 export function OAuthCallbackPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -37,8 +40,17 @@ export function OAuthCallbackPage() {
 
     void (async () => {
       try {
-        const { accessToken } = await exchangeOAuthCode(code)
-        login(accessToken)
+        const result = await exchangeOAuthCode(code)
+
+        if (result.needsNickname) {
+          navigate(routes.onboardingNickname(), {
+            replace: true,
+            state: { registrationToken: result.registrationToken },
+          })
+          return
+        }
+
+        login(result.accessToken)
         const member = await fetchCurrentMember()
         setCurrentMember(member)
         navigate(routes.workspaces(), { replace: true })

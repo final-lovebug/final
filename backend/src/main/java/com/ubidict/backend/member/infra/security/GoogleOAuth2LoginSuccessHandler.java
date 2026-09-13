@@ -39,11 +39,7 @@ public class GoogleOAuth2LoginSuccessHandler implements AuthenticationSuccessHan
 
         oAuthExchangeCodeRedisRepository.save(
                 code,
-                new OAuthExchangeEntry(
-                        oAuth2User.getAttribute("email"),
-                        oAuth2User.getAttribute("name"),
-                        OAuthProvider.GOOGLE,
-                        oAuth2User.getName()));
+                new OAuthExchangeEntry(oAuth2User.getAttribute("email"), OAuthProvider.GOOGLE, oAuth2User.getName()));
 
         String redirectUrl = UriComponentsBuilder.fromUriString(frontendRedirectUri)
                 .queryParam("code", code)
