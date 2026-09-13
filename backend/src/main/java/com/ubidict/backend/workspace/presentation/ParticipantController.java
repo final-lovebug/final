@@ -1,9 +1,10 @@
 package com.ubidict.backend.workspace.presentation;
 
-import com.ubidict.backend.workspace.service.ChangePermissionCommand;
+import com.ubidict.backend.workspace.presentation.dto.ChangePermissionRequest;
+import com.ubidict.backend.workspace.presentation.dto.ParticipantResponse;
 import com.ubidict.backend.workspace.service.ParticipantService;
-import com.ubidict.backend.workspace.service.RemoveParticipantCommand;
-import com.ubidict.backend.workspace.service.TransferOwnershipCommand;
+import com.ubidict.backend.workspace.service.model.RemoveParticipantCommand;
+import com.ubidict.backend.workspace.service.model.TransferOwnershipCommand;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -42,8 +43,7 @@ public class ParticipantController {
             @PathVariable Long participantId,
             @RequestParam Long memberId,
             @Valid @RequestBody ChangePermissionRequest request) {
-        participantService.changePermission(
-                new ChangePermissionCommand(workspaceId, participantId, request.permission(), memberId));
+        participantService.changePermission(request.toCommand(workspaceId, participantId, memberId));
         return ResponseEntity.noContent().build();
     }
 

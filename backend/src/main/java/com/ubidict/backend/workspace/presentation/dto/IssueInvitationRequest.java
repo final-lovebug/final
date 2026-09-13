@@ -1,7 +1,7 @@
-package com.ubidict.backend.workspace.presentation;
+package com.ubidict.backend.workspace.presentation.dto;
 
 import com.ubidict.backend.workspace.domain.Permission;
-import com.ubidict.backend.workspace.service.IssueInvitationCommand;
+import com.ubidict.backend.workspace.service.model.IssueInvitationCommand;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;

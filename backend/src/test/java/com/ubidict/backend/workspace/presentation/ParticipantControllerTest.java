@@ -7,11 +7,11 @@ import static org.mockito.BDDMockito.then;
 
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.workspace.domain.Permission;
-import com.ubidict.backend.workspace.service.ChangePermissionCommand;
-import com.ubidict.backend.workspace.service.ParticipantResult;
 import com.ubidict.backend.workspace.service.ParticipantService;
-import com.ubidict.backend.workspace.service.RemoveParticipantCommand;
-import com.ubidict.backend.workspace.service.TransferOwnershipCommand;
+import com.ubidict.backend.workspace.service.model.ChangePermissionCommand;
+import com.ubidict.backend.workspace.service.model.ParticipantResult;
+import com.ubidict.backend.workspace.service.model.RemoveParticipantCommand;
+import com.ubidict.backend.workspace.service.model.TransferOwnershipCommand;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;

@@ -1,7 +1,7 @@
-package com.ubidict.backend.workspace.presentation;
+package com.ubidict.backend.workspace.presentation.dto;
 
 import com.ubidict.backend.workspace.domain.Permission;
-import com.ubidict.backend.workspace.service.WorkspaceResult;
+import com.ubidict.backend.workspace.service.model.WorkspaceResult;
 import java.time.OffsetDateTime;
 
 public record WorkspaceResponse(
