@@ -20,8 +20,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 /**
  * Flyway 마이그레이션이 아직 이 테스트 슬라이스에 연결되지 않아 스키마는 Hibernate가
  * 생성한다({@code BaseEntityAuditingTest}와 동일한 관례).
+ *
+ * <p>{@link MemberFieldEncryptor}는 {@code @DataJpaTest}가 자동으로 스캔하는 대상이
+ * 아니라서(일반 {@code @Component}) 명시적으로 {@code @Import}한다 — 안 그러면
+ * {@code EncryptedStringConverter}가 인스턴스를 못 찾아 {@code IllegalStateException}이 난다.
  */
-@Import({JpaAuditingConfig.class, MySqlContainerConfiguration.class})
+@Import({JpaAuditingConfig.class, MySqlContainerConfiguration.class, MemberFieldEncryptor.class})
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 @DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false"})
 class MemberRepositoryTest {
@@ -86,12 +90,13 @@ class MemberRepositoryTest {
         assertThat(memberRepository.existsByEmail("other@example.com")).isFalse();
     }
 
-    @DisplayName("탈퇴하면 상태와 삭제 시각이 함께 저장된다.")
+    @DisplayName("탈퇴하면 상태·삭제 시각과 함께 email/displayName/providerId가 익명화된다.")
     @Test
     void withdraw() {
         // given
         Member member =
                 em.persistFlushFind(Member.create("member@example.com", "member1", OAuthProvider.GOOGLE, "google-1"));
+        Long memberId = member.getId();
 
         // when
         member.withdraw();
@@ -99,8 +104,28 @@ class MemberRepositoryTest {
         em.clear();
 
         // then
-        Member found = em.find(Member.class, member.getId());
+        Member found = em.find(Member.class, memberId);
         assertThat(found.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
         assertThat(found.isDeleted()).isTrue();
+        assertThat(found.getEmail()).isEqualTo("withdrawn-%d@deleted.local".formatted(memberId));
+        assertThat(found.getDisplayName()).isEqualTo("탈퇴한 회원");
+        assertThat(found.getProviderId()).isEqualTo("withdrawn-%d".formatted(memberId));
+    }
+
+    @DisplayName("탈퇴 후 같은 Google 계정으로 다시 로그인하면 새 회원으로 조회된다(재가입 허용).")
+    @Test
+    void findByProviderAndProviderId_notFoundAfterWithdraw() {
+        // given
+        Member member =
+                em.persistFlushFind(Member.create("member@example.com", "member1", OAuthProvider.GOOGLE, "google-1"));
+        member.withdraw();
+        em.flush();
+        em.clear();
+
+        // when
+        var found = memberRepository.findByProviderAndProviderId(OAuthProvider.GOOGLE, "google-1");
+
+        // then
+        assertThat(found).isEmpty();
     }
 }
