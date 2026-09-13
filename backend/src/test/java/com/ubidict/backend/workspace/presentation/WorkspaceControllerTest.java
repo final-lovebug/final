@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.willThrow;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import com.ubidict.backend.workspace.service.WorkspaceService;
@@ -32,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 함께 로드되므로 JwtAuthenticationFilter가 요구하는 JwtProvider는 mock으로 채워 컨텍스트를
  * 띄운다(member 도메인의 컨트롤러 테스트들과 동일한 이유).
  */
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(WorkspaceController.class)
 class WorkspaceControllerTest {
@@ -67,7 +69,7 @@ class WorkspaceControllerTest {
                         {"name": "개발팀"}
                         """)
                 .when()
-                .post("/api/workspaces?memberId={memberId}", MEMBER_ID)
+                .post("/api/workspaces")
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("workspaceId", equalTo(WORKSPACE_ID.intValue()))
@@ -85,25 +87,10 @@ class WorkspaceControllerTest {
                         {"name": "  "}
                         """)
                 .when()
-                .post("/api/workspaces?memberId={memberId}", MEMBER_ID)
+                .post("/api/workspaces")
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
-    }
-
-    @DisplayName("요청자 식별자가 없으면 400을 응답한다.")
-    @Test
-    void create_memberIdIsMissing() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {"name": "개발팀"}
-                        """)
-                .when()
-                .post("/api/workspaces")
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value());
     }
 
     @DisplayName("참여 중인 워크스페이스 목록을 200으로 응답한다.")
@@ -117,7 +104,7 @@ class WorkspaceControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces?memberId={memberId}", MEMBER_ID)
+                .get("/api/workspaces")
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("$", hasSize(1))
@@ -136,7 +123,7 @@ class WorkspaceControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("requiredDocumentReviewerCount", equalTo(2))
@@ -153,7 +140,7 @@ class WorkspaceControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo("WORKSPACE_NOT_FOUND"));
@@ -169,7 +156,7 @@ class WorkspaceControllerTest {
                         {"name": "플랫폼팀"}
                         """)
                 .when()
-                .patch("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
@@ -189,7 +176,7 @@ class WorkspaceControllerTest {
                         {"name": "플랫폼팀"}
                         """)
                 .when()
-                .patch("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.FORBIDDEN.value())
                 .body("code", equalTo("WORKSPACE_ADMIN_REQUIRED"));
@@ -201,7 +188,7 @@ class WorkspaceControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .delete("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .delete("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
@@ -215,7 +202,7 @@ class WorkspaceControllerTest {
                 .contentType(ContentType.JSON)
                 .body("{\"requiredDocumentReviewerCount\":2,\"requiredDictionaryReviewerCount\":3}")
                 .when()
-                .patch("/api/workspaces/{workspaceId}/rule-set?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}/rule-set", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("requiredDocumentReviewerCount", equalTo(2))
@@ -229,7 +216,7 @@ class WorkspaceControllerTest {
                 .contentType(ContentType.JSON)
                 .body("{\"requiredDocumentReviewerCount\":-1,\"requiredDictionaryReviewerCount\":0}")
                 .when()
-                .patch("/api/workspaces/{workspaceId}/rule-set?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}/rule-set", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));

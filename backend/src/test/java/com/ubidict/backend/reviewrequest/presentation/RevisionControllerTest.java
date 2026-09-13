@@ -2,6 +2,7 @@ package com.ubidict.backend.reviewrequest.presentation;
 
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.reviewrequest.service.RevisionService;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(RevisionController.class)
 class RevisionControllerTest {
@@ -47,7 +49,7 @@ class RevisionControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/revision-documents?memberId={memberId}", 1L, 1L)
+                .post("/api/review-requests/{reviewRequestId}/revision-documents", 1L)
                 .then()
                 .statusCode(HttpStatus.METHOD_NOT_ALLOWED.value());
     }
@@ -66,7 +68,7 @@ class RevisionControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/revision-dictionaries?memberId={memberId}", 1L, 1L)
+                .post("/api/review-requests/{reviewRequestId}/revision-dictionaries", 1L)
                 .then()
                 .statusCode(HttpStatus.METHOD_NOT_ALLOWED.value());
     }

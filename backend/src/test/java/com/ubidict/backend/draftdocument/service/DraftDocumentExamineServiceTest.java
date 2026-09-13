@@ -14,10 +14,11 @@ import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.domain.SuggestionTerm;
 import com.ubidict.backend.draftdocument.domain.SuggestionTermStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import com.ubidict.backend.draftdocument.fixture.DraftDocumentFixture;
 import com.ubidict.backend.draftdocument.fixture.SuggestionTermFixture;
+import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import com.ubidict.backend.draftdocument.infra.SuggestionTermRepository;
 import com.ubidict.backend.draftdocument.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
 import com.ubidict.backend.support.IntegrationTestSupport;
@@ -38,6 +39,9 @@ class DraftDocumentExamineServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private DraftDocumentService draftDocumentService;
+
+    @Autowired
+    private DraftDocumentRepository draftDocumentRepository;
 
     @Autowired
     private SuggestionTermRepository suggestionTermRepository;
@@ -141,10 +145,15 @@ class DraftDocumentExamineServiceTest extends IntegrationTestSupport {
         assertThat(result.previewBody()).isEqualTo("사용자는 결제방법을 선택한다.");
     }
 
+    /** 초안 생성 진입점은 비동기 대조 작업뿐이므로(D-45) 교정 흐름만 보는 테스트는 초안을 직접 만든다. */
     private Long createDraftDocument(String draftBody) {
-        return draftDocumentService
-                .create(new CreateDraftDocumentCommand(documentId, 1, draftBody, MEMBER_ID))
-                .draftDocumentId();
+        return draftDocumentRepository
+                .save(DraftDocumentFixture.draftDocument()
+                        .documentId(documentId)
+                        .draftBody(draftBody)
+                        .requestedBy(MEMBER_ID)
+                        .build())
+                .getId();
     }
 
     private void saveSuggestionTerm(

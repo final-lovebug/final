@@ -14,15 +14,13 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.dictionary.domain.DictionaryStatus;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
-import com.ubidict.backend.dictionary.presentation.dto.ReviseDictionaryRequest;
-import com.ubidict.backend.dictionary.presentation.dto.TermRequest;
 import com.ubidict.backend.dictionary.service.DictionaryService;
 import com.ubidict.backend.dictionary.service.model.DictionaryResult;
 import com.ubidict.backend.dictionary.service.model.DictionarySearchQuery;
 import com.ubidict.backend.dictionary.service.model.DictionaryVersionResult;
 import com.ubidict.backend.dictionary.service.model.TermResult;
 import com.ubidict.backend.member.infra.security.JwtProvider;
-import io.restassured.http.ContentType;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -36,6 +34,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(10L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(DictionaryController.class)
 class DictionaryControllerTest {
@@ -46,7 +45,6 @@ class DictionaryControllerTest {
         given(dictionaryService.readActive(anyLong(), anyLong(), any(DictionarySearchQuery.class)))
                 .willReturn(dictionaryResult(1, DictionaryStatus.ACTIVE));
         RestAssuredMockMvc.given()
-                .queryParam("memberId", MEMBER_ID)
                 .queryParam("page", 0)
                 .queryParam("size", 20)
                 .when()
@@ -61,7 +59,6 @@ class DictionaryControllerTest {
     @DisplayName("허용되지 않은 정렬 필드는 400으로 응답한다.")
     void readActive_sortIsNotWhitelisted() {
         RestAssuredMockMvc.given()
-                .queryParam("memberId", MEMBER_ID)
                 .queryParam("sort", "definition,asc")
                 .when()
                 .get(BASE_PATH, WORKSPACE_ID)
@@ -91,27 +88,6 @@ class DictionaryControllerTest {
         RestAssuredMockMvc.mockMvc(mockMvc);
     }
 
-    @DisplayName("사전집 버전을 반영하면 201 Created를 응답한다.")
-    @Test
-    void revise() {
-        // given
-        given(dictionaryService.revise(any())).willReturn(dictionaryResult(2, DictionaryStatus.ACTIVE));
-
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .queryParam("memberId", MEMBER_ID)
-                .body(new ReviseDictionaryRequest(List.of(new TermRequest("회원", "Member", "가입한 주체"))))
-                .when()
-                .post(BASE_PATH + "/versions", WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.CREATED.value())
-                .body("versionNo", equalTo(2))
-                .body("status", equalTo("ACTIVE"))
-                .body("terms.content", hasSize(1))
-                .body("terms.content[0].preferredForm", equalTo("회원"));
-    }
-
     @DisplayName("현재 확정본을 조회하면 200 OK와 용어를 응답한다.")
     @Test
     void readActive() {
@@ -121,7 +97,6 @@ class DictionaryControllerTest {
 
         // when & then
         RestAssuredMockMvc.given()
-                .queryParam("memberId", MEMBER_ID)
                 .when()
                 .get(BASE_PATH, WORKSPACE_ID)
                 .then()
@@ -148,7 +123,6 @@ class DictionaryControllerTest {
 
         // when & then
         RestAssuredMockMvc.given()
-                .queryParam("memberId", MEMBER_ID)
                 .when()
                 .get(BASE_PATH + "/versions", WORKSPACE_ID)
                 .then()
@@ -168,54 +142,11 @@ class DictionaryControllerTest {
 
         // when & then
         RestAssuredMockMvc.given()
-                .queryParam("memberId", MEMBER_ID)
                 .when()
                 .get(BASE_PATH + "/versions/{versionNo}", WORKSPACE_ID, 1)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("ARCHIVED"));
-    }
-
-    @DisplayName("용어가 비어 있으면 400 Bad Request를 응답한다.")
-    @Test
-    void revise_termsAreEmpty() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .queryParam("memberId", MEMBER_ID)
-                .body(new ReviseDictionaryRequest(List.of()))
-                .when()
-                .post(BASE_PATH + "/versions", WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value())
-                .body("code", equalTo("COMMON_INVALID_REQUEST"));
-    }
-
-    @DisplayName("표준어가 비어 있으면 400 Bad Request를 응답한다.")
-    @Test
-    void revise_preferredFormIsBlank() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .queryParam("memberId", MEMBER_ID)
-                .body(new ReviseDictionaryRequest(List.of(new TermRequest("  ", null, "가입한 주체"))))
-                .when()
-                .post(BASE_PATH + "/versions", WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value())
-                .body("code", equalTo("COMMON_INVALID_REQUEST"));
-    }
-
-    @DisplayName("memberId가 없으면 400 Bad Request를 응답한다.")
-    @Test
-    void readActive_memberIdIsMissing() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .when()
-                .get(BASE_PATH, WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value())
-                .body("code", equalTo("COMMON_INVALID_REQUEST"));
     }
 
     @DisplayName("사전집이 없으면 404 Not Found를 응답한다.")
@@ -228,7 +159,6 @@ class DictionaryControllerTest {
 
         // when & then
         RestAssuredMockMvc.given()
-                .queryParam("memberId", MEMBER_ID)
                 .when()
                 .get(BASE_PATH, WORKSPACE_ID)
                 .then()

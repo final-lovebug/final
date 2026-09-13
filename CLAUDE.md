@@ -82,9 +82,10 @@
 
 ## 미구성 항목
 
-2026-09-12 기준으로 아직 채워지지 않은 부분이다. 관련 작업을 할 때 함께 정리한다.
+2026-09-13 기준으로 아직 채워지지 않은 부분이다. 관련 작업을 할 때 함께 정리한다.
 
 - ~~**Flyway 마이그레이션 없음.**~~ **해소** — `V1__create_workspace_and_participant.sql`을 추가했다. Repository 테스트는 `RepositoryTestSupport`를 통해 Flyway가 만든 스키마를 쓴다. `BaseEntityAuditingTest`만 테스트 전용 엔티티를 쓰므로 `flyway.enabled=false` + `ddl-auto=create-drop`을 유지한다.
 - ~~**`SecurityConfig` 없음.**~~ **해소** — `member/infra/security/SecurityConfig`와 `JwtAuthenticationFilter`·`JwtAuthenticationEntryPoint`·`JwtAccessDeniedHandler`·`SecurityConfigTest`가 들어왔다(Google OAuth2 로그인 연동, `WLSH-75`·`WLSH-122`).
-- **인증 정합이 아직 남아 있다.** `SecurityConfig`가 생겼지만 두 가지가 남는다 — ① **프로파일 분리가 없다.** `application-local.yml`만 있고 `dev`·`prod`·`test` 프로파일 파일이 없는데 테스트는 `@ActiveProfiles("test")`를 쓴다(`NFR-INF-002`). ② **컨트롤러 7곳이 `memberId`를 요청 파라미터로 받는다**(`TODO(NFR-USR-001)`). 인증 주체에서 해석하도록 바꾸고 컨트롤러 테스트의 `@AutoConfigureMockMvc(addFilters = false)` 우회도 함께 정리한다. 담당은 `T-INT-3`이다.
+- ~~**인증 정합이 아직 남아 있다.**~~ **해소** — `T-INT-3`이 둘을 함께 정리했다. ① **프로파일을 `local`·`dev`·`prod`·`test` 넷으로 분리**했고 `src/test/resources/application.yml`의 수동 복제를 걷어냈다(`NFR-INF-002`·`D-46`). ② **컨트롤러 18개가 받던 `memberId` 요청 파라미터 74곳을 제거**하고 `@AuthenticationPrincipal`로 인증 주체에서 해석한다(`NFR-USR-001`). 컨트롤러 테스트의 `@AutoConfigureMockMvc(addFilters = false)`는 유지하되 `@WithLoginMember`로 principal을 주입한다 — 인증·인가 흐름 자체는 `SecurityConfigTest`가 단독으로 검증한다.
+- **`ErrorResponse`에 `traceId`가 없다.** `NFR-CMN-003`과 `docs/LOG.md`의 「에러 응답에는 trace id를 포함한다」가 아직 미충족이다(`docs/plan/CONFLICTS.md` `X-08`). 마무리 통합에서 범위 밖으로 뒀으므로 담당 태스크를 다시 정해야 한다.
 - ~~**메시징 배포 대상 미확정.**~~ **해소** — Kafka는 제거했고 **로컬·테스트는 Spring `ApplicationEvent` 인메모리 어댑터, AWS 배포는 SQS**로 확정했다(`docs/plan/CONFLICTS.md` `D-24`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 `EventPublisher` 포트는 그대로 쓴다. 추출·대조 같은 오래 걸리는 작업은 **DB 작업 테이블**(대기·실행중·성공·실패)로 관리하고 상태 조회는 폴링이다. SQS 어댑터와 로컬 대체 컨테이너는 배포 준비 시점에 추가한다. 이벤트 발행 규약은 `docs/ARCHITECTURE.md`를 따른다.

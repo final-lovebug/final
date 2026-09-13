@@ -11,6 +11,7 @@ import com.ubidict.backend.reviewrequest.domain.ReviewVerdict;
 import com.ubidict.backend.reviewrequest.service.ReviewService;
 import com.ubidict.backend.reviewrequest.service.model.ReviewProgressResult;
 import com.ubidict.backend.reviewrequest.service.model.ReviewResult;
+import com.ubidict.backend.support.WithLoginMember;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -25,6 +26,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(2L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ReviewController.class)
 class ReviewControllerTest {
@@ -61,7 +63,7 @@ class ReviewControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/reviews?memberId={memberId}", 1L, 2L)
+                .post("/api/review-requests/{reviewRequestId}/reviews", 1L)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("reviewId", equalTo(3))
@@ -80,7 +82,7 @@ class ReviewControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/reviews?memberId={memberId}", 1L, 2L)
+                .post("/api/review-requests/{reviewRequestId}/reviews", 1L)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
@@ -95,7 +97,7 @@ class ReviewControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/review-requests/{reviewRequestId}/review-progress?memberId={memberId}", 1L, 2L)
+                .get("/api/review-requests/{reviewRequestId}/review-progress", 1L)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("requiredReviewerCount", equalTo(2))
@@ -115,7 +117,7 @@ class ReviewControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/review-requests/{reviewRequestId}/reviews?memberId={memberId}", 1L, 2L)
+                .get("/api/review-requests/{reviewRequestId}/reviews", 1L)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo("WORKSPACE_NOT_FOUND"));
@@ -141,7 +143,7 @@ class ReviewControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/reviews?memberId={memberId}", 1L, 2L)
+                .post("/api/review-requests/{reviewRequestId}/reviews", 1L)
                 .then()
                 .statusCode(HttpStatus.CONFLICT.value())
                 .body("code", equalTo("REVIEW_REQUEST_NOT_REVIEWABLE_STATUS"));

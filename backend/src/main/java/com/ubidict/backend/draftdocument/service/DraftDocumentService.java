@@ -1,10 +1,8 @@
 package com.ubidict.backend.draftdocument.service;
 
-import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.draftdocument.domain.DraftDocument;
 import com.ubidict.backend.draftdocument.domain.SuggestionTerm;
-import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentAccessValidator;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentCreationPolicyValidator;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentEventPublisher;
@@ -14,9 +12,7 @@ import com.ubidict.backend.draftdocument.implement.DraftDocumentWriter;
 import com.ubidict.backend.draftdocument.implement.SuggestionTermProcessor;
 import com.ubidict.backend.draftdocument.implement.SuggestionTermReader;
 import com.ubidict.backend.draftdocument.infra.port.DocumentQueryPort;
-import com.ubidict.backend.draftdocument.infra.port.DocumentSnapshot;
 import com.ubidict.backend.draftdocument.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentSearchQuery;
 import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
@@ -44,28 +40,14 @@ public class DraftDocumentService {
     private final DraftDocumentEventPublisher draftDocumentEventPublisher;
     private final DocumentQueryPort documentQueryPort;
 
-    @Transactional
-    public DraftDocumentResult create(CreateDraftDocumentCommand command) {
-        DocumentSnapshot document = accessValidator.validateCreation(command.documentId(), command.memberId());
-        if (document.currentVersionNo() != command.baseVersionNo()) {
-            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_BASE_VERSION);
-        }
-        creationPolicyValidator.validate(command.documentId(), document.workspaceId());
-        DraftDocument draftDocument = draftDocumentWriter.append(
-                command.documentId(),
-                command.baseVersionNo(),
-                command.draftBody(),
-                command.memberId(),
-                command.memberId());
-        draftDocumentEventPublisher.publishCreated(draftDocument);
-
-        log.info(
-                "[DraftDocumentService.create] Draft document created. draftDocumentId={}, documentId={}, memberId={}",
-                draftDocument.getId(),
-                draftDocument.getDocumentId(),
-                command.memberId());
-
-        return DraftDocumentResult.from(draftDocument);
+    /**
+     * 리뷰 요청을 받을 상태인지 판정한다. 리뷰 요청 생성은 ReviewRequest 도메인이 하고(D-44) 이 메서드는 그쪽 어댑터가 호출한다.
+     *
+     * <p>상태를 바꾸지 않는다 — 전이는 ReviewRequestCreatedEvent를 받는 리스너가 한다.
+     */
+    @Transactional(readOnly = true)
+    public void validateReviewReadiness(Long draftDocumentId) {
+        draftDocumentReader.read(draftDocumentId).validateExaminedForReview();
     }
 
     @Transactional(readOnly = true)

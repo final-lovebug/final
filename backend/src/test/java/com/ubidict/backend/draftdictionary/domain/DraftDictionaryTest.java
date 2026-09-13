@@ -31,6 +31,15 @@ class DraftDictionaryTest {
                         .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_SOURCE_DOCUMENT_REQUIRED));
     }
 
+    @DisplayName("유래 문서가 중복되면 사전 초안을 생성할 수 없다.")
+    @Test
+    void create_sourceDocumentsAreDuplicated() {
+        // when & then
+        assertThatThrownBy(() -> DraftDictionary.create(1L, null, List.of(10L, 10L), 2L))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_DUPLICATE_SOURCE_DOCUMENT));
+    }
+
     @DisplayName("교정중인 초안을 교정완료로 전환한다.")
     @Test
     void markExamined() {

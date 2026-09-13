@@ -61,7 +61,7 @@ class ReviseProcessorTest {
         ReviewRequest request = ReviewRequest.create(10L, ReviewRequestType.DOCUMENT, "리뷰", null, 1L, 1L);
         RevisionDocument revision = RevisionDocument.create(1L, 20L, 1, 30L, "개정 본문", 1L);
         given(draftDocumentQueryPort.read(30L))
-                .willReturn(Optional.of(new DraftDocumentSnapshot(30L, 20L, 1, "초안 본문")));
+                .willReturn(Optional.of(new DraftDocumentSnapshot(30L, 20L, 10L, 1, "초안 본문")));
         given(activeDictionaryVersionQueryPort.activeVersionNo(10L)).willReturn(3);
         given(documentVersionPublishPort.publish(20L, 1, "개정 본문", 3, 1L)).willReturn(2);
 

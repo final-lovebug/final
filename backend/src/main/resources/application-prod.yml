@@ -3,6 +3,12 @@
 #   예) /lovebug/rds/password -> rds.password
 # 리전은 컨테이너에 주입된 AWS_REGION(또는 EC2 인스턴스 메타데이터)에서 결정된다.
 spring:
+  # application.yml 이 기본 off 로 두므로 여기서 명시적으로 켠다 — 이 프로파일만 Parameter Store 를 읽는다.
+  cloud:
+    aws:
+      parameterstore:
+        enabled: true
+
   config:
     import: aws-parameterstore:/lovebug/
 

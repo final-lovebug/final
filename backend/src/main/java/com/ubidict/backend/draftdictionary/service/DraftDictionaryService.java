@@ -9,12 +9,9 @@ import com.ubidict.backend.draftdictionary.implement.DraftDictionaryRemover;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryReviewReadinessValidator;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryWriter;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdictionary.service.model.CreateDraftDictionaryCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
 import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
-import com.ubidict.backend.draftdictionary.service.model.RequestDictionaryReviewCommand;
 import com.ubidict.backend.draftdictionary.service.model.UpdateSourceDocumentsCommand;
-import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,23 +31,6 @@ public class DraftDictionaryService {
     private final DraftDictionaryCreationPolicyValidator creationPolicyValidator;
     private final DraftDictionaryEventPublisher eventPublisher;
     private final WorkspaceAccessValidator workspaceAccessValidator;
-
-    @Transactional
-    public DraftDictionaryResult create(CreateDraftDictionaryCommand command) {
-        workspaceAccessValidator.validateAtLeast(command.workspaceId(), command.memberId(), Permission.ADMIN);
-        creationPolicyValidator.validate(command.workspaceId());
-        DraftDictionary draftDictionary = draftDictionaryWriter.create(
-                command.workspaceId(), command.dictionaryId(), command.sourceDocumentIds(), command.memberId());
-        eventPublisher.publishCreated(draftDictionary);
-
-        log.info(
-                "[DraftDictionaryService.create] Draft dictionary created. draftDictionaryId={}, workspaceId={}, memberId={}",
-                draftDictionary.getId(),
-                draftDictionary.getWorkspaceId(),
-                command.memberId());
-
-        return DraftDictionaryResult.from(draftDictionary);
-    }
 
     @Transactional(readOnly = true)
     public DraftDictionaryResult read(Long draftDictionaryId, Long memberId) {
@@ -98,18 +78,16 @@ public class DraftDictionaryService {
         return DraftDictionaryResult.from(d);
     }
 
-    @Transactional
-    public DraftDictionaryResult requestReview(RequestDictionaryReviewCommand c) {
-        DraftDictionary d = draftDictionaryReader.read(c.draftDictionaryId());
-        workspaceAccessValidator.validateParticipant(d.getWorkspaceId(), c.memberId());
-        readinessValidator.validateReviewRequest(d, candidateTermReader.readAll(d.getId()));
-        d.markReviewRequested();
-        eventPublisher.publishReviewRequested(d, c.memberId());
-        log.info(
-                "[DraftDictionaryService.requestReview] Review requested. draftDictionaryId={}, memberId={}",
-                c.draftDictionaryId(),
-                c.memberId());
-        return DraftDictionaryResult.from(d);
+    /**
+     * 리뷰 요청을 받을 상태인지 판정한다. 리뷰 요청 생성은 ReviewRequest 도메인이 하고(D-44) 이 메서드는 그쪽 어댑터가 호출한다.
+     *
+     * <p>교정 완료 여부만 보지 않는다 — 최종 등재 목록이 활성 사전집과 실제로 다른지와 그 정의가 비어 있지 않은지까지 본다(D-21). 상태를 바꾸지 않으며 전이는
+     * ReviewRequestCreatedEvent를 받는 리스너가 한다.
+     */
+    @Transactional(readOnly = true)
+    public void validateReviewReadiness(Long draftDictionaryId) {
+        DraftDictionary draftDictionary = draftDictionaryReader.read(draftDictionaryId);
+        readinessValidator.validateReviewRequest(draftDictionary, candidateTermReader.readAll(draftDictionaryId));
     }
 
     @Transactional(readOnly = true)

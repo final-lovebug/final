@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.reviewrequest.service.ReviewerService;
 import com.ubidict.backend.reviewrequest.service.model.ReviewerResult;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -20,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ReviewerController.class)
 class ReviewerControllerTest {
@@ -53,7 +55,7 @@ class ReviewerControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/reviewers?memberId={memberId}", 1L, 1L)
+                .post("/api/review-requests/{reviewRequestId}/reviewers", 1L)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("reviewerId", equalTo(3))
@@ -68,7 +70,7 @@ class ReviewerControllerTest {
                 .contentType(ContentType.JSON)
                 .body("{}")
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/reviewers?memberId={memberId}", 1L, 1L)
+                .post("/api/review-requests/{reviewRequestId}/reviewers", 1L)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));

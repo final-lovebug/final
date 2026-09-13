@@ -1,6 +1,7 @@
 package com.ubidict.backend.reviewrequest.infra.adapter;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.dictionary.domain.Dictionary;
 import com.ubidict.backend.dictionary.domain.DictionaryStatus;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
 import com.ubidict.backend.dictionary.infra.DictionaryRepository;
@@ -22,5 +23,13 @@ public class ActiveDictionaryVersionQueryAdapter implements ActiveDictionaryVers
                 .findByWorkspaceIdAndStatus(workspaceId, DictionaryStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(DictionaryErrorCode.DICTIONARY_NOT_FOUND))
                 .versionNo();
+    }
+
+    @Override
+    public int baseVersionNoForNextVersion(Long workspaceId) {
+        return dictionaryRepository
+                .findByWorkspaceIdAndStatus(workspaceId, DictionaryStatus.ACTIVE)
+                .map(Dictionary::versionNo)
+                .orElse(0);
     }
 }

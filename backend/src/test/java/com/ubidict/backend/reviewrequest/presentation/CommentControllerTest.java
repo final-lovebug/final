@@ -10,6 +10,7 @@ import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.service.CommentService;
 import com.ubidict.backend.reviewrequest.service.model.CommentResult;
+import com.ubidict.backend.support.WithLoginMember;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -25,6 +26,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(2L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(CommentController.class)
 class CommentControllerTest {
@@ -58,7 +60,7 @@ class CommentControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/reviews/{reviewId}/comments?memberId={memberId}", 1L, 2L)
+                .post("/api/reviews/{reviewId}/comments", 1L)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("commentId", equalTo(3))
@@ -77,7 +79,7 @@ class CommentControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/reviews/{reviewId}/comments?memberId={memberId}", 1L, 2L)
+                .post("/api/reviews/{reviewId}/comments", 1L)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
@@ -94,7 +96,7 @@ class CommentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/review-requests/{reviewRequestId}/comments?memberId={memberId}", 1L, 2L)
+                .get("/api/review-requests/{reviewRequestId}/comments", 1L)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo("WORKSPACE_NOT_FOUND"));
@@ -118,7 +120,7 @@ class CommentControllerTest {
                         }
                         """)
                 .when()
-                .post("/api/reviews/{reviewId}/comments?memberId={memberId}", 1L, 2L)
+                .post("/api/reviews/{reviewId}/comments", 1L)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("REVIEW_REQUEST_INVALID_COMMENT_PARENT"));

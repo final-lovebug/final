@@ -105,6 +105,16 @@ class DraftDocumentTest {
                         .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION));
     }
 
+    @DisplayName("교정 완료 전에는 리뷰 요청 자격이 없다.")
+    @Test
+    void validateExaminedForReview_isExamining() {
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "본문", MEMBER_ID, MEMBER_ID);
+
+        assertThatThrownBy(draftDocument::validateExaminedForReview)
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION));
+    }
+
     @DisplayName("같은 리뷰 요청 이벤트를 두 번 받아도 상태는 한 번만 변경된다.")
     @Test
     void markReviewRequested_isIdempotent() {

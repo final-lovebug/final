@@ -10,6 +10,7 @@ import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.service.ReviseService;
 import com.ubidict.backend.reviewrequest.service.model.ReviseResult;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(2L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ReviseController.class)
 class ReviseControllerTest {
@@ -49,7 +51,7 @@ class ReviseControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/revision?memberId={memberId}", 1L, 2L)
+                .post("/api/review-requests/{reviewRequestId}/revision", 1L)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("resultVersionNo", equalTo(2));
@@ -66,7 +68,7 @@ class ReviseControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/revision?memberId={memberId}", 1L, 2L)
+                .post("/api/review-requests/{reviewRequestId}/revision", 1L)
                 .then()
                 .statusCode(HttpStatus.CONFLICT.value())
                 .body("code", equalTo("REVIEW_REQUEST_NOT_ELIGIBLE_FOR_REVISE"));
@@ -83,7 +85,7 @@ class ReviseControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .post("/api/review-requests/{reviewRequestId}/revision?memberId={memberId}", 1L, 2L)
+                .post("/api/review-requests/{reviewRequestId}/revision", 1L)
                 .then()
                 .statusCode(HttpStatus.FORBIDDEN.value())
                 .body("code", equalTo("REVIEW_REQUEST_ACCESS_DENIED"));

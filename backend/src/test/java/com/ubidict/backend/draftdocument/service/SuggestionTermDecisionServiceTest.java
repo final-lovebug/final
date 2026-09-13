@@ -17,10 +17,11 @@ import com.ubidict.backend.document.infra.DocumentRepository;
 import com.ubidict.backend.document.infra.DocumentVersionRepository;
 import com.ubidict.backend.draftdocument.domain.SuggestionTermStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import com.ubidict.backend.draftdocument.fixture.DraftDocumentFixture;
+import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import com.ubidict.backend.draftdocument.service.model.AcceptSuggestionTermCommand;
 import com.ubidict.backend.draftdocument.service.model.AddSuggestionTermCommand;
 import com.ubidict.backend.draftdocument.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.RejectSuggestionTermCommand;
 import com.ubidict.backend.draftdocument.service.model.SuggestionTermResult;
 import com.ubidict.backend.support.IntegrationTestSupport;
@@ -42,6 +43,9 @@ class SuggestionTermDecisionServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private DraftDocumentService draftDocumentService;
+
+    @Autowired
+    private DraftDocumentRepository draftDocumentRepository;
 
     @Autowired
     private WorkspaceRepository workspaceRepository;
@@ -166,9 +170,13 @@ class SuggestionTermDecisionServiceTest extends IntegrationTestSupport {
                 .createdBy(MEMBER_ID)
                 .build());
 
-        Long draftDocumentId = draftDocumentService
-                .create(new CreateDraftDocumentCommand(document.getId(), 1, "회원", MEMBER_ID))
-                .draftDocumentId();
+        Long draftDocumentId = draftDocumentRepository
+                .save(DraftDocumentFixture.draftDocument()
+                        .documentId(document.getId())
+                        .draftBody("회원")
+                        .requestedBy(MEMBER_ID)
+                        .build())
+                .getId();
         return suggestionTermService.add(
                 new AddSuggestionTermCommand(draftDocumentId, new TextRange(0, 2), "회원", suggestionTerm, MEMBER_ID));
     }
