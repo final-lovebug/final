@@ -1,6 +1,7 @@
 package com.ubidict.backend.draftdictionary.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.exception.BusinessException;
@@ -14,7 +15,6 @@ import com.ubidict.backend.draftdictionary.service.model.CreateDraftDictionaryCo
 import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
 import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
-import com.ubidict.backend.draftdictionary.service.model.RequestDictionaryReviewCommand;
 import com.ubidict.backend.draftdictionary.service.model.UpdateSourceDocumentsCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Permission;
@@ -173,59 +173,39 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_EXAMINED);
     }
 
-    @DisplayName("교정 완료된 초안에 실제 변경 항목이 있으면 리뷰 요청 상태로 전이한다.")
+    @DisplayName("교정 완료된 초안에 실제 변경 항목이 있으면 리뷰 요청 자격이 있다.")
     @Test
-    void requestReview() {
+    void validateReviewReadiness() {
         Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
         Long candidateTermId = addCandidate(draftDictionaryId, "신규어", "신규 정의");
         decide(candidateTermId, CandidateTermStatus.REGISTRATION_APPROVED);
         draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, MEMBER_ID));
 
-        DraftDictionaryResult result =
-                draftDictionaryService.requestReview(new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID));
-
-        assertThat(result.status()).isEqualTo(DraftDictionaryStatus.REVIEW_REQUESTED);
+        assertThatCode(() -> draftDictionaryService.validateReviewReadiness(draftDictionaryId))
+                .doesNotThrowAnyException();
     }
 
-    @DisplayName("교정 완료 전에는 리뷰를 요청할 수 없다.")
+    @DisplayName("교정 완료 전에는 리뷰 요청 자격이 없다.")
     @Test
-    void requestReview_notExamined() {
+    void validateReviewReadiness_notExamined() {
         Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
 
-        assertThatThrownBy(() -> draftDictionaryService.requestReview(
-                        new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID)))
+        assertThatThrownBy(() -> draftDictionaryService.validateReviewReadiness(draftDictionaryId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NOT_EXAMINED);
     }
 
-    @DisplayName("이전 버전과 달라진 등재 대상이 없으면 리뷰를 요청할 수 없다.")
+    @DisplayName("이전 버전과 달라진 등재 대상이 없으면 리뷰 요청 자격이 없다.")
     @Test
-    void requestReview_noChangedItem() {
+    void validateReviewReadiness_noChangedItem() {
         Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
         draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, MEMBER_ID));
 
-        assertThatThrownBy(() -> draftDictionaryService.requestReview(
-                        new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID)))
+        assertThatThrownBy(() -> draftDictionaryService.validateReviewReadiness(draftDictionaryId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NO_CHANGED_ITEM);
-    }
-
-    @DisplayName("이미 리뷰를 요청한 초안은 다시 요청할 수 없다.")
-    @Test
-    void requestReview_alreadyRequested() {
-        Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
-        Long candidateTermId = addCandidate(draftDictionaryId, "신규어", "신규 정의");
-        decide(candidateTermId, CandidateTermStatus.REGISTRATION_APPROVED);
-        draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, MEMBER_ID));
-        draftDictionaryService.requestReview(new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID));
-
-        assertThatThrownBy(() -> draftDictionaryService.requestReview(
-                        new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED);
     }
 
     @DisplayName("후보어 상태별 교정 진행률을 조회한다.")

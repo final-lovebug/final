@@ -10,7 +10,6 @@ import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.domain.event.CandidateTermDecidedEvent;
 import com.ubidict.backend.draftdictionary.domain.event.DraftDictionaryCreatedEvent;
-import com.ubidict.backend.draftdictionary.domain.event.DraftDictionaryReviewRequestedEvent;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,18 +40,6 @@ class DraftDictionaryEventPublisherTest {
         assertThat(event.draftDictionaryId()).isEqualTo(10L);
         assertThat(event.workspaceId()).isEqualTo(1L);
         assertThat(event.createdBy()).isEqualTo(2L);
-    }
-
-    @DisplayName("리뷰 요청 이벤트에는 실제 요청자가 담긴다.")
-    @Test
-    void publishReviewRequested() {
-        DraftDictionary draft = draft();
-
-        publisher.publishReviewRequested(draft, 3L);
-
-        DraftDictionaryReviewRequestedEvent event = capture(DraftDictionaryReviewRequestedEvent.class);
-        assertThat(event.draftDictionaryId()).isEqualTo(10L);
-        assertThat(event.requesterId()).isEqualTo(3L);
     }
 
     @DisplayName("후보어 판정 이벤트에는 판정 상태와 처리자가 담긴다.")

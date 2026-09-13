@@ -14,7 +14,6 @@ import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdictionary.service.model.CreateDraftDictionaryCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
 import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
-import com.ubidict.backend.draftdictionary.service.model.RequestDictionaryReviewCommand;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -117,23 +116,6 @@ class DraftDictionaryControllerTest {
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("EXAMINED"));
-    }
-
-    @DisplayName("리뷰를 요청하면 REVIEW_REQUESTED 상태를 응답한다.")
-    @Test
-    void requestReview() {
-        given(draftDictionaryService.requestReview(any(RequestDictionaryReviewCommand.class)))
-                .willReturn(draftDictionaryResult(DraftDictionaryStatus.REVIEW_REQUESTED));
-
-        RestAssuredMockMvc.given()
-                .when()
-                .post(
-                        "/api/draft-dictionaries/{draftDictionaryId}/review-request?memberId={memberId}",
-                        DRAFT_DICTIONARY_ID,
-                        MEMBER_ID)
-                .then()
-                .statusCode(HttpStatus.OK.value())
-                .body("status", equalTo("REVIEW_REQUESTED"));
     }
 
     @DisplayName("초안의 상태별 교정 진행률을 응답한다.")

@@ -83,13 +83,24 @@ public class DraftDocument extends BaseEntity {
         return status == DraftDocumentStatus.EXAMINED;
     }
 
+    /**
+     * 리뷰 요청을 받을 수 있는 상태인지 본다.
+     *
+     * <p>리뷰 요청 생성은 ReviewRequest 도메인이 하고(D-44) 이 초안의 전이는 그 결과 이벤트로 뒤따르므로, 판정과 전이가 서로 다른 트랜잭션에서 일어난다. 전이
+     * 시점에 던지는 예외는 AFTER_COMMIT 리스너 안에서 묻히기 때문에 <b>요청을 받는 자리에서 같은 규칙을 먼저 확인해야</b> 한다. 그래서 조건을 이 메서드로 떼어
+     * 양쪽이 함께 쓴다.
+     */
+    public void validateExaminedForReview() {
+        if (status != DraftDocumentStatus.EXAMINED) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION);
+        }
+    }
+
     public void markReviewRequested() {
         if (status == DraftDocumentStatus.REVIEW_REQUESTED) {
             return;
         }
-        if (status != DraftDocumentStatus.EXAMINED) {
-            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION);
-        }
+        validateExaminedForReview();
         status = DraftDocumentStatus.REVIEW_REQUESTED;
     }
 

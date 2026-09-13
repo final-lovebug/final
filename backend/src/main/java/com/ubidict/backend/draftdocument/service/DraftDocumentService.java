@@ -44,6 +44,16 @@ public class DraftDocumentService {
     private final DraftDocumentEventPublisher draftDocumentEventPublisher;
     private final DocumentQueryPort documentQueryPort;
 
+    /**
+     * 리뷰 요청을 받을 상태인지 판정한다. 리뷰 요청 생성은 ReviewRequest 도메인이 하고(D-44) 이 메서드는 그쪽 어댑터가 호출한다.
+     *
+     * <p>상태를 바꾸지 않는다 — 전이는 ReviewRequestCreatedEvent를 받는 리스너가 한다.
+     */
+    @Transactional(readOnly = true)
+    public void validateReviewReadiness(Long draftDocumentId) {
+        draftDocumentReader.read(draftDocumentId).validateExaminedForReview();
+    }
+
     @Transactional
     public DraftDocumentResult create(CreateDraftDocumentCommand command) {
         DocumentSnapshot document = accessValidator.validateCreation(command.documentId(), command.memberId());

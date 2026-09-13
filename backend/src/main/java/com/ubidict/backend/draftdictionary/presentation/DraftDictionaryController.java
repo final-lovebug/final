@@ -6,7 +6,6 @@ import com.ubidict.backend.draftdictionary.presentation.dto.ExamineProgressRespo
 import com.ubidict.backend.draftdictionary.presentation.dto.UpdateSourceDocumentsRequest;
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdictionary.service.model.RequestDictionaryReviewCommand;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -79,12 +78,5 @@ public class DraftDictionaryController {
             @PathVariable Long draftDictionaryId, @RequestParam Long memberId) {
         return ResponseEntity.ok(DraftDictionaryResponse.from(
                 draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, memberId))));
-    }
-
-    @PostMapping("/{draftDictionaryId}/review-request")
-    public ResponseEntity<DraftDictionaryResponse> review(
-            @PathVariable Long draftDictionaryId, @RequestParam Long memberId) {
-        return ResponseEntity.ok(DraftDictionaryResponse.from(
-                draftDictionaryService.requestReview(new RequestDictionaryReviewCommand(draftDictionaryId, memberId))));
     }
 }

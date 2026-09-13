@@ -5,7 +5,6 @@ import com.ubidict.backend.draftdictionary.domain.CandidateTerm;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.domain.event.CandidateTermDecidedEvent;
 import com.ubidict.backend.draftdictionary.domain.event.DraftDictionaryCreatedEvent;
-import com.ubidict.backend.draftdictionary.domain.event.DraftDictionaryReviewRequestedEvent;
 import java.time.OffsetDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -22,15 +21,6 @@ public class DraftDictionaryEventPublisher {
                 draftDictionary.getWorkspaceId(),
                 draftDictionary.getDictionaryId(),
                 draftDictionary.getCreatedBy(),
-                OffsetDateTime.now()));
-    }
-
-    public void publishReviewRequested(DraftDictionary draftDictionary, Long requesterId) {
-        eventPublisher.publish(new DraftDictionaryReviewRequestedEvent(
-                draftDictionary.getId(),
-                draftDictionary.getWorkspaceId(),
-                draftDictionary.getDictionaryId(),
-                requesterId,
                 OffsetDateTime.now()));
     }
 
