@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.dictionary.domain.DictionaryStatus;
+import com.ubidict.backend.dictionary.domain.event.DictionaryRevisedEvent;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
 import com.ubidict.backend.dictionary.exception.TermErrorCode;
 import com.ubidict.backend.dictionary.service.model.DictionaryResult;
@@ -25,8 +26,31 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 
+@RecordApplicationEvents
 class DictionaryServiceTest extends IntegrationTestSupport {
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
+
+    @DisplayName("사전집 버전을 반영하면 식별자와 버전만 담은 이벤트를 발행한다.")
+    @Test
+    void revise_publishesEvent() {
+        Long workspaceId = createWorkspace();
+
+        DictionaryResult result = dictionaryService.revise(command(workspaceId, term("회원")));
+
+        assertThat(applicationEvents.stream(DictionaryRevisedEvent.class))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.workspaceId()).isEqualTo(workspaceId);
+                    assertThat(event.dictionaryId()).isEqualTo(result.dictionaryId());
+                    assertThat(event.versionNo()).isEqualTo(result.versionNo());
+                    assertThat(event.occurredAt()).isEqualTo(result.publishedAt());
+                });
+    }
 
     @Test
     @DisplayName("표준어 접두어로 활성 사전집의 용어를 검색한다.")
