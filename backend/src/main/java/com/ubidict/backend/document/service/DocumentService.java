@@ -2,10 +2,12 @@ package com.ubidict.backend.document.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.exception.CommonErrorCode;
+import com.ubidict.backend.common.infra.event.EventPublisher;
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.document.domain.Document;
 import com.ubidict.backend.document.domain.DocumentVersion;
 import com.ubidict.backend.document.domain.Label;
+import com.ubidict.backend.document.domain.event.DocumentEditedEvent;
 import com.ubidict.backend.document.exception.DocumentErrorCode;
 import com.ubidict.backend.document.implement.DocumentAlignmentReader;
 import com.ubidict.backend.document.implement.DocumentAppender;
@@ -64,6 +66,7 @@ public class DocumentService {
     private final WorkspaceAccessValidator workspaceAccessValidator;
     private final DocumentAlignmentReader documentAlignmentReader;
     private final DocumentEditGuard documentEditGuard;
+    private final EventPublisher eventPublisher;
 
     /**
      * 문서와 v1 버전을 한 트랜잭션에서 만든다. 본문이 버전에만 있으므로 v1이 빠지면 본문 없는 문서가 남는다.
@@ -151,6 +154,8 @@ public class DocumentService {
                 document.getId(),
                 document.getWorkspaceId(),
                 version.versionNo());
+        eventPublisher.publish(new DocumentEditedEvent(
+                document.getId(), document.getWorkspaceId(), version.versionNo(), java.time.OffsetDateTime.now()));
         return DocumentResult.of(
                 document, version, readLabelNames(document), activeDictionaryVersionNo(command.workspaceId()));
     }
