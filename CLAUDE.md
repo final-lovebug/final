@@ -32,7 +32,7 @@
 - `docs/DOMAIN.md` — 엔티티 속성 표, 관계, 정책·제약
 - `docs/UBIQUITOUS_LANGUAGE.md` — 도메인별 유비쿼터스 언어 사전
 
-도메인 구현 계획은 `docs/plan/`에 있다. 해당 도메인을 구현할 때 읽는다. **6개 도메인이 같은 13절 목차를 쓴다.**
+도메인 구현 계획은 `docs/plan/`에 있다. 해당 도메인을 구현할 때 읽는다. **7개 도메인이 같은 13절 목차를 쓴다.**
 
 - `docs/plan/CONFLICTS.md` — **결정·충돌 인벤토리. 어느 도메인을 구현하든 함께 읽는다.** 확정된 결정(`G-*`·`D-*`), **뒤집힌 결정(`R-*`)**, 문서·코드 충돌 목록이 여기 모여 있다. 계획 문서의 서술과 `R-*`가 어긋나면 `R-*`를 따른다
 - `docs/plan/EXECUTION_ORDER.md` — **여러 세션으로 나눠 구현할 때 먼저 읽는다.** 태스크 ID 접두사, 도메인 간 태스크 순서, 공유 파일 주인, 커밋 단위, 동시 실행 제약
@@ -42,8 +42,9 @@
 - `docs/plan/DRAFT_DOCUMENT_PLAN.md` — 문서 초안(DraftDocument) 구현 계획
 - `docs/plan/DRAFT_DICTIONARY_PLAN.md` — 사전 초안(DraftDictionary) 구현 계획
 - `docs/plan/REVIEW_REQUEST_PLAN.md` — 리뷰 요청(ReviewRequest) 구현 계획
+- `docs/plan/NOTIFICATION_PLAN.md` — 알림(Notification) 구현 계획. **2026-09-13 신설**이라 낡은 서술이 없다
 
-> 앞의 3개는 **이미 구현된 도메인**이라 as-built 스냅샷과 변경 델타를 함께 담는다. 뒤의 3개는 미구현이며 **2026-09-10 큰 흐름 확정 이전에 작성되어 낡은 서술이 남아 있다** — `CONFLICTS.md`의 `R-8`~`R-14`·`R-19`가 그 목록이다.
+> 앞의 3개는 **이미 구현된 도메인**이라 as-built 스냅샷과 변경 델타를 함께 담는다. 그다음 3개는 미구현이며 **2026-09-10 큰 흐름 확정 이전에 작성되어 낡은 서술이 남아 있다** — `CONFLICTS.md`의 `R-8`~`R-14`·`R-19`가 그 목록이다. 마지막 Notification은 **6개 도메인이 계약으로만 두던 이벤트의 첫 소비자**다(`D-47`).
 
 하위 프로젝트에서 작업할 때는 해당 프로젝트의 문서를 함께 읽는다.
 
