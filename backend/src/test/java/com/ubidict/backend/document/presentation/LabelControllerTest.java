@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import com.ubidict.backend.document.service.DocumentService;
 import com.ubidict.backend.document.service.model.LabelResult;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(LabelController.class)
 class LabelControllerTest {
@@ -54,7 +56,7 @@ class LabelControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/labels?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/labels", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("", hasSize(2))

@@ -8,6 +8,7 @@ import com.ubidict.backend.draftdocument.domain.CheckJobStatus;
 import com.ubidict.backend.draftdocument.service.DraftDocumentCheckService;
 import com.ubidict.backend.draftdocument.service.model.CheckJobResult;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -20,6 +21,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(30L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(DraftDocumentCheckController.class)
 class DraftDocumentCheckControllerTest {
@@ -46,7 +48,7 @@ class DraftDocumentCheckControllerTest {
         RestAssuredMockMvc.given()
                 .contentType(ContentType.JSON)
                 .body("{\"documentId\":10}")
-                .post("/api/draft-documents/checks?memberId=30")
+                .post("/api/draft-documents/checks")
                 .then()
                 .statusCode(202)
                 .body("checkJobId", equalTo(40))
@@ -59,7 +61,7 @@ class DraftDocumentCheckControllerTest {
         given(draftDocumentCheckService.read(40L, 30L)).willReturn(result());
 
         RestAssuredMockMvc.given()
-                .get("/api/draft-documents/checks/40?memberId=30")
+                .get("/api/draft-documents/checks/40")
                 .then()
                 .statusCode(200)
                 .body("documentId", equalTo(10));

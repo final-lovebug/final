@@ -15,6 +15,7 @@ import com.ubidict.backend.draftdictionary.implement.ExtractionJobWriter;
 import com.ubidict.backend.draftdictionary.infra.port.DocumentQueryPort;
 import com.ubidict.backend.draftdictionary.service.model.CreateExtractionJobCommand;
 import com.ubidict.backend.draftdictionary.service.model.ExtractionJobResult;
+import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +49,7 @@ class DraftDictionaryExtractionServiceTest {
         assertThat(result.extractionJobId()).isEqualTo(30L);
         assertThat(result.status()).isEqualTo(ExtractionJobStatus.PENDING);
         assertThat(result.sourceDocumentIds()).containsExactly(10L);
+        verify(accessValidator).validateAtLeast(1L, 2L, Permission.ADMIN);
         verify(draftPolicy).validate(1L);
         verify(jobPolicy).validate(1L);
         verify(eventPublisher).publishRequested(job);

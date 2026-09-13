@@ -10,4 +10,6 @@ public interface RevisionDocumentRepository extends JpaRepository<RevisionDocume
     Optional<RevisionDocument> findByReviewRequestIdAndReexamineRound(Long id, int round);
 
     Optional<RevisionDocument> findTopByReviewRequestIdOrderByReexamineRoundDesc(Long reviewRequestId);
+
+    boolean existsByDraftDocumentId(Long draftDocumentId);
 }

@@ -13,6 +13,12 @@ spring:
           google:
             client-id: "${GOOGLE_CLIENT_ID}"
             client-secret: "${GOOGLE_CLIENT_SECRET}"
+  cloud:
+    aws:
+      parameterstore:
+        # 기본 off. 켜져 있으면 SsmClient 빈이 곧바로 만들어져 로컬·테스트에서도 AWS 리전을 요구하고,
+        # 리전이 없으면 컨텍스트 자체가 뜨지 않는다. 시크릿을 Parameter Store 에서 읽는 prod 만 켠다.
+        enabled: ${AWS_PARAMETER_STORE_ENABLED:false}
 
 app:
   messaging:
@@ -20,9 +26,9 @@ app:
     # 상위 레이어는 EventPublisher 포트만 참조한다.
     mode: ${MESSAGING_MODE:in-memory}
   crossdomain:
-    # 크로스 도메인 어댑터 선택. 소비 도메인이 real과 stub을 짝으로 갖고 이 프로퍼티가 고른다(D-33).
-    # 키를 한자리에 모아 두는 이유 — 도메인 PR이 동시에 이 파일을 건드리면 충돌한다.
-    # 선행 PR이 전부 선언하고, 이후 각 PR은 자기 한 줄의 stub을 real로 뒤집기만 한다.
+    # 크로스 도메인 어댑터 선택(D-33). 6개 도메인이 모두 머지돼 여덟 축이 전부 real이고,
+    # 「제공 도메인이 아직 없으면 스텁을 함께 만든다」의 전제가 소멸했으므로 스텁은 제거했다(T-INT-2).
+    # 키는 남겨 둔다 — 어댑터가 이 값으로 선택되므로 real이 아니면 빈이 없어 기동이 실패한다.
     dictionary:
       mode: ${DICTIONARY_CROSSDOMAIN_MODE:real}
     document:
@@ -31,9 +37,11 @@ app:
       mode: ${DRAFT_DOCUMENT_CROSSDOMAIN_MODE:real}
     draft-dictionary:
       mode: ${DRAFT_DICTIONARY_CROSSDOMAIN_MODE:real}
+    review-request:
+      mode: ${REVIEW_REQUEST_CROSSDOMAIN_MODE:real}
     workspace:
       mode: ${WORKSPACE_CROSSDOMAIN_MODE:real}
-    # 발행 위임 축은 제공 도메인이 real 어댑터를 넣을 때 뒤집는다 — DOC-6 / DIC-3.
+    # 발행 위임 축. 제공 도메인의 real 어댑터가 DOC-6 / DIC-3으로 들어와 있다.
     document-publish:
       mode: ${DOCUMENT_PUBLISH_CROSSDOMAIN_MODE:real}
     dictionary-publish:

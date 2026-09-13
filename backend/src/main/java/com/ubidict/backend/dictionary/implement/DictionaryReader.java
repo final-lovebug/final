@@ -6,7 +6,6 @@ import com.ubidict.backend.dictionary.domain.Dictionary;
 import com.ubidict.backend.dictionary.domain.DictionaryStatus;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
 import com.ubidict.backend.dictionary.infra.DictionaryRepository;
-import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -35,13 +34,6 @@ public class DictionaryReader {
         return dictionaryRepository
                 .findByWorkspaceIdAndVersionVersionNo(workspaceId, versionNo)
                 .orElseThrow(() -> new BusinessException(DictionaryErrorCode.DICTIONARY_NOT_FOUND));
-    }
-
-    /**
-     * 최신 버전이 먼저 나온다. 사전집을 만든 적 없는 워크스페이스는 빈 목록이다.
-     */
-    public List<Dictionary> readAllVersions(Long workspaceId) {
-        return dictionaryRepository.findAllByWorkspaceIdOrderByVersionVersionNoDesc(workspaceId);
     }
 
     public PageResult<Dictionary> readVersions(Long workspaceId, int page, int size) {

@@ -119,6 +119,27 @@
   `application-local.yml`(`spring.profiles.active=local`)이 `false`로 덮어쓴다.
   `http://localhost`에서는 `Secure` 쿠키를 브라우저가 돌려보내지 않기 때문이다.
 
+### 프로파일
+
+프로파일 파일은 넷이다. **공통 기본값은 `application.yml` 한 곳에만 두고 각 프로파일은 차이만 덮는다**(`D-46`).
+
+| 프로파일 | 파일 | 용도 |
+| --- | --- | --- |
+| (없음) | `application.yml` | 모든 프로파일의 기본값. `app.crossdomain.*`·`app.messaging.mode`·`app.ai.*`가 여기 있다 |
+| `local` | `application-local.yml` | 로컬 실행. `http://localhost`에서 `Secure` 쿠키가 돌아오지 않으므로 끈다 |
+| `dev` | `application-dev.yml` | 개발 서버. 시크릿을 환경변수로 받고 Parameter Store를 쓰지 않는다 |
+| `prod` | `application-prod.yml` | 운영. Parameter Store에서 시크릿을 읽는다 |
+| `test` | `src/test/resources/application-test.yml` | 테스트. DB·Redis 접속은 Testcontainers가 주입하므로 여기 적지 않는다 |
+
+**AWS Parameter Store는 기본 off다.** `spring.cloud.aws.parameterstore.enabled`가 켜져 있으면
+`SsmClient` 빈이 곧바로 만들어져 로컬·테스트에서도 AWS 리전을 요구하고, 리전이 없으면 컨텍스트가
+뜨지 않는다. 그래서 `application.yml`이 `false`로 두고 **`prod`만 `true`로 켠다** — 시크릿을
+Parameter Store에서 읽는 프로파일이 그것뿐이다.
+
+**`spring.profiles.active` 기본값을 두지 않는다.** `bootRun`은 무-프로파일로 뜨고, 로컬은
+`./gradlew bootRun --args='--spring.profiles.active=local'`로 명시한다. 테스트는
+`IntegrationTestSupport`·`RepositoryTestSupport`의 `@ActiveProfiles("test")`가 지정한다.
+
 ### 운영 설정 — AWS Parameter Store
 
 운영(`prod` 프로필)에서는 위 환경변수를 쓰지 않고 **AWS Parameter Store의 `/lovebug/` 이하**
@@ -137,12 +158,14 @@
 | `/lovebug/oauth/google/client-id` | String | `spring.security.oauth2....google.client-id` |
 | `/lovebug/oauth/google/client-secret` | SecureString | `spring.security.oauth2....google.client-secret` |
 | `/lovebug/oauth/frontend-redirect-uri` | String | `app.oauth.frontend-redirect-uri` |
+| `/lovebug/redis/host` | String | `spring.data.redis.host` |
+| `/lovebug/redis/port` | String | `spring.data.redis.port` |
 
 - **표의 파라미터가 하나라도 없으면 기동이 실패한다.** 플레이스홀더에 기본값을 두지 않는 것은
   운영에서 시크릿이 조용히 로컬 기본값으로 떨어지는 것을 막기 위함이다.
-- Redis 운영 엔드포인트는 아직 정해지지 않아 `application-prod.yml`에 주석으로만
-  남겨뒀다. 엔드포인트가 정해지면 `/lovebug/redis/host`, `/lovebug/redis/port`를
-  만들고 주석을 해제한다. **해제 전까지는 `localhost` 기본값을 쓴다.**
+- Redis 운영 설정은 `application-prod.yml`에서 **이미 활성**이며 `/lovebug/redis/host`,
+  `/lovebug/redis/port`를 읽는다(TLS 켜짐). 표의 파라미터와 마찬가지로 **없으면 기동이
+  실패한다.**
 - 리전은 컨테이너에 주입되는 `AWS_REGION`(`deploy/scripts/start_container.sh`)에서 결정된다.
 - EC2 인스턴스 역할에 다음 권한이 필요하다.
   `ssm:GetParametersByPath`(리소스 `arn:aws:ssm:<region>:<account>:parameter/lovebug/*`)와

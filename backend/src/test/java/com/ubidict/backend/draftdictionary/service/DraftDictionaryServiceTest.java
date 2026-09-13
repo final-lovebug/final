@@ -1,24 +1,24 @@
 package com.ubidict.backend.draftdictionary.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
+import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionaryStatus;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
+import com.ubidict.backend.draftdictionary.fixture.DraftDictionaryFixture;
 import com.ubidict.backend.draftdictionary.infra.DraftDictionaryRepository;
 import com.ubidict.backend.draftdictionary.service.model.AddCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdictionary.service.model.CreateDraftDictionaryCommand;
 import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
 import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
-import com.ubidict.backend.draftdictionary.service.model.RequestDictionaryReviewCommand;
 import com.ubidict.backend.draftdictionary.service.model.UpdateSourceDocumentsCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Permission;
-import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import com.ubidict.backend.workspace.fixture.ParticipantFixture;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
 import com.ubidict.backend.workspace.infra.ParticipantRepository;
@@ -67,18 +67,6 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
                 .build());
     }
 
-    @DisplayName("사전집이 없는 첫 회차의 사전 초안을 생성한다.")
-    @Test
-    void create() {
-        DraftDictionaryResult result = createDraft(List.of(10L));
-
-        assertThat(result.draftDictionaryId()).isNotNull();
-        assertThat(result.workspaceId()).isEqualTo(WORKSPACE_ID);
-        assertThat(result.dictionaryId()).isNull();
-        assertThat(result.status()).isEqualTo(DraftDictionaryStatus.EXAMINING);
-        assertThat(result.createdBy()).isEqualTo(MEMBER_ID);
-    }
-
     @DisplayName("사전 초안의 유래 문서 목록을 교체한다.")
     @Test
     void updateSourceDocuments() {
@@ -103,35 +91,6 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
 
         assertThat(draftDictionaryRepository.findByIdAndDeletedAtIsNull(created.draftDictionaryId()))
                 .isEmpty();
-    }
-
-    @DisplayName("중복된 유래 문서로 사전 초안을 생성할 수 없다.")
-    @Test
-    void create_duplicateSourceDocument() {
-        assertThatThrownBy(() -> createDraft(List.of(10L, 10L)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_DUPLICATE_SOURCE_DOCUMENT);
-    }
-
-    @DisplayName("일반 참여자는 사전 초안을 생성할 수 없다.")
-    @Test
-    void create_regularPermission() {
-        assertThatThrownBy(() -> draftDictionaryService.create(
-                        new CreateDraftDictionaryCommand(WORKSPACE_ID, null, List.of(10L), REGULAR_ID)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(WorkspaceErrorCode.WORKSPACE_ADMIN_REQUIRED);
-    }
-
-    @DisplayName("워크스페이스 비참여자가 사전 초안을 생성하면 존재를 감춘다.")
-    @Test
-    void create_notParticipant() {
-        assertThatThrownBy(() -> draftDictionaryService.create(
-                        new CreateDraftDictionaryCommand(WORKSPACE_ID, null, List.of(10L), STRANGER_ID)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
     }
 
     @DisplayName("미판정 후보어가 없으면 교정을 완료한다.")
@@ -173,59 +132,39 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_EXAMINED);
     }
 
-    @DisplayName("교정 완료된 초안에 실제 변경 항목이 있으면 리뷰 요청 상태로 전이한다.")
+    @DisplayName("교정 완료된 초안에 실제 변경 항목이 있으면 리뷰 요청 자격이 있다.")
     @Test
-    void requestReview() {
+    void validateReviewReadiness() {
         Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
         Long candidateTermId = addCandidate(draftDictionaryId, "신규어", "신규 정의");
         decide(candidateTermId, CandidateTermStatus.REGISTRATION_APPROVED);
         draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, MEMBER_ID));
 
-        DraftDictionaryResult result =
-                draftDictionaryService.requestReview(new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID));
-
-        assertThat(result.status()).isEqualTo(DraftDictionaryStatus.REVIEW_REQUESTED);
+        assertThatCode(() -> draftDictionaryService.validateReviewReadiness(draftDictionaryId))
+                .doesNotThrowAnyException();
     }
 
-    @DisplayName("교정 완료 전에는 리뷰를 요청할 수 없다.")
+    @DisplayName("교정 완료 전에는 리뷰 요청 자격이 없다.")
     @Test
-    void requestReview_notExamined() {
+    void validateReviewReadiness_notExamined() {
         Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
 
-        assertThatThrownBy(() -> draftDictionaryService.requestReview(
-                        new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID)))
+        assertThatThrownBy(() -> draftDictionaryService.validateReviewReadiness(draftDictionaryId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NOT_EXAMINED);
     }
 
-    @DisplayName("이전 버전과 달라진 등재 대상이 없으면 리뷰를 요청할 수 없다.")
+    @DisplayName("이전 버전과 달라진 등재 대상이 없으면 리뷰 요청 자격이 없다.")
     @Test
-    void requestReview_noChangedItem() {
+    void validateReviewReadiness_noChangedItem() {
         Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
         draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, MEMBER_ID));
 
-        assertThatThrownBy(() -> draftDictionaryService.requestReview(
-                        new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID)))
+        assertThatThrownBy(() -> draftDictionaryService.validateReviewReadiness(draftDictionaryId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NO_CHANGED_ITEM);
-    }
-
-    @DisplayName("이미 리뷰를 요청한 초안은 다시 요청할 수 없다.")
-    @Test
-    void requestReview_alreadyRequested() {
-        Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
-        Long candidateTermId = addCandidate(draftDictionaryId, "신규어", "신규 정의");
-        decide(candidateTermId, CandidateTermStatus.REGISTRATION_APPROVED);
-        draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, MEMBER_ID));
-        draftDictionaryService.requestReview(new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID));
-
-        assertThatThrownBy(() -> draftDictionaryService.requestReview(
-                        new RequestDictionaryReviewCommand(draftDictionaryId, MEMBER_ID)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED);
     }
 
     @DisplayName("후보어 상태별 교정 진행률을 조회한다.")
@@ -252,9 +191,17 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
         assertThat(result.merged()).isZero();
     }
 
+    /**
+     * 초안을 만드는 진입점은 비동기 추출 작업뿐이므로(D-45) 교정 이후 흐름만 보는 테스트는 초안을 직접 만든다. 생성 자체는
+     * DraftDictionaryExtractionExecutionServiceTest가, 유래 문서 검증은 DraftDictionaryTest가 검증한다.
+     */
     private DraftDictionaryResult createDraft(List<Long> sourceDocumentIds) {
-        return draftDictionaryService.create(
-                new CreateDraftDictionaryCommand(WORKSPACE_ID, null, sourceDocumentIds, MEMBER_ID));
+        DraftDictionary draftDictionary = draftDictionaryRepository.save(DraftDictionaryFixture.draftDictionary()
+                .workspaceId(WORKSPACE_ID)
+                .sourceDocumentIds(sourceDocumentIds)
+                .createdBy(MEMBER_ID)
+                .build());
+        return draftDictionaryService.read(draftDictionary.getId(), MEMBER_ID);
     }
 
     private Long addCandidate(Long draftDictionaryId, String form, String definition) {

@@ -10,10 +10,9 @@ import com.ubidict.backend.document.fixture.DocumentVersionFixture;
 import com.ubidict.backend.document.infra.DocumentRepository;
 import com.ubidict.backend.document.infra.DocumentVersionRepository;
 import com.ubidict.backend.draftdocument.domain.DraftDocument;
-import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import com.ubidict.backend.draftdocument.fixture.DraftDocumentFixture;
 import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
-import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
@@ -70,19 +69,6 @@ class DraftDocumentServiceTest extends IntegrationTestSupport {
         documentId = document.getId();
     }
 
-    @DisplayName("문서 초안을 생성한다.")
-    @Test
-    void create() {
-        // when
-        DraftDocumentResult result = createDraft("회원은 결제할 수 있다.");
-
-        // then
-        assertThat(result.draftDocumentId()).isNotNull();
-        assertThat(result.documentId()).isEqualTo(documentId);
-        assertThat(result.status()).isEqualTo(DraftDocumentStatus.EXAMINING);
-        assertThat(result.requestedBy()).isEqualTo(MEMBER_ID);
-    }
-
     @DisplayName("문서 초안의 본문을 수정한다.")
     @Test
     void updateBody() {
@@ -128,7 +114,16 @@ class DraftDocumentServiceTest extends IntegrationTestSupport {
                 .isEqualTo(true);
     }
 
+    /**
+     * 초안을 만드는 진입점은 비동기 대조 작업뿐이므로(D-45) 교정 이후 흐름만 보는 테스트는 초안을 직접 만든다. 생성 자체는
+     * DraftDocumentCheckExecutionServiceTest가 검증한다.
+     */
     private DraftDocumentResult createDraft(String draftBody) {
-        return draftDocumentService.create(new CreateDraftDocumentCommand(documentId, 1, draftBody, MEMBER_ID));
+        DraftDocument draftDocument = draftDocumentRepository.save(DraftDocumentFixture.draftDocument()
+                .documentId(documentId)
+                .draftBody(draftBody)
+                .requestedBy(MEMBER_ID)
+                .build());
+        return draftDocumentService.read(draftDocument.getId(), MEMBER_ID);
     }
 }
