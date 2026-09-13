@@ -1,5 +1,7 @@
 package com.ubidict.backend.member.infra;
 
+import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.member.exception.MemberErrorCode;
 import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -53,12 +55,7 @@ public class MemberFieldEncryptor {
     }
 
     static MemberFieldEncryptor instance() {
-        MemberFieldEncryptor current = instance;
-        if (current == null) {
-            throw new IllegalStateException("MemberFieldEncryptor가 아직 초기화되지 않았습니다 — Spring 컨텍스트에 이 빈이 포함돼 있는지 확인하세요"
-                    + "(@DataJpaTest 등 슬라이스 테스트는 명시적으로 @Import해야 합니다).");
-        }
-        return current;
+        return instance;
     }
 
     public String encrypt(String plainText) {
@@ -73,7 +70,7 @@ public class MemberFieldEncryptor {
             System.arraycopy(cipherBytes, 0, combined, nonce.length, cipherBytes.length);
             return Base64.getEncoder().encodeToString(combined);
         } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("개인정보 컬럼 암호화 중 오류가 발생했습니다.", e);
+            throw new BusinessException(MemberErrorCode.MEMBER_ENCRYPTION_FAILED, e.getMessage(), e);
         }
     }
 
@@ -87,7 +84,7 @@ public class MemberFieldEncryptor {
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_LENGTH_BITS, nonce));
             return new String(cipher.doFinal(cipherBytes), StandardCharsets.UTF_8);
         } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("개인정보 컬럼 복호화 중 오류가 발생했습니다.", e);
+            throw new BusinessException(MemberErrorCode.MEMBER_ENCRYPTION_FAILED, e.getMessage(), e);
         }
     }
 
