@@ -9,4 +9,8 @@ public class ReviewRequestRemover {
     public void remove(ReviewRequest reviewRequest, Long actorId) {
         reviewRequest.cancel(actorId);
     }
+
+    public void removeByAdministrator(ReviewRequest reviewRequest) {
+        reviewRequest.cancelByAdministrator();
+    }
 }

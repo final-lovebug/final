@@ -15,7 +15,8 @@
 | `D-1`~`D-18` | 초안·리뷰 3개 문서가 2026-09-10에 확정한 결정 | 전역 공유 | `DRAFT_DOCUMENT_PLAN.md`·`DRAFT_DICTIONARY_PLAN.md`·`REVIEW_REQUEST_PLAN.md` 2-1절 |
 | `G-1`~`G-15` | **사용자가 확정한 큰 흐름** | 전역 | 이 문서 2절 |
 | `D-19`~`D-32` | 큰 흐름을 받아 확정한 나머지 결정 | 전역 | 이 문서 3절 |
-| `D-33`~`D-37` | **잔여 태스크 병렬화 세션(2026-09-12)이 확정한 결정** | 전역 | 이 문서 3-1절 |
+| `D-33`~`D-43` | **잔여 태스크 병렬화 세션(2026-09-12)과 도메인 Phase 3~4가 확정한 결정** | 전역 | 이 문서 3-1절 |
+| `D-44`~`D-46` | **마무리 통합 세션(2026-09-13)이 확정한 결정** | 전역 | 이 문서 3-1절 |
 | `R-1`~`R-24` | **큰 흐름이 뒤집은 기존 결정** | 전역 | 이 문서 4절. 문서 수정이 구현보다 앞선다 |
 | `F-1`~`F-6` | 뒤집힘이 만든 새 과제 | 전역 | 이 문서 5절 |
 | `X-*` | 문서 ↔ 문서 충돌 | 전역 | 이 문서 6절 |
@@ -26,7 +27,7 @@
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다.
 
-**새 결정 ID는 `D-38`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
+**새 결정 ID는 `D-47`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
 
 ### `D-1`~`D-18` 색인 — 이 문서 밖에 정의된 결정
 
@@ -131,7 +132,7 @@
 
 ---
 
-## 3-1. 잔여 태스크 병렬화 세션이 확정한 결정 (`D-33`~`D-37`)
+## 3-1. 잔여 태스크 병렬화 이후 확정한 결정 (`D-33`~`D-46`)
 
 2026-09-12. 구현된 코드와 6개 계획 문서를 대조해 **완료 22 · 미착수 26 · 차단 2**를 확인하고, 잔여를 도메인 단위 병렬로 풀기 위해 확정한 것들이다. 차단의 정체는 **도메인 간 의존이 로직이 아니라 「포트 정의」에 걸려 있다는 것**이었다 — `DIC-3`이 기다린 것은 `RR-4b`의 구현이 아니라 `DictionaryVersionPublishPort` 인터페이스 파일 하나다.
 
@@ -148,8 +149,13 @@
 | **D-41** | **사전집 용어 접두 검색은 활성 버전과 특정 과거 버전에 모두 제공하고 기본 정렬 규격을 공유한다. 목록용 `TermSummary`는 `definition`을 완전히 제외한다.** 정의 미리보기가 필요해지면 별도 필드로 추가한다 | `DIC-6` 열린 질문 2건 |
 | **D-42** | **사전집 발행의 `baseVersionNo` 불일치는 `DICTIONARY_VERSION_CONFLICT`(409)로 구분한다.** 도메인 값 자체가 잘못된 `DICTIONARY_INVALID_VERSION`(400)과 동시 변경 충돌은 의미가 다르다 | `DIC-3` 낙관적 검증 코드 |
 | **D-43** | **문서 교정 반영의 `baseVersionNo` 불일치도 `DOCUMENT_VERSION_CONFLICT`(409)로 구분한다.** 존재하지 않는 버전 조회의 `DOCUMENT_VERSION_NOT_FOUND`(404)와 현재 버전이 달라진 동시 변경 충돌은 의미가 다르다 | `DOC-6` 낙관적 검증 코드 |
+| **D-44** | **리뷰 요청 생성 진입점은 `reviewrequest`가 소유한다.** `POST /api/draft-documents/{id}/review-request`·`POST /api/draft-dictionaries/{id}/review-request`를 `reviewrequest/presentation`에 두고 `ReviewRequest` + `Revision*` + `Reviewer`를 **한 트랜잭션에서 조립**한다(`REVIEW_REQUEST_PLAN.md` 7절이 INTERNALIZE 3건의 대체로 지목한 형태 그대로다). 초안 상태 전이는 이미 있는 `ReviewRequestCreatedEvent` 리스너가 담당하므로 새로 만들지 않는다. **초안의 리뷰 준비 판정은 `DraftReviewReadinessPort`로 위임하고 어댑터를 제공(초안) 도메인에 둔다** — 판정 규칙과 그 `ErrorCode`가 초안 도메인의 도메인 로직이라 `D-33`의 발행 위임과 근거가 같다. `draftdictionary`의 반쪽 엔드포인트(`HALF`)와 `DraftDictionaryService.requestReview`·`DraftDictionaryReviewRequestedEvent`는 제거한다 — 같은 경로에 `@PostMapping`이 둘이면 기동이 깨지고, 이벤트는 발행부·구독부가 모두 사라진다 | `Y-31`. `T-INT-5` 신설 |
+| **D-45** | **동기 초안 생성 엔드포인트 2개를 제거해 `D-36`의 일원화를 끝낸다.** `POST /api/draft-documents`의 `draftBody`는 서버가 문서 본문에서 파생하는 값이고, `POST /api/draft-dictionaries`의 생성은 추출 작업이 대신한다. **생성 진입점은 비동기 작업(`checks`·`extractions`) 하나로 모인다.** `Writer`·`CreationPolicyValidator`·`EventPublisher`는 비동기 실행 경로가 그대로 쓰므로 남는다. 프론트(`frontend/`)와 정적 목업(`ui/`)이 두 경로를 호출하지 않아 외부 영향이 없다 — `D-36`이 보류 근거로 든 「프론트 목업」은 실측 결과 의존이 없었다 | `D-36` 잔여 |
+| **D-46** | **프로파일 파일을 `local`·`dev`·`prod`·`test` 넷으로 갖춘다.** `application-dev.yml`·`application-test.yml`을 신설하고 **`src/test/resources/application.yml`을 걷어낸다** — 이 파일이 main의 `application.yml`을 병합이 아니라 **대체**해서 `app.crossdomain.*` 전체를 수동 복제해야 했고, 실제로 `review-request` 키 누락이 양쪽에 똑같이 발생했다. 기본값은 main 한 곳에만 두고 `application-test.yml`이 차이만 덮는다 | `NFR-INF-002`·`Y-16` |
 
 > **`DD-5`·`DI-5`를 신설한다.** `G-13`이 추출을 MVP1에 넣으면서 「6개 계획 문서는 계약만 정의한다」고 했는데, **그 계약을 만들 태스크가 어느 문서 12절에도 없다.** `DRAFT_DICTIONARY_PLAN.md` 1절이 `R-8`로 뒤집히기 전 서술(「추출은 MVP1 밖, 별도 도메인」)을 그대로 갖고 있고 보존 대상이라 갱신되지 않은 탓이다. `D-34`~`D-36`이 그 구멍을 메운다.
+
+> **`T-INT-5`를 신설한다.** `review-req-phase-4`가 INTERNALIZE 3건(`POST /api/review-requests`·`.../revision-documents`·`.../revision-dictionaries`)을 제거했으나 `REVIEW_REQUEST_PLAN.md` 7절이 대체로 지목한 두 엔드포인트를 구현하지 않아 **초안에서 리뷰 요청을 만드는 경로가 통째로 비어 있다**(`Y-31`). `D-44`가 그 구멍을 메우며, 이 태스크는 **`DIC-7`의 선행**이다 — 사전집을 만들 경로가 먼저 생겨야 임시 발행 API를 지울 수 있다(`D-27`).
 
 ---
 
@@ -183,7 +189,7 @@
 
 | ID | 뒤집힌 결정 | 출처 | 대체 |
 | --- | --- | --- | --- |
-| **R-13** | `DocumentVersionPublishPort.publish(Long documentId, int baseVersionNo, String body)` | `REVIEW_REQUEST_PLAN.md` 9절 | **`dictionaryVersionNo` 인자 필요**(`G-7`). 현 시그니처로는 기준 사전집 버전을 넣을 수 없다 |
+| **R-13** | `DocumentVersionPublishPort.publish(Long documentId, int baseVersionNo, String body)` | `REVIEW_REQUEST_PLAN.md` 9절 | **`dictionaryVersionNo` 인자 필요**(`G-7`). ReviewRequest가 소비 측 조회 계약인 `ActiveDictionaryVersionQueryPort.activeVersionNo(workspaceId)`로 발행 직전 활성 버전을 조회해 발행 포트에 넘긴다. 활성 사전집이 없으면 문서 갱신 초안의 전제가 성립하지 않으므로 `DICTIONARY_NOT_FOUND`로 거절한다 |
 | **R-14** | 제공 포트 `hasOngoingDocumentReview(Long documentId)` / `hasOngoingDictionaryReview(Long dictionaryId)` — **대상 단위** | `REVIEW_REQUEST_PLAN.md` 9절 | **`D-22`로 취소.** 초안 조회 하나가 초안과 개정안을 동시에 덮으므로 워크스페이스 단위 확장이 불필요하다 |
 | **R-15** | 「사전집에 초안 또는 개정안이 존재하면 추가 초안을 생성할 수 없다」 — 도메인 **내부** 제약 | `DOMAIN.md` «초안 사전», `D-10` | **워크스페이스 단위로 확대**(`G-14`) |
 | **R-16** | `NFR-DOC-002` 원문 저장소 추상화(로컬 FS → S3), 상태 「보류」 | `REQUIREMENTS.md` | **폐기 확정**(`G-5`) |
@@ -241,7 +247,7 @@
 
 ---
 
-## 7. 문서 ↔ 코드 충돌 (`Y-01`~`Y-30`)
+## 7. 문서 ↔ 코드 충돌 (`Y-01`~`Y-31`)
 
 | ID | 충돌 | 근거 | 결론 | 담당 |
 | --- | --- | --- | --- | --- |
@@ -275,6 +281,7 @@
 | **Y-28** | **죽은 프로퍼티** — `app.worker.enabled=false`가 `src/test/resources/application.yml`에만 있고 이 키를 읽는 코드가 0줄이다. `app.messaging.mode`는 반대로 **어디에도 선언돼 있지 않고** `InMemoryEventPublisher`의 `matchIfMissing = true`에만 의존한다(`D-24`가 이 키로 어댑터를 고르라고 규정했다) | `test/resources/application.yml` / `InMemoryEventPublisher` / `D-24` | `app.worker.enabled`를 지우고 `app.messaging.mode`를 `application.yml`에 명시한다 | 해소 예정(선행 PR) |
 | **Y-29** | **승계 용어의 정의가 사라지고 발행이 터진다.** `DraftDictionaryWriter.create`가 `TermSnapshot(termId, preferredForm, englishName, **definition**)`을 읽고도 `CandidateTerm.createExisting(draftDictionaryId, sourceTermId, form, english, createdBy)`에 **definition을 넘길 자리가 없어 버린다.** 그 결과 ① 교정 화면에서 이전 사전집의 정의를 볼 수 없고 ② `EXISTING`/`KEPT` 후보의 `proposedDefinition`이 항상 `null`이라 `readFinalTerms`가 그대로 실어 보내면 `Term.create`가 「정의는 비어 있을 수 없다」로 거절한다(`Term.definition`은 `@Column(nullable = false)`). **`G-1` 통합 모델의 「사전집이 있는 경우」 회차가 통째로 막힌다** | `DraftDictionaryWriter` / `CandidateTerm.createExisting` / `Term.create` | `createExisting`에 `definition`을 더하고 `DraftDictionaryWriter`가 `term.definition()`을 넘긴다. **판정 시점에 정의가 빈 항목을 걸러내는 것은 `DI-3`의 몫**이다 — 사용자가 정의 없이 등재 승인하면 같은 지점에서 터진다 | 선행 PR(즉시) + `DI-3` |
 | **Y-30** | **문서 편집마다 `draft_dictionary` 전체를 읽는다.** `document/infra/adapter/DraftDictionaryQueryAdapter.isSourceOfOngoingDraft`가 `findAll().stream()`으로 전체를 메모리에 올려 거른다(`DOC-5`). 스텁이 걸려 있는 동안은 실행되지 않았으나 **선행 PR이 `app.crossdomain.draft-dictionary.mode`를 `real`로 올리면서 live가 됐다** | `DraftDictionaryQueryAdapter` / `DOC-5` | `sourceDocumentIds`가 `@ElementCollection`이므로 `join`을 쓰는 `@Query`로 바꾼다. 활성화한 쪽이 선행 PR이므로 거기서 함께 고친다 | 선행 PR(즉시) |
+| **Y-31** | **초안에서 리뷰 요청을 만드는 경로가 없다.** `ReviewRequestService.create`·`RevisionService.submitDocument`·`submitDictionary`의 호출부가 `backend/src/main` 전체에서 **0곳**이다. `review-req-phase-4`가 INTERNALIZE 3건을 제거했지만 `REVIEW_REQUEST_PLAN.md` 7절이 대체로 지목한 `POST /api/draft-documents/{id}/review-request`·`POST /api/draft-dictionaries/{id}/review-request`를 구현하지 않았다. `draftdictionary`의 같은 경로는 초안 상태만 바꾸는 반쪽이고(`docs/API.md`가 「실제 `ReviewRequest` 생성은 ReviewRequest 도메인의 이벤트 소비자가 담당」이라 적었으나 **그 소비자가 없다**), DraftDocument 쪽은 엔드포인트 자체가 없다. **사전집 v1도 문서 갱신도 API로 완주할 수 없다** | `ReviewRequestService`·`RevisionService` / `REVIEW_REQUEST_PLAN.md` 7절 515~517행 / `docs/API.md` 1105·1458행 | `reviewrequest`가 두 경로를 소유하고 리뷰 준비 판정은 초안 도메인에 위임한다 | **`T-INT-5`**(`D-44`) |
 
 ---
 
@@ -283,7 +290,7 @@
 | ID | 질문 | 남긴 문서 | 답 |
 | --- | --- | --- | --- |
 | **O-1** | 승인된 후보어를 `Term`으로 만들고 새 버전을 발행하는 주체가 Dictionary인지 ReviewRequest의 `Revise`인지 — 「Dictionary 도메인 착수 시 합의」로 미뤘다 | `DRAFT_DICTIONARY_PLAN.md` 13절 | **초안이 최종 목록을 제공하고 Dictionary가 발행한다.** ADMIN의 수동 반영(`G-3`)이 `DictionaryVersionPublishPort`를 호출하고, 포트는 통합 목록을 받는다(`R-12`) | 해소(`G-1`·`G-3`) |
-| **O-2** | 참여자 이탈 이벤트를 Workspace가 발행할지 미정 — 리뷰어였던 참여자가 빠질 때 | `REVIEW_REQUEST_PLAN.md` 9·13절(수신 이벤트 표에 `**미정**`) | **`WORKSPACE_PLAN.md`가 `ParticipantRemovedEvent(workspaceId, memberId, occurredAt)`를 정의하고 `WS-5`에서 발행한다** | `WS-5` |
+| **O-2** | 참여자 이탈 이벤트를 Workspace가 발행할지 미정 — 리뷰어였던 참여자가 빠질 때 | `REVIEW_REQUEST_PLAN.md` 9·13절(수신 이벤트 표에 `**미정**`) | **`WORKSPACE_PLAN.md`가 `ParticipantRemovedEvent(workspaceId, memberId, occurredAt)`를 정의하고 `WS-5`에서 발행한다** | 해소(`WS-5`) |
 | **O-3** | `SuggestionTerm.suggestionTerm` 값의 출처 — 「Dictionary 도메인이 생기면 `DictionaryQueryPort`로 승격 제안」 | `DRAFT_DOCUMENT_PLAN.md` 13절 | **이미 생겼다.** `DICTIONARY_PLAN.md` 9절이 표준어·정의 스냅샷 조회 포트를 제공한다(`DIC-4`) | `DIC-4` |
 | **O-4** | `DocumentQueryPort.isOutdated` 스텁(`false`)의 real 전환 시점 | `DRAFT_DICTIONARY_PLAN.md` 2-1절 `D-15` | 추출 대상 필터가 MVP1 필수라 즉시 필요하다. `DOC-1` 직후 전환하고 이름·의미는 `aligned`로 바뀐다 | 해소(`G-12`·`D-31`) |
 
@@ -319,10 +326,10 @@
 
 ## 10. 남은 결정 대기
 
-**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건도 `D-33`~`D-36`으로 확정했다.
+**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건은 `D-33`~`D-36`으로, 도메인 Phase 3~4가 드러낸 것은 `D-38`~`D-43`으로 확정했다. 2026-09-13 마무리 통합이 드러낸 3건도 `D-44`~`D-46`으로 확정했다.
 
 `상태` 칸이 `제안`인 항목(`X-04`·`X-05`·`X-08`~`X-14`·`X-17`, `Y-22`)과 `기록`인 항목(`Y-24`~`Y-27`)은 **결정이 필요한 것이 아니라 담당 태스크에서 형태를 정하는 것**이다. 설계 방향은 이미 정해져 있다.
 
-**`D-35`의 실제 LLM 연동만 예외다** — 새 의존성·API 키·프롬프트 설계가 필요하므로 루트 `CLAUDE.md`의 「새 라이브러리·의존성 추가는 사전에 제안하고 승인받는다」에 따라 그 시점에 별도로 합의한다.
+**남은 예외는 둘이다.** **`D-35`의 실제 LLM 연동**은 새 의존성·API 키·프롬프트 설계가 필요하므로 루트 `CLAUDE.md`의 「새 라이브러리·의존성 추가는 사전에 제안하고 승인받는다」에 따라 그 시점에 별도로 합의한다. **`X-08`(`ErrorResponse.traceId`)**은 마무리 통합 세션에서 범위 밖으로 두기로 했으므로 `NFR-CMN-003`이 계속 미충족이며 담당 태스크를 다시 정해야 한다.
 
-새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-38`부터 붙인다.
+새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-47`부터 붙인다.

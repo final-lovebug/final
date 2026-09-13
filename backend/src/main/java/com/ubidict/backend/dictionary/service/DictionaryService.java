@@ -2,9 +2,11 @@ package com.ubidict.backend.dictionary.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.exception.CommonErrorCode;
+import com.ubidict.backend.common.infra.event.EventPublisher;
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.dictionary.domain.Dictionary;
 import com.ubidict.backend.dictionary.domain.NewTerm;
+import com.ubidict.backend.dictionary.domain.event.DictionaryRevisedEvent;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
 import com.ubidict.backend.dictionary.implement.DictionaryAppender;
 import com.ubidict.backend.dictionary.implement.DictionaryReader;
@@ -15,23 +17,24 @@ import com.ubidict.backend.dictionary.implement.TermReader;
 import com.ubidict.backend.dictionary.service.model.DictionaryResult;
 import com.ubidict.backend.dictionary.service.model.DictionarySearchQuery;
 import com.ubidict.backend.dictionary.service.model.DictionaryVersionResult;
-import com.ubidict.backend.dictionary.service.model.ReviseDictionaryCommand;
 import com.ubidict.backend.dictionary.service.model.TermResult;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 사전집 도메인의 공개 지점. 용어 추출·문서 대조는 readActive를, 리뷰 승인은 revise를 부른다.
+ * 사전집 도메인의 공개 지점. 용어 추출·문서 대조는 readActive를, 리뷰 승인의 반영은 publish를 부른다.
  *
  * <p>워크스페이스 접근 검증은 workspace 도메인의 WorkspaceAccessValidator 하나만 참조한다. 리포지토리나 다른 implement를 직접 건드리지 않는다.
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DictionaryService {
 
     private final DictionaryReader dictionaryReader;
@@ -41,23 +44,16 @@ public class DictionaryService {
     private final TermAppender termAppender;
     private final TermFormValidator termFormValidator;
     private final WorkspaceAccessValidator workspaceAccessValidator;
+    private final EventPublisher eventPublisher;
 
     /**
-     * 새 사전집 버전을 반영한다. 첫 버전과 다음 버전이 같은 경로다 — 둘 다 리뷰 승인의 결과이기 때문이다.
+     * 리뷰 승인이 확정한 전체 용어 목록을 현재 활성 버전 다음 버전으로 발행한다.
      *
-     * <p>이전 버전을 먼저 내리고 새 버전을 올린다. 순서를 뒤집으면 활성 사전집이 순간 둘이 되어 유니크 제약에 걸린다.
+     * <p><b>이 도메인에 버전을 만드는 다른 진입점은 없다</b>(DIC-7). ADMIN이 용어 목록을 직접 실어 보내던 임시 엔드포인트를 제거하고, 발행 위임 포트가 호출하는
+     * 이 메서드 하나만 남겼다 — DOMAIN.md 「새 버전은 리뷰 승인(Revise)의 반영으로만 생긴다」와 NFR-UPD-001에 맞춘 최종 형태다.
      *
-     * <p>호출자가 반영을 직렬로 보낸다는 전제 위에 있다. 「초안 사전」 정책이 사전집당 진행 중인 등재 흐름을 1개로 제한하므로, 같은 버전을 기준으로 편집하는 주체가 둘이 될 수
-     * 없다.
+     * <p>기준 버전이 현재 활성 버전과 다르면 동시 변경 충돌로 거절한다(D-42).
      */
-    @Transactional
-    public DictionaryResult revise(ReviseDictionaryCommand command) {
-        workspaceAccessValidator.validateAtLeast(command.workspaceId(), command.memberId(), Permission.ADMIN);
-
-        return revise(command.workspaceId(), command.memberId(), command.toNewTerms());
-    }
-
-    /** 리뷰 승인이 확정한 전체 용어 목록을 현재 활성 버전 다음 버전으로 발행한다. */
     @Transactional
     public int publish(Long workspaceId, int baseVersionNo, List<NewTerm> terms, Long publishedBy) {
         workspaceAccessValidator.validateAtLeast(workspaceId, publishedBy, Permission.ADMIN);
@@ -132,6 +128,13 @@ public class DictionaryService {
 
         List<TermResult> terms =
                 termReader.readAll(next.getId()).stream().map(TermResult::from).toList();
+        eventPublisher.publish(
+                new DictionaryRevisedEvent(next.getWorkspaceId(), next.getId(), next.versionNo(), next.publishedAt()));
+        log.info(
+                "[DictionaryService.revise] Dictionary version published. workspaceId={}, dictionaryId={}, versionNo={}",
+                next.getWorkspaceId(),
+                next.getId(),
+                next.versionNo());
         return DictionaryResult.of(next, new PageResult<>(terms, 0, terms.size(), terms.size()));
     }
 

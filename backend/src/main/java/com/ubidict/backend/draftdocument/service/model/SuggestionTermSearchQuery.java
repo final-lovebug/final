@@ -4,7 +4,7 @@ import com.ubidict.backend.common.exception.*;
 import com.ubidict.backend.draftdocument.domain.SuggestionTermStatus;
 
 public record SuggestionTermSearchQuery(
-        Long draftDocumentId, SuggestionTermStatus status, int page, int size, String sort) {
+        Long draftDocumentId, SuggestionTermStatus status, int page, int size, String sort, Long memberId) {
     public SuggestionTermSearchQuery {
         if (page < 0 || size < 1 || size > 100) throw new BusinessException(CommonErrorCode.COMMON_INVALID_REQUEST);
         String[] p = sort == null ? new String[] {"createdAt", "desc"} : sort.split(",");

@@ -1,11 +1,13 @@
 package com.ubidict.backend.document.implement;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.document.domain.Document;
 import com.ubidict.backend.document.exception.DocumentErrorCode;
 import com.ubidict.backend.document.infra.DocumentRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 /**
@@ -33,6 +35,14 @@ public class DocumentReader {
 
     public List<Document> readAll(Long workspaceId) {
         return documentRepository.findAllByWorkspaceIdAndDeletedAtIsNullOrderByCreatedAtDesc(workspaceId);
+    }
+
+    public PageResult<Document> readPage(Long workspaceId, String labelName, Pageable pageable) {
+        var documents = labelName == null
+                ? documentRepository.findPageByWorkspaceIdAndDeletedAtIsNull(workspaceId, pageable)
+                : documentRepository.findPageByWorkspaceIdAndLabelName(workspaceId, labelName, pageable);
+        return new PageResult<>(
+                documents.getContent(), documents.getNumber(), documents.getSize(), documents.getTotalElements());
     }
 
     public List<Document> readAllByLabel(Long workspaceId, String labelName) {

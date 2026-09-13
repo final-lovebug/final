@@ -7,15 +7,22 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.draftdictionary.domain.CandidateTerm;
 import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
+import com.ubidict.backend.draftdictionary.fixture.DraftDictionaryFixture;
 import com.ubidict.backend.draftdictionary.infra.CandidateTermRepository;
+import com.ubidict.backend.draftdictionary.infra.DraftDictionaryRepository;
 import com.ubidict.backend.draftdictionary.service.model.AddCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.CandidateTermResult;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdictionary.service.model.CreateDraftDictionaryCommand;
 import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.EditCandidateTermCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
+import com.ubidict.backend.workspace.domain.Permission;
+import com.ubidict.backend.workspace.fixture.ParticipantFixture;
+import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
+import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +39,32 @@ class CandidateTermServiceTest extends IntegrationTestSupport {
     private DraftDictionaryService draftDictionaryService;
 
     @Autowired
+    private DraftDictionaryRepository draftDictionaryRepository;
+
+    @Autowired
     private CandidateTermRepository candidateTermRepository;
+
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ParticipantRepository participantRepository;
+
+    @BeforeEach
+    void createWorkspace() {
+        Long workspaceId =
+                workspaceRepository.save(WorkspaceFixture.workspace().build()).getId();
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspaceId)
+                .memberId(MEMBER_ID)
+                .permission(Permission.ADMIN)
+                .build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspaceId)
+                .memberId(3L)
+                .permission(Permission.REGULAR)
+                .build());
+    }
 
     @DisplayName("후보어를 등재 승인하고 판정자를 저장한다.")
     @Test
@@ -134,13 +166,18 @@ class CandidateTermServiceTest extends IntegrationTestSupport {
         assertNotExaminable(() -> candidateTermService.add(addCommand(draftDictionaryId, "추가어", "추가 정의")));
         assertNotExaminable(() ->
                 candidateTermService.edit(new EditCandidateTermCommand(candidateTermId, "수정어", null, null, MEMBER_ID)));
-        assertNotExaminable(() -> candidateTermService.delete(candidateTermId));
+        assertNotExaminable(() -> candidateTermService.delete(candidateTermId, MEMBER_ID));
     }
 
+    /** 초안 생성 진입점은 비동기 추출 작업뿐이므로(D-45) 후보어만 보는 테스트는 초안을 직접 만든다. */
     private Long createDraft() {
-        return draftDictionaryService
-                .create(new CreateDraftDictionaryCommand(WORKSPACE_ID, null, List.of(100L), MEMBER_ID))
-                .draftDictionaryId();
+        return draftDictionaryRepository
+                .save(DraftDictionaryFixture.draftDictionary()
+                        .workspaceId(WORKSPACE_ID)
+                        .sourceDocumentIds(List.of(100L))
+                        .createdBy(MEMBER_ID)
+                        .build())
+                .getId();
     }
 
     private Long addCandidate(Long draftDictionaryId, String form, String definition) {

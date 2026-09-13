@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Version;
 import java.time.OffsetDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -49,6 +50,9 @@ public class ReviewRequest extends BaseEntity {
     private OffsetDateTime approvedAt;
 
     private OffsetDateTime revisedAt;
+
+    @Version
+    private Long version;
 
     @Column(nullable = false, updatable = false)
     private Long createdBy;
@@ -92,6 +96,14 @@ public class ReviewRequest extends BaseEntity {
         if (!requesterId.equals(actorId)) {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_NOT_REQUESTER);
         }
+        cancelAuthorized();
+    }
+
+    public void cancelByAdministrator() {
+        cancelAuthorized();
+    }
+
+    private void cancelAuthorized() {
         if (status == ReviewRequestStatus.REVISED || status == ReviewRequestStatus.CANCELED) {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_INVALID_STATUS_TRANSITION);
         }

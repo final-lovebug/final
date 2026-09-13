@@ -8,11 +8,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import com.ubidict.backend.workspace.domain.InvitationStatus;
 import com.ubidict.backend.workspace.domain.Permission;
-import com.ubidict.backend.workspace.service.InvitationResult;
 import com.ubidict.backend.workspace.service.InvitationService;
-import com.ubidict.backend.workspace.service.WorkspaceResult;
+import com.ubidict.backend.workspace.service.model.InvitationResult;
+import com.ubidict.backend.workspace.service.model.WorkspaceResult;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -27,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(InvitationController.class)
 class InvitationControllerTest {
@@ -60,7 +62,7 @@ class InvitationControllerTest {
                         {"inviteeEmail":"invitee@example.com","permission":"REGULAR"}
                         """)
                 .when()
-                .post("/api/workspaces/{workspaceId}/invitations?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .post("/api/workspaces/{workspaceId}/invitations", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("token", equalTo("invitation-token"));
@@ -74,10 +76,7 @@ class InvitationControllerTest {
 
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/invitations?memberId={memberId}&status=PENDING",
-                        WORKSPACE_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/invitations?status=PENDING", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("$", hasSize(1))
@@ -89,11 +88,7 @@ class InvitationControllerTest {
     void cancel() {
         RestAssuredMockMvc.given()
                 .when()
-                .delete(
-                        "/api/workspaces/{workspaceId}/invitations/{invitationId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        20L,
-                        MEMBER_ID)
+                .delete("/api/workspaces/{workspaceId}/invitations/{invitationId}", WORKSPACE_ID, 20L)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
@@ -106,7 +101,7 @@ class InvitationControllerTest {
 
         RestAssuredMockMvc.given()
                 .when()
-                .post("/api/invitations/{token}/accept?memberId={memberId}", "invitation-token", MEMBER_ID)
+                .post("/api/invitations/{token}/accept", "invitation-token")
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("workspaceId", equalTo(WORKSPACE_ID.intValue()))

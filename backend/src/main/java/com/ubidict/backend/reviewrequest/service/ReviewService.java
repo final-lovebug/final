@@ -4,6 +4,7 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.reviewrequest.domain.Comment;
 import com.ubidict.backend.reviewrequest.domain.Review;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequest;
+import com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.implement.CommentReader;
@@ -11,6 +12,7 @@ import com.ubidict.backend.reviewrequest.implement.CommentWriter;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator.ReviewAggregate;
 import com.ubidict.backend.reviewrequest.implement.ReviewReader;
+import com.ubidict.backend.reviewrequest.implement.ReviewRequestEventPublisher;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestStatusPolicy;
 import com.ubidict.backend.reviewrequest.implement.ReviewWriter;
@@ -43,6 +45,7 @@ public class ReviewService {
     private final LatestReviewAggregator latestReviewAggregator;
     private final ReviseEligibilityCalculator reviseEligibilityCalculator;
     private final ReviewRequestStatusPolicy reviewRequestStatusPolicy;
+    private final ReviewRequestEventPublisher eventPublisher;
     private final WorkspacePolicyPort workspacePolicyPort;
     private final WorkspaceAccessValidator workspaceAccessValidator;
 
@@ -61,9 +64,15 @@ public class ReviewService {
                 command.memberId()));
         writeComments(review, command);
 
+        ReviewRequestStatus previousStatus = reviewRequest.getStatus();
         ReviewAggregate aggregate = aggregate(reviewRequest.getId());
         int requiredReviewerCount = requiredReviewerCount(reviewRequest);
         reviewRequestStatusPolicy.update(reviewRequest, requiredReviewerCount, aggregate);
+        eventPublisher.publishSubmitted(review);
+        if (previousStatus != ReviewRequestStatus.CHANGES_REQUESTED
+                && reviewRequest.getStatus() == ReviewRequestStatus.CHANGES_REQUESTED) {
+            eventPublisher.publishChangesRequested(reviewRequest, sourceDraftId(reviewRequest));
+        }
 
         log.info(
                 "[ReviewService.submit] Review submitted. reviewRequestId={}, reviewId={}, memberId={}, verdict={}",
@@ -111,6 +120,12 @@ public class ReviewService {
         return reviewRequest.getType() == ReviewRequestType.DOCUMENT
                 ? revisionDocumentReader.currentRound(reviewRequest.getId())
                 : revisionDictionaryReader.currentRound(reviewRequest.getId());
+    }
+
+    private Long sourceDraftId(ReviewRequest reviewRequest) {
+        return reviewRequest.getType() == ReviewRequestType.DOCUMENT
+                ? revisionDocumentReader.readCurrent(reviewRequest.getId()).getDraftDocumentId()
+                : revisionDictionaryReader.readCurrent(reviewRequest.getId()).getDraftDictionaryId();
     }
 
     private void writeComments(Review review, SubmitReviewCommand command) {

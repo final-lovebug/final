@@ -10,6 +10,7 @@ import com.ubidict.backend.draftdocument.domain.*;
 import com.ubidict.backend.draftdocument.service.SuggestionTermService;
 import com.ubidict.backend.draftdocument.service.model.*;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -19,6 +20,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.*;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(SuggestionTermController.class)
 class SuggestionTermControllerTest {
@@ -48,7 +50,7 @@ class SuggestionTermControllerTest {
         RestAssuredMockMvc.given()
                 .contentType(ContentType.JSON)
                 .body("{\"anchor\":{\"startOffset\":0,\"endOffset\":1},\"originTerm\":\"a\",\"suggestionTerm\":\"b\"}")
-                .post("/api/draft-documents/2/suggestion-terms?memberId=1")
+                .post("/api/draft-documents/2/suggestion-terms")
                 .then()
                 .statusCode(201)
                 .body("id", equalTo(1));
@@ -73,7 +75,7 @@ class SuggestionTermControllerTest {
         RestAssuredMockMvc.given()
                 .contentType(ContentType.JSON)
                 .body("{\"originTerm\":\"x\"}")
-                .patch("/api/suggestion-terms/1?memberId=1")
+                .patch("/api/suggestion-terms/1")
                 .then()
                 .statusCode(200);
     }
@@ -88,7 +90,7 @@ class SuggestionTermControllerTest {
         RestAssuredMockMvc.given()
                 .contentType(ContentType.JSON)
                 .body("{\"anchor\":{\"startOffset\":0,\"endOffset\":1},\"originTerm\":\"\",\"suggestionTerm\":\"b\"}")
-                .post("/api/draft-documents/2/suggestion-terms?memberId=1")
+                .post("/api/draft-documents/2/suggestion-terms")
                 .then()
                 .statusCode(400);
     }
@@ -99,7 +101,7 @@ class SuggestionTermControllerTest {
         RestAssuredMockMvc.given()
                 .contentType(ContentType.JSON)
                 .body("{\"anchor\":{\"startOffset\":2,\"endOffset\":1},\"originTerm\":\"a\",\"suggestionTerm\":\"b\"}")
-                .post("/api/draft-documents/2/suggestion-terms?memberId=1")
+                .post("/api/draft-documents/2/suggestion-terms")
                 .then()
                 .statusCode(400)
                 .body("code", equalTo("DRAFT_DOCUMENT_INVALID_ANCHOR"));
@@ -119,7 +121,7 @@ class SuggestionTermControllerTest {
         given(service.accept(any())).willReturn(result());
 
         RestAssuredMockMvc.given()
-                .post("/api/suggestion-terms/1/acceptance?memberId=1")
+                .post("/api/suggestion-terms/1/acceptance")
                 .then()
                 .statusCode(200)
                 .body("id", equalTo(1));
@@ -133,7 +135,7 @@ class SuggestionTermControllerTest {
         RestAssuredMockMvc.given()
                 .contentType(ContentType.JSON)
                 .body("{\"rejectReason\":\"고유명사\"}")
-                .post("/api/suggestion-terms/1/rejection?memberId=1")
+                .post("/api/suggestion-terms/1/rejection")
                 .then()
                 .statusCode(200);
     }
@@ -144,7 +146,7 @@ class SuggestionTermControllerTest {
         RestAssuredMockMvc.given()
                 .contentType(ContentType.JSON)
                 .body("{\"rejectReason\":\" \"}")
-                .post("/api/suggestion-terms/1/rejection?memberId=1")
+                .post("/api/suggestion-terms/1/rejection")
                 .then()
                 .statusCode(400);
     }

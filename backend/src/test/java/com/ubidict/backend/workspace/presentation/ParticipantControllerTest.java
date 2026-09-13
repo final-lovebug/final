@@ -6,12 +6,13 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import com.ubidict.backend.workspace.domain.Permission;
-import com.ubidict.backend.workspace.service.ChangePermissionCommand;
-import com.ubidict.backend.workspace.service.ParticipantResult;
 import com.ubidict.backend.workspace.service.ParticipantService;
-import com.ubidict.backend.workspace.service.RemoveParticipantCommand;
-import com.ubidict.backend.workspace.service.TransferOwnershipCommand;
+import com.ubidict.backend.workspace.service.model.ChangePermissionCommand;
+import com.ubidict.backend.workspace.service.model.ParticipantResult;
+import com.ubidict.backend.workspace.service.model.RemoveParticipantCommand;
+import com.ubidict.backend.workspace.service.model.TransferOwnershipCommand;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -25,6 +26,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ParticipantController.class)
 class ParticipantControllerTest {
@@ -56,7 +58,7 @@ class ParticipantControllerTest {
 
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/participants?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/participants", WORKSPACE_ID)
                 .then()
                 .statusCode(200)
                 .body("$", hasSize(1))
@@ -72,10 +74,9 @@ class ParticipantControllerTest {
                 .body("{\"permission\":\"ADMIN\"}")
                 .when()
                 .patch(
-                        "/api/workspaces/{workspaceId}/participants/{participantId}/permission?memberId={memberId}",
+                        "/api/workspaces/{workspaceId}/participants/{participantId}/permission",
                         WORKSPACE_ID,
-                        PARTICIPANT_ID,
-                        MEMBER_ID)
+                        PARTICIPANT_ID)
                 .then()
                 .statusCode(204);
 
@@ -93,10 +94,9 @@ class ParticipantControllerTest {
                 .body("{\"permission\":\"OWNER\"}")
                 .when()
                 .patch(
-                        "/api/workspaces/{workspaceId}/participants/{participantId}/permission?memberId={memberId}",
+                        "/api/workspaces/{workspaceId}/participants/{participantId}/permission",
                         WORKSPACE_ID,
-                        PARTICIPANT_ID,
-                        MEMBER_ID)
+                        PARTICIPANT_ID)
                 .then()
                 .statusCode(400);
 
@@ -109,10 +109,9 @@ class ParticipantControllerTest {
         RestAssuredMockMvc.given()
                 .when()
                 .patch(
-                        "/api/workspaces/{workspaceId}/participants/{participantId}/ownership?memberId={memberId}",
+                        "/api/workspaces/{workspaceId}/participants/{participantId}/ownership",
                         WORKSPACE_ID,
-                        PARTICIPANT_ID,
-                        MEMBER_ID)
+                        PARTICIPANT_ID)
                 .then()
                 .statusCode(204);
 
@@ -126,11 +125,7 @@ class ParticipantControllerTest {
     void remove() {
         RestAssuredMockMvc.given()
                 .when()
-                .delete(
-                        "/api/workspaces/{workspaceId}/participants/{participantId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        PARTICIPANT_ID,
-                        MEMBER_ID)
+                .delete("/api/workspaces/{workspaceId}/participants/{participantId}", WORKSPACE_ID, PARTICIPANT_ID)
                 .then()
                 .statusCode(204);
 

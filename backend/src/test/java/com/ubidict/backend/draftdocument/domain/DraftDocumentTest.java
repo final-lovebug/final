@@ -79,4 +79,51 @@ class DraftDocumentTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
                         .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_ALREADY_EXAMINED));
     }
+
+    @DisplayName("리뷰가 취소되면 교정완료 상태로 돌아간다.")
+    @Test
+    void reopen_returnsToExamined() {
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "본문", MEMBER_ID, MEMBER_ID);
+        draftDocument.markExamined("본문");
+        draftDocument.markReviewRequested();
+
+        draftDocument.reopen();
+
+        assertThat(draftDocument.getStatus()).isEqualTo(DraftDocumentStatus.EXAMINED);
+    }
+
+    @DisplayName("반영완료된 초안은 상태를 바꿀 수 없다.")
+    @Test
+    void markRevised_isTerminal() {
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "본문", MEMBER_ID, MEMBER_ID);
+        draftDocument.markExamined("본문");
+        draftDocument.markReviewRequested();
+        draftDocument.markRevised();
+
+        assertThatThrownBy(draftDocument::reopen)
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION));
+    }
+
+    @DisplayName("교정 완료 전에는 리뷰 요청 자격이 없다.")
+    @Test
+    void validateExaminedForReview_isExamining() {
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "본문", MEMBER_ID, MEMBER_ID);
+
+        assertThatThrownBy(draftDocument::validateExaminedForReview)
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION));
+    }
+
+    @DisplayName("같은 리뷰 요청 이벤트를 두 번 받아도 상태는 한 번만 변경된다.")
+    @Test
+    void markReviewRequested_isIdempotent() {
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "본문", MEMBER_ID, MEMBER_ID);
+        draftDocument.markExamined("본문");
+
+        draftDocument.markReviewRequested();
+        draftDocument.markReviewRequested();
+
+        assertThat(draftDocument.getStatus()).isEqualTo(DraftDocumentStatus.REVIEW_REQUESTED);
+    }
 }

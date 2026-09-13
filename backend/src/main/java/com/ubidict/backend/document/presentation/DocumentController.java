@@ -1,5 +1,6 @@
 package com.ubidict.backend.document.presentation;
 
+import com.ubidict.backend.common.presentation.PageResponse;
 import com.ubidict.backend.document.presentation.dto.CreateDocumentRequest;
 import com.ubidict.backend.document.presentation.dto.DocumentResponse;
 import com.ubidict.backend.document.presentation.dto.DocumentSummaryResponse;
@@ -9,10 +10,10 @@ import com.ubidict.backend.document.presentation.dto.EditDocumentContentRequest;
 import com.ubidict.backend.document.presentation.dto.UpdateDocumentRequest;
 import com.ubidict.backend.document.service.DocumentService;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -27,11 +28,6 @@ import org.springframework.web.bind.annotation.RestController;
  * 모든 경로가 워크스페이스 하위에 중첩된다. workspaceId가 URL에 강제되면 데이터 격리(NFR-WS-001) 검증이 모든 엔드포인트에서 같은 모양이 된다.
  *
  * <p>제목·라벨 수정과 본문 편집은 경로를 분리한다. 본문 직접 편집은 기존 버전을 덮지 않고 새 확정 버전을 즉시 발행한다.
- *
- * <p>요청자 memberId를 요청 파라미터로 받는다. 인증 계층이 아직 없어 생긴 임시 방식이며 인증 도입 전까지 운영 배포 대상이 아니다.
- *
- * <p>TODO(NFR-USR-001): 인증이 들어오면 memberId 파라미터를 걷어내고 인증 주체에서 해석한다. 바꿀 지점은 이 클래스의 파라미터뿐이고 service 이하는
- * 손대지 않는다.
  */
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}/documents")
@@ -43,7 +39,7 @@ public class DocumentController {
     @PostMapping
     public ResponseEntity<DocumentResponse> create(
             @PathVariable Long workspaceId,
-            @RequestParam Long memberId,
+            @AuthenticationPrincipal Long memberId,
             @Valid @RequestBody CreateDocumentRequest request) {
         DocumentResponse response =
                 DocumentResponse.from(documentService.create(request.toCommand(workspaceId, memberId)));
@@ -52,18 +48,21 @@ public class DocumentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<DocumentSummaryResponse>> readAll(
-            @PathVariable Long workspaceId, @RequestParam Long memberId, @RequestParam(required = false) String label) {
-        List<DocumentSummaryResponse> responses = documentService.readAll(workspaceId, memberId, label).stream()
-                .map(DocumentSummaryResponse::from)
-                .toList();
-
-        return ResponseEntity.ok(responses);
+    public ResponseEntity<PageResponse<DocumentSummaryResponse>> readAll(
+            @PathVariable Long workspaceId,
+            @AuthenticationPrincipal Long memberId,
+            @RequestParam(required = false) String label,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort) {
+        return ResponseEntity.ok(PageResponse.from(documentService
+                .readAll(workspaceId, memberId, label, page, size, sort)
+                .map(DocumentSummaryResponse::from)));
     }
 
     @GetMapping("/{documentId}")
     public ResponseEntity<DocumentResponse> read(
-            @PathVariable Long workspaceId, @PathVariable Long documentId, @RequestParam Long memberId) {
+            @PathVariable Long workspaceId, @PathVariable Long documentId, @AuthenticationPrincipal Long memberId) {
         return ResponseEntity.ok(DocumentResponse.from(documentService.read(workspaceId, documentId, memberId)));
     }
 
@@ -71,7 +70,7 @@ public class DocumentController {
     public ResponseEntity<Void> update(
             @PathVariable Long workspaceId,
             @PathVariable Long documentId,
-            @RequestParam Long memberId,
+            @AuthenticationPrincipal Long memberId,
             @Valid @RequestBody UpdateDocumentRequest request) {
         documentService.update(request.toCommand(workspaceId, documentId, memberId));
 
@@ -82,7 +81,7 @@ public class DocumentController {
     public ResponseEntity<DocumentResponse> editContent(
             @PathVariable Long workspaceId,
             @PathVariable Long documentId,
-            @RequestParam Long memberId,
+            @AuthenticationPrincipal Long memberId,
             @Valid @RequestBody EditDocumentContentRequest request) {
         return ResponseEntity.ok(DocumentResponse.from(
                 documentService.editContent(request.toCommand(workspaceId, documentId, memberId))));
@@ -90,21 +89,22 @@ public class DocumentController {
 
     @DeleteMapping("/{documentId}")
     public ResponseEntity<Void> delete(
-            @PathVariable Long workspaceId, @PathVariable Long documentId, @RequestParam Long memberId) {
+            @PathVariable Long workspaceId, @PathVariable Long documentId, @AuthenticationPrincipal Long memberId) {
         documentService.delete(workspaceId, documentId, memberId);
 
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{documentId}/versions")
-    public ResponseEntity<List<DocumentVersionSummaryResponse>> readVersions(
-            @PathVariable Long workspaceId, @PathVariable Long documentId, @RequestParam Long memberId) {
-        List<DocumentVersionSummaryResponse> responses =
-                documentService.readVersions(workspaceId, documentId, memberId).stream()
-                        .map(DocumentVersionSummaryResponse::from)
-                        .toList();
-
-        return ResponseEntity.ok(responses);
+    public ResponseEntity<PageResponse<DocumentVersionSummaryResponse>> readVersions(
+            @PathVariable Long workspaceId,
+            @PathVariable Long documentId,
+            @AuthenticationPrincipal Long memberId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(PageResponse.from(documentService
+                .readVersions(workspaceId, documentId, memberId, page, size)
+                .map(DocumentVersionSummaryResponse::from)));
     }
 
     @GetMapping("/{documentId}/versions/{versionNo}")
@@ -112,7 +112,7 @@ public class DocumentController {
             @PathVariable Long workspaceId,
             @PathVariable Long documentId,
             @PathVariable int versionNo,
-            @RequestParam Long memberId) {
+            @AuthenticationPrincipal Long memberId) {
         return ResponseEntity.ok(DocumentVersionResponse.from(
                 documentService.readVersion(workspaceId, documentId, versionNo, memberId)));
     }

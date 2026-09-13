@@ -1,0 +1,21 @@
+# 개발 서버 프로파일(NFR-INF-002·D-46).
+#
+# prod와 갈리는 지점은 하나다 — 시크릿을 AWS Parameter Store가 아니라 환경변수로 받는다.
+# 그래서 spring.config.import 가 없고 spring.cloud.aws.parameterstore.enabled 도 기본값(false)을 그대로 쓴다.
+# 값은 저장소에 두지 않고 ${VAR} 참조만 남긴다(루트 CLAUDE.md 「시크릿은 환경변수 또는 AWS 파라미터 스토어로 주입한다」).
+spring:
+  datasource:
+    url: "${DB_URL}"
+    username: "${DB_USERNAME}"
+    password: "${DB_PASSWORD}"
+  data:
+    redis:
+      host: "${REDIS_HOST}"
+      port: "${REDIS_PORT}"
+
+management:
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true

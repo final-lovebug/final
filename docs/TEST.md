@@ -10,7 +10,7 @@
 | Service Test | Service 유스케이스 | 비즈니스 흐름과 트랜잭션 경계 확인 |
 | Repository Test | Infra(Repository) + Domain(엔티티 매핑) | 쿼리, 매핑, 영속성 확인 |
 | Controller Test | Presentation | 요청/응답, 검증, 상태 코드 확인 |
-| Integration Test | 여러 레이어 결합 | 주요 시나리오 회귀 방지 |
+| Integration Test | 여러 레이어 결합 | 주요 시나리오 회귀 방지. 도메인을 가로지르는 것은 `scenario/` 아래 둔다 |
 
 > 도메인 모델이 JPA 엔티티를 겸하므로 단위 테스트는 도메인 객체를 `new`로 만들어 검증하며, 이때 식별자는 `null`이다. 식별자가 필요한 검증은 Repository·Service 테스트에서 하거나 Fixture Builder로 주입한다.
 
@@ -149,6 +149,15 @@ Repository 테스트는 실제 DB와 가까운 환경(Testcontainers 또는 프�
 
 - 쿼리 조건과 정렬, 엔티티 매핑(domain 모델 ↔ 테이블), N+1이나 fetch join이 중요한 조회를 검증한다.
 - H2와 운영 DB의 문법 차이를 무시한 테스트, 단순 Spring Data 메서드에 대한 과도한 테스트는 지양한다.
+
+### Integration 테스트
+
+Integration 테스트는 **여러 도메인과 여러 레이어가 실제로 물려 있는지**를 본다. Service 테스트와 같은 `IntegrationTestSupport`를 상속하고 `webEnvironment = NONE`이므로 HTTP 계층은 검증 대상이 아니다 — 컨트롤러의 계약은 Controller 테스트가, 인증·인가는 `SecurityConfigTest`가 각자 본다.
+
+- **한 도메인에 속하는 시나리오는 그 도메인 패키지에 둔다.** 대조·추출의 비동기 완료처럼 주인이 분명한 것이 여기 해당한다.
+- **주인이 없는 시나리오는 `com.ubidict.backend.scenario` 패키지에 둔다.** 워크스페이스 → 문서 → 추출 → 사전 초안 → 리뷰 → 사전집 발행처럼 여섯 도메인을 관통하는 흐름은 어느 도메인의 것도 아니다.
+- **서비스 진입점만으로 시나리오를 엮는다.** 리포지토리에 직접 seeding하면 그 지점의 정책 검증과 이벤트 발행을 건너뛰어, 배선이 끊겨 있어도 초록이 된다.
+- `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` 경로를 기다릴 때는 폴링으로 확인한다. 대기 상한을 두고, 넘으면 실패시킨다.
 
 ## **테스트 데이터 정리**
 

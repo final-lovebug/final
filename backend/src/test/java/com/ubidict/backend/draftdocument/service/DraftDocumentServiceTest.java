@@ -4,22 +4,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.document.domain.Document;
+import com.ubidict.backend.document.fixture.DocumentFixture;
+import com.ubidict.backend.document.fixture.DocumentVersionFixture;
+import com.ubidict.backend.document.infra.DocumentRepository;
+import com.ubidict.backend.document.infra.DocumentVersionRepository;
 import com.ubidict.backend.draftdocument.domain.DraftDocument;
-import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import com.ubidict.backend.draftdocument.fixture.DraftDocumentFixture;
 import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
-import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
+import com.ubidict.backend.workspace.domain.Workspace;
+import com.ubidict.backend.workspace.fixture.ParticipantFixture;
+import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
+import com.ubidict.backend.workspace.infra.WorkspaceRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 class DraftDocumentServiceTest extends IntegrationTestSupport {
 
-    private static final Long DOCUMENT_ID = 10L;
     private static final Long MEMBER_ID = 1L;
+
+    private Long documentId;
 
     @Autowired
     private DraftDocumentService draftDocumentService;
@@ -27,17 +38,35 @@ class DraftDocumentServiceTest extends IntegrationTestSupport {
     @Autowired
     private DraftDocumentRepository draftDocumentRepository;
 
-    @DisplayName("문서 초안을 생성한다.")
-    @Test
-    void create() {
-        // when
-        DraftDocumentResult result = createDraft("회원은 결제할 수 있다.");
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
 
-        // then
-        assertThat(result.draftDocumentId()).isNotNull();
-        assertThat(result.documentId()).isEqualTo(DOCUMENT_ID);
-        assertThat(result.status()).isEqualTo(DraftDocumentStatus.EXAMINING);
-        assertThat(result.requestedBy()).isEqualTo(MEMBER_ID);
+    @Autowired
+    private ParticipantRepository participantRepository;
+
+    @Autowired
+    private DocumentRepository documentRepository;
+
+    @Autowired
+    private DocumentVersionRepository documentVersionRepository;
+
+    @BeforeEach
+    void setUpDocument() {
+        Workspace workspace = workspaceRepository.save(
+                WorkspaceFixture.workspace().createdBy(MEMBER_ID).build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspace.getId())
+                .memberId(MEMBER_ID)
+                .build());
+        Document document = documentRepository.save(DocumentFixture.document()
+                .workspaceId(workspace.getId())
+                .createdBy(MEMBER_ID)
+                .build());
+        documentVersionRepository.save(DocumentVersionFixture.documentVersion()
+                .documentId(document.getId())
+                .createdBy(MEMBER_ID)
+                .build());
+        documentId = document.getId();
     }
 
     @DisplayName("문서 초안의 본문을 수정한다.")
@@ -85,7 +114,16 @@ class DraftDocumentServiceTest extends IntegrationTestSupport {
                 .isEqualTo(true);
     }
 
+    /**
+     * 초안을 만드는 진입점은 비동기 대조 작업뿐이므로(D-45) 교정 이후 흐름만 보는 테스트는 초안을 직접 만든다. 생성 자체는
+     * DraftDocumentCheckExecutionServiceTest가 검증한다.
+     */
     private DraftDocumentResult createDraft(String draftBody) {
-        return draftDocumentService.create(new CreateDraftDocumentCommand(DOCUMENT_ID, 1, draftBody, MEMBER_ID));
+        DraftDocument draftDocument = draftDocumentRepository.save(DraftDocumentFixture.draftDocument()
+                .documentId(documentId)
+                .draftBody(draftBody)
+                .requestedBy(MEMBER_ID)
+                .build());
+        return draftDocumentService.read(draftDocument.getId(), MEMBER_ID);
     }
 }

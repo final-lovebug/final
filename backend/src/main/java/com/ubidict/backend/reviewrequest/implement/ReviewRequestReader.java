@@ -22,6 +22,12 @@ public class ReviewRequestReader {
                 .orElseThrow(() -> new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_NOT_FOUND));
     }
 
+    public ReviewRequest readForRevision(Long reviewRequestId) {
+        return reviewRequestRepository
+                .findForRevision(reviewRequestId)
+                .orElseThrow(() -> new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_NOT_FOUND));
+    }
+
     public PageResult<ReviewRequest> search(ReviewRequestSearchQuery query) {
         Page<ReviewRequest> page = reviewRequestRepository.search(
                 query.workspaceId(),

@@ -17,15 +17,18 @@ import com.ubidict.backend.document.infra.DocumentRepository;
 import com.ubidict.backend.document.infra.DocumentVersionRepository;
 import com.ubidict.backend.draftdocument.domain.SuggestionTermStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import com.ubidict.backend.draftdocument.fixture.DraftDocumentFixture;
+import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import com.ubidict.backend.draftdocument.service.model.AcceptSuggestionTermCommand;
 import com.ubidict.backend.draftdocument.service.model.AddSuggestionTermCommand;
 import com.ubidict.backend.draftdocument.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.RejectSuggestionTermCommand;
 import com.ubidict.backend.draftdocument.service.model.SuggestionTermResult;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Workspace;
+import com.ubidict.backend.workspace.fixture.ParticipantFixture;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,7 +45,13 @@ class SuggestionTermDecisionServiceTest extends IntegrationTestSupport {
     private DraftDocumentService draftDocumentService;
 
     @Autowired
+    private DraftDocumentRepository draftDocumentRepository;
+
+    @Autowired
     private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ParticipantRepository participantRepository;
 
     @Autowired
     private DocumentRepository documentRepository;
@@ -138,6 +147,10 @@ class SuggestionTermDecisionServiceTest extends IntegrationTestSupport {
     private SuggestionTermResult createSuggestionTerm(String suggestionTerm) {
         Workspace workspace = workspaceRepository.save(
                 WorkspaceFixture.workspace().createdBy(MEMBER_ID).build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspace.getId())
+                .memberId(MEMBER_ID)
+                .build());
         Document document = documentRepository.save(DocumentFixture.document()
                 .workspaceId(workspace.getId())
                 .createdBy(MEMBER_ID)
@@ -157,9 +170,13 @@ class SuggestionTermDecisionServiceTest extends IntegrationTestSupport {
                 .createdBy(MEMBER_ID)
                 .build());
 
-        Long draftDocumentId = draftDocumentService
-                .create(new CreateDraftDocumentCommand(document.getId(), 1, "회원", MEMBER_ID))
-                .draftDocumentId();
+        Long draftDocumentId = draftDocumentRepository
+                .save(DraftDocumentFixture.draftDocument()
+                        .documentId(document.getId())
+                        .draftBody("회원")
+                        .requestedBy(MEMBER_ID)
+                        .build())
+                .getId();
         return suggestionTermService.add(
                 new AddSuggestionTermCommand(draftDocumentId, new TextRange(0, 2), "회원", suggestionTerm, MEMBER_ID));
     }

@@ -12,6 +12,7 @@ import com.ubidict.backend.draftdictionary.service.model.BulkDecisionResult;
 import com.ubidict.backend.draftdictionary.service.model.CandidateTermResult;
 import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -27,6 +28,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(CandidateTermController.class)
+@WithLoginMember(2L)
 @AutoConfigureMockMvc(addFilters = false)
 class CandidateTermControllerTest {
 
@@ -55,10 +57,7 @@ class CandidateTermControllerTest {
 
         RestAssuredMockMvc.given()
                 .when()
-                .post(
-                        "/api/candidate-terms/{candidateTermId}/registration-approval?memberId={memberId}",
-                        CANDIDATE_TERM_ID,
-                        MEMBER_ID)
+                .post("/api/candidate-terms/{candidateTermId}/registration-approval", CANDIDATE_TERM_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("REGISTRATION_APPROVED"))
@@ -77,10 +76,7 @@ class CandidateTermControllerTest {
                         {"mergeTargetTermId": 99}
                         """)
                 .when()
-                .post(
-                        "/api/candidate-terms/{candidateTermId}/synonym-merge?memberId={memberId}",
-                        CANDIDATE_TERM_ID,
-                        MEMBER_ID)
+                .post("/api/candidate-terms/{candidateTermId}/synonym-merge", CANDIDATE_TERM_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("MERGED_AS_SYNONYM"))
@@ -96,10 +92,7 @@ class CandidateTermControllerTest {
                         {"rejectReason": " "}
                         """)
                 .when()
-                .post(
-                        "/api/candidate-terms/{candidateTermId}/rejection?memberId={memberId}",
-                        CANDIDATE_TERM_ID,
-                        MEMBER_ID)
+                .post("/api/candidate-terms/{candidateTermId}/rejection", CANDIDATE_TERM_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value());
     }
@@ -112,7 +105,7 @@ class CandidateTermControllerTest {
 
         RestAssuredMockMvc.given()
                 .when()
-                .post("/api/candidate-terms/{candidateTermId}/hold?memberId={memberId}", CANDIDATE_TERM_ID, MEMBER_ID)
+                .post("/api/candidate-terms/{candidateTermId}/hold", CANDIDATE_TERM_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("ON_HOLD"));
@@ -131,10 +124,7 @@ class CandidateTermControllerTest {
                         {"candidateTermIds": [10, 11], "decision": "ON_HOLD"}
                         """)
                 .when()
-                .post(
-                        "/api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision?memberId={memberId}",
-                        1L,
-                        MEMBER_ID)
+                .post("/api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision", 1L)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("succeeded", hasSize(1))
@@ -153,10 +143,7 @@ class CandidateTermControllerTest {
                         {"candidateTermIds": [], "decision": "ON_HOLD"}
                         """)
                 .when()
-                .post(
-                        "/api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision?memberId={memberId}",
-                        1L,
-                        MEMBER_ID)
+                .post("/api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision", 1L)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value());
     }
@@ -170,10 +157,7 @@ class CandidateTermControllerTest {
                         {"candidateTermIds": [10], "decision": "KEPT"}
                         """)
                 .when()
-                .post(
-                        "/api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision?memberId={memberId}",
-                        1L,
-                        MEMBER_ID)
+                .post("/api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision", 1L)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("DRAFT_DICTIONARY_INVALID_DECISION"));

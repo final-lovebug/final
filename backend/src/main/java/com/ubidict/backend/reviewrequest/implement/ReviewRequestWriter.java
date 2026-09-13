@@ -14,4 +14,8 @@ public class ReviewRequestWriter {
     public ReviewRequest write(ReviewRequest reviewRequest) {
         return reviewRequestRepository.save(reviewRequest);
     }
+
+    public void flush() {
+        reviewRequestRepository.flush();
+    }
 }

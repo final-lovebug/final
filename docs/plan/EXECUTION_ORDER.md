@@ -25,7 +25,7 @@
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다. 세션 지시문에 태스크 ID를 적을 때 한 글자 차이로 다른 도메인을 구현하게 된다.
 
-**결정 ID**는 `D-1`~`D-18`(초안·리뷰 3개 문서 전역 공유), `G-1`~`G-15`(큰 흐름), `D-19`~`D-32`(2026-09-10), `D-33`~`D-37`(2026-09-12 잔여 병렬화)를 쓴다. **새 결정은 `D-38`부터**다.
+**결정 ID**는 `D-1`~`D-18`(초안·리뷰 3개 문서 전역 공유), `G-1`~`G-15`(큰 흐름), `D-19`~`D-32`(2026-09-10), `D-33`~`D-37`(2026-09-12 잔여 병렬화), `D-38`~`D-43`(도메인 Phase 3~4), `D-44`~`D-46`(2026-09-13 마무리 통합)을 쓴다. **새 결정은 `D-47`부터**다.
 
 **태스크 두 개가 늘고 하나가 폐기됐다**(2026-09-12).
 
@@ -106,12 +106,13 @@
 | ~~T-INT-1 Flyway out-of-order 정리~~ | **폐기** — DB를 항상 리셋하므로 필요가 없다 |
 | T-INT-2 크로스 도메인 어댑터 `real` 전환 | 조회 축은 **선행 PR**에서 끝난다. 발행 축 2개만 `DOC-6`·`DIC-3` 뒤 마무리 태스크 |
 | T-INT-3 `SecurityConfig` + 인증 주체 + 프로파일 분리 | 인증 도메인(별건). **`SecurityConfig`는 이미 있다**(`member/infra/security`) — 남은 것은 프로파일 분리와 `memberId` 파라미터 제거 |
+| **T-INT-5** 초안 → 리뷰 요청 생성 진입점 | **`RR-4b`**, **`DD-3`**, **`DI-3`** — 모두 머지됐다. **`DIC-7`·E2E의 선행**이다(`D-44`·`Y-31`) |
 
 > **`DI-4`의 의존을 `RR-2c`로 정확히 적는다.** `DRAFT_DICTIONARY_PLAN.md` 12절은 `RR-2`로 적었으나 그것은 Phase 표기이고 태스크가 아니다. 「사전집에 초안 또는 개정안이 존재하면 추가 초안 생성 불가」 정책이 `RevisionDictionary.dictionaryId`로 진행 중인 개정안을 찾으므로 **사전 개정안을 만드는 `RR-2c`**가 실제 선행이다.
 
-**`T-INT-4`는 신설하지 않는다** — `D-26`(유래 리비전을 두지 않는다)으로 필요가 사라졌다.
+**`T-INT-4`는 신설하지 않는다** — `D-26`(유래 리비전을 두지 않는다)으로 필요가 사라졌다. **`T-INT-5`는 신설한다** — 리뷰 요청 생성 진입점이 어느 도메인 PR에도 담기지 않아 비어 있다(`Y-31`).
 
-> **발행 포트의 의존은 한 방향이다.** `RR-4b`가 `DocumentVersionPublishPort`·`DictionaryVersionPublishPort`를 **정의하고 스텁까지 만들어** 자기 태스크를 완결한다(`docs/ARCHITECTURE.md` 「제공 도메인이 아직 없으면 스텁을 함께 만든다」). 그 뒤 제공 도메인이 real 어댑터로 갈아끼운다 — `DIC-3`·`DOC-6`이 `RR-4b`를 기다리고, **`RR-4b`는 둘을 기다리지 않는다.** 반대로 읽으면 순환이 생긴다.
+> **발행 포트의 의존은 한 방향이다.** `RR-4b`가 `DocumentVersionPublishPort`·`DictionaryVersionPublishPort`를 **정의하고 스텁까지 만들어** 자기 태스크를 완결한다(`docs/ARCHITECTURE.md` 「제공 도메인이 아직 없으면 스텁을 함께 만든다」). 그 뒤 제공 도메인이 real 어댑터로 갈아끼운다 — `DIC-3`·`DOC-6`이 `RR-4b`를 기다리고, **`RR-4b`는 둘을 기다리지 않는다.** 반대로 읽으면 순환이 생긴다. 다만 문서 발행에 필요한 활성 사전집 버전은 발행 위임이 아니라 **조회**이므로, `RR-4b`가 소비 측 `ActiveDictionaryVersionQueryPort`와 Dictionary Repository 기반 real 어댑터를 함께 소유한다(`D-33`).
 
 ### 크리티컬 패스가 둘로 늘었다
 
@@ -143,8 +144,10 @@ chore/WLSH-145-contracts   크로스 도메인 계약        ← 단독 선행
   feat/WLSH-{티켓}-review-req-phase-3    RR-3a · RR-3b · RR-3c
   feat/WLSH-{티켓}-review-req-phase-4    RR-4a · RR-4b · RR-4c · RR-4d
        ↓ 6개가 모두 머지된 뒤
-  마무리 통합   DIC-7 · D-36 정리 · T-INT-2 잔여 · T-INT-3 잔여 · E2E
+  마무리 통합   T-INT-5 · D-36 정리 · DIC-7 · T-INT-2 잔여 · T-INT-3 잔여 · E2E
 ```
+
+> **마무리 통합의 순서는 `T-INT-5`가 먼저다**(2026-09-13 개정). 리뷰 요청 생성 진입점이 비어 있어(`Y-31`) 초안에서 리뷰로 넘어가는 경로가 없고, 그 상태로 `DIC-7`을 하면 사전집을 만들 방법이 **완전히** 사라진다. `T-INT-5` → `D-36` → `DIC-7` → `T-INT-2` → `T-INT-3` → E2E 순으로 커밋한다. E2E는 앞의 전부를 검증하므로 마지막이다.
 
 **PR 이름은 각 문서 12절의 Phase를 그대로 잇는다.** Phase 1~2가 `feat/WLSH-124-workspace-phase-2` 형태였으므로 같은 규칙이다. Workspace·DraftDocument·DraftDictionary·ReviewRequest는 12절 Phase 표와 **정확히 일치**하고, 어긋나는 곳은 둘뿐이다.
 
@@ -156,6 +159,7 @@ chore/WLSH-145-contracts   크로스 도메인 계약        ← 단독 선행
 | 끊는 대상 | 방법 |
 | --- | --- |
 | `DIC-3`·`DOC-6` → `RR-4b` | `reviewrequest/infra/port/`에 발행 위임 포트 2개와 **스텁**을 만든다. 제공 도메인이 각자 real 어댑터로 갈아끼운다 |
+| `RR-4b` → 활성 사전집 | `reviewrequest/infra/port/`에 `ActiveDictionaryVersionQueryPort`를 정의하고, 소비 측에 Dictionary Repository 기반 real 어댑터와 스텁을 둔다 |
 | `DD-4`·`DI-4`·`DD-5`·`DI-5` → `DOC-4` | 소비 도메인에 `DocumentQueryPort`를 정의하고 **real 어댑터까지** 만든다(`DOC-4`의 실질 산출물 흡수) |
 | `RR-4b` → 초안 2개 | `reviewrequest/infra/port/`에 초안 스냅샷 조회 포트 2개 + real 어댑터 |
 | `DD-4` ↔ `DI-4` 상호 배타(`G-14`·`D-22`) | 두 초안 도메인이 서로를 보는 조회 포트 + real 어댑터 |
@@ -165,7 +169,7 @@ chore/WLSH-145-contracts   크로스 도메인 계약        ← 단독 선행
 
 ### 선행 PR의 커밋 순서 — 문서가 코드보다 앞선다
 
-루트 `CLAUDE.md`의 「결정이 바뀌면 코드보다 문서를 먼저 갱신한다」와 이 문서 7절(「계획 문서에 없는 설계 결정이 필요해졌다 → `CONFLICTS.md`에 먼저 적고 합의한 뒤 구현한다」)에 따른다. `D-33`~`D-36`이 새 결정이라 그대로 해당한다.
+루트 `CLAUDE.md`의 「결정이 바뀌면 코드보다 문서를 먼저 갱신한다」와 이 문서 7절(「계획 문서에 없는 설계 결정이 필요해졌다 → `CONFLICTS.md`에 먼저 적고 합의한 뒤 구현한다」)에 따른다. `D-33`~`D-36`이 새 결정이라 그대로 해당한다. **마무리 통합 PR(`chore/WLSH-145-integration`)도 같은 규약을 따라 `D-44`~`D-46`·`Y-31`을 첫 커밋에 기록한다.**
 
 ```
 1  docs: 어댑터 배치·비동기 계약 결정 기록       CONFLICTS · EXECUTION_ORDER · DICTIONARY_PLAN
@@ -206,11 +210,15 @@ chore/WLSH-145-contracts   크로스 도메인 계약        ← 단독 선행
 
 `common/**`(위 3건 제외), `common/domain/BaseEntity`, `backend/src/test/java/.../support/**`, `application.properties`, `build.gradle`, 그리고 **다른 도메인의 패키지 전체**.
 
+> **통합 태스크(`T-*`)는 이 목록의 예외다.** 마무리 통합에서 `support/**`에 로그인 회원을 주입하는 테스트 애노테이션을 더하고(`T-INT-3`), `src/test/resources/application.yml`을 걷어낸다(`D-46`). 도메인 PR은 여전히 손대지 않는다.
+
 필요하면 통합 태스크(`T-*`)로 넘기고 PR에 이유를 적는다.
 
 > **어댑터를 만들 때도 다른 도메인의 파일을 고치지 않는다.** 어댑터는 `{소비도메인}/infra/adapter/`에 두고 제공 도메인의 `infra`(Repository)만 참조한다 — `docs/ARCHITECTURE.md`의 «크로스 도메인 조회 — 포트와 어댑터».
 >
 > **단 접근 검증은 예외다**(`D-19`). `WorkspaceAccessValidator`를 직접 주입하며, 이것은 `workspace` 패키지를 **참조**하는 것이고 **수정**하는 것이 아니다.
+>
+> **리뷰 준비 판정 위임도 예외다**(`D-44`). 발행 위임과 같은 이유로 어댑터를 **제공(초안) 도메인**에 두고 그 도메인의 `implement`를 호출한다 — 판정 규칙과 `ErrorCode`가 초안 도메인의 것이라 소비 도메인에 두면 규칙이 복제된다(`D-33`의 갈림과 같다).
 
 ### `docs/plan/`의 기존 3개 문서는 아무도 고치지 않는다
 

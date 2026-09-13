@@ -6,6 +6,7 @@ import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Component;
@@ -33,5 +34,16 @@ public class DraftDocumentReader {
             return draftDocumentRepository.findAllByDocumentIdAndDeletedAtIsNull(documentId, pageable);
         if (status != null) return draftDocumentRepository.findAllByStatusAndDeletedAtIsNull(status, pageable);
         return draftDocumentRepository.findAllByDeletedAtIsNull(pageable);
+    }
+
+    public Page<DraftDocument> searchAccessible(Set<Long> documentIds, DraftDocumentStatus status, Pageable pageable) {
+        if (documentIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+        if (status != null) {
+            return draftDocumentRepository.findAllByDocumentIdInAndStatusAndDeletedAtIsNull(
+                    documentIds, status, pageable);
+        }
+        return draftDocumentRepository.findAllByDocumentIdInAndDeletedAtIsNull(documentIds, pageable);
     }
 }

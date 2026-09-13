@@ -13,6 +13,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.document.exception.DocumentErrorCode;
 import com.ubidict.backend.document.service.DocumentService;
 import com.ubidict.backend.document.service.model.CreateDocumentCommand;
@@ -21,6 +22,7 @@ import com.ubidict.backend.document.service.model.DocumentSummaryResult;
 import com.ubidict.backend.document.service.model.DocumentVersionResult;
 import com.ubidict.backend.document.service.model.DocumentVersionSummaryResult;
 import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -35,6 +37,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(1L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(DocumentController.class)
 class DocumentControllerTest {
@@ -74,7 +77,7 @@ class DocumentControllerTest {
                         {"title": "결제 도메인 설계", "content": "회원은 결제할 수 있다.", "labels": ["설계"]}
                         """)
                 .when()
-                .post("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("documentId", equalTo(DOCUMENT_ID.intValue()))
@@ -93,7 +96,7 @@ class DocumentControllerTest {
                         {"title": "  ", "content": "본문"}
                         """)
                 .when()
-                .post("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
@@ -110,7 +113,7 @@ class DocumentControllerTest {
                 .contentType(ContentType.JSON)
                 .body("{\"title\": \"제목\", \"content\": \"" + tooLong + "\"}")
                 .when()
-                .post("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
@@ -127,25 +130,10 @@ class DocumentControllerTest {
                          "labels": ["하나", "둘", "셋", "넷", "다섯", "여섯"]}
                         """)
                 .when()
-                .post("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
-    }
-
-    @DisplayName("memberId가 없으면 400을 응답한다.")
-    @Test
-    void create_memberIdIsMissing() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {"title": "제목", "content": "본문"}
-                        """)
-                .when()
-                .post("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value());
     }
 
     /**
@@ -155,67 +143,67 @@ class DocumentControllerTest {
     @Test
     void readAll() {
         // given
-        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq(null)))
-                .willReturn(List.of(summaryResult()));
+        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq(null), eq(0), eq(20), eq("createdAt,desc")))
+                .willReturn(new PageResult<>(List.of(summaryResult()), 0, 20, 1));
 
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
-                .body("", hasSize(1))
-                .body("[0].title", equalTo("결제 도메인 설계"))
-                .body("[0].content", nullValue());
+                .body("content", hasSize(1))
+                .body("content[0].title", equalTo("결제 도메인 설계"))
+                .body("content[0].content", nullValue());
     }
 
     @DisplayName("문서 목록은 정렬 여부와 직접 편집 여부를 담는다.")
     @Test
     void readAll_containsAlignedAndEdited() {
         // given
-        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq(null)))
-                .willReturn(List.of(summaryResult()));
+        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq(null), eq(0), eq(20), eq("createdAt,desc")))
+                .willReturn(new PageResult<>(List.of(summaryResult()), 0, 20, 1));
 
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
-                .body("[0].aligned", equalTo(true))
-                .body("[0].edited", equalTo(false));
+                .body("content[0].aligned", equalTo(true))
+                .body("content[0].edited", equalTo(false));
     }
 
     @DisplayName("문서 목록은 폐기된 outdated 필드를 담지 않는다.")
     @Test
     void readAll_doesNotContainOutdated() {
         // given
-        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq(null)))
-                .willReturn(List.of(summaryResult()));
+        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq(null), eq(0), eq(20), eq("createdAt,desc")))
+                .willReturn(new PageResult<>(List.of(summaryResult()), 0, 20, 1));
 
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
-                .body("[0]", not(hasKey("outdated")));
+                .body("content[0]", not(hasKey("outdated")));
     }
 
     @DisplayName("라벨 필터를 넘기면 서비스로 전달된다.")
     @Test
     void readAll_filterByLabel() {
         // given
-        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq("설계")))
-                .willReturn(List.of(summaryResult()));
+        given(documentService.readAll(eq(WORKSPACE_ID), eq(MEMBER_ID), eq("설계"), eq(0), eq(20), eq("createdAt,desc")))
+                .willReturn(new PageResult<>(List.of(summaryResult()), 0, 20, 1));
 
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/documents?memberId={memberId}&label=설계", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents?label=설계", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
-                .body("", hasSize(1));
+                .body("content", hasSize(1));
     }
 
     @DisplayName("문서 상세는 200과 본문을 응답한다.")
@@ -227,11 +215,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents/{documentId}", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("content", equalTo("회원은 결제할 수 있다."));
@@ -248,11 +232,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents/{documentId}", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo("DOCUMENT_NOT_FOUND"));
@@ -268,11 +248,7 @@ class DocumentControllerTest {
                         {"title": "정산 도메인 설계", "labels": ["정산"]}
                         """)
                 .when()
-                .patch(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}/documents/{documentId}", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
@@ -290,11 +266,7 @@ class DocumentControllerTest {
                         {"content": "편집한 본문"}
                         """)
                 .when()
-                .patch(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}/content?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}/documents/{documentId}/content", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("currentVersionNo", equalTo(2))
@@ -311,11 +283,7 @@ class DocumentControllerTest {
                         {"content": "  "}
                         """)
                 .when()
-                .patch(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}/content?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}/documents/{documentId}/content", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
@@ -327,11 +295,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .delete(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .delete("/api/workspaces/{workspaceId}/documents/{documentId}", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
@@ -340,21 +304,21 @@ class DocumentControllerTest {
     @Test
     void readVersions() {
         // given
-        given(documentService.readVersions(WORKSPACE_ID, DOCUMENT_ID, MEMBER_ID))
-                .willReturn(List.of(new DocumentVersionSummaryResult(1, OffsetDateTime.now(), null, false, MEMBER_ID)));
+        given(documentService.readVersions(WORKSPACE_ID, DOCUMENT_ID, MEMBER_ID, 0, 20))
+                .willReturn(new PageResult<>(
+                        List.of(new DocumentVersionSummaryResult(1, OffsetDateTime.now(), null, false, MEMBER_ID)),
+                        0,
+                        20,
+                        1));
 
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}/versions?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents/{documentId}/versions", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
-                .body("[0].versionNo", equalTo(1))
-                .body("[0].body", nullValue());
+                .body("content[0].versionNo", equalTo(1))
+                .body("content[0].body", nullValue());
     }
 
     @DisplayName("특정 버전 조회는 200과 그 시점 본문을 응답한다.")
@@ -367,11 +331,7 @@ class DocumentControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/documents/{documentId}/versions/1?memberId={memberId}",
-                        WORKSPACE_ID,
-                        DOCUMENT_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/documents/{documentId}/versions/1", WORKSPACE_ID, DOCUMENT_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("body", equalTo("첫 본문"));

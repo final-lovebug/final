@@ -5,17 +5,29 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.domain.TextRange;
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.document.domain.Document;
+import com.ubidict.backend.document.fixture.DocumentFixture;
+import com.ubidict.backend.document.fixture.DocumentVersionFixture;
+import com.ubidict.backend.document.infra.DocumentRepository;
+import com.ubidict.backend.document.infra.DocumentVersionRepository;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.domain.SuggestionTerm;
 import com.ubidict.backend.draftdocument.domain.SuggestionTermStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import com.ubidict.backend.draftdocument.fixture.DraftDocumentFixture;
 import com.ubidict.backend.draftdocument.fixture.SuggestionTermFixture;
+import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import com.ubidict.backend.draftdocument.infra.SuggestionTermRepository;
 import com.ubidict.backend.draftdocument.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
 import com.ubidict.backend.support.IntegrationTestSupport;
+import com.ubidict.backend.workspace.domain.Workspace;
+import com.ubidict.backend.workspace.fixture.ParticipantFixture;
+import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
+import com.ubidict.backend.workspace.infra.WorkspaceRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,12 +35,47 @@ import org.springframework.beans.factory.annotation.Autowired;
 class DraftDocumentExamineServiceTest extends IntegrationTestSupport {
 
     private static final Long MEMBER_ID = 7L;
+    private Long documentId;
 
     @Autowired
     private DraftDocumentService draftDocumentService;
 
     @Autowired
+    private DraftDocumentRepository draftDocumentRepository;
+
+    @Autowired
     private SuggestionTermRepository suggestionTermRepository;
+
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ParticipantRepository participantRepository;
+
+    @Autowired
+    private DocumentRepository documentRepository;
+
+    @Autowired
+    private DocumentVersionRepository documentVersionRepository;
+
+    @BeforeEach
+    void setUpDocument() {
+        Workspace workspace = workspaceRepository.save(
+                WorkspaceFixture.workspace().createdBy(MEMBER_ID).build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspace.getId())
+                .memberId(MEMBER_ID)
+                .build());
+        Document document = documentRepository.save(DocumentFixture.document()
+                .workspaceId(workspace.getId())
+                .createdBy(MEMBER_ID)
+                .build());
+        documentVersionRepository.save(DocumentVersionFixture.documentVersion()
+                .documentId(document.getId())
+                .createdBy(MEMBER_ID)
+                .build());
+        documentId = document.getId();
+    }
 
     @DisplayName("교정을 완료하면 수용한 제안어가 본문에 반영된다.")
     @Test
@@ -98,10 +145,15 @@ class DraftDocumentExamineServiceTest extends IntegrationTestSupport {
         assertThat(result.previewBody()).isEqualTo("사용자는 결제방법을 선택한다.");
     }
 
+    /** 초안 생성 진입점은 비동기 대조 작업뿐이므로(D-45) 교정 흐름만 보는 테스트는 초안을 직접 만든다. */
     private Long createDraftDocument(String draftBody) {
-        return draftDocumentService
-                .create(new CreateDraftDocumentCommand(1L, 1, draftBody, MEMBER_ID))
-                .draftDocumentId();
+        return draftDocumentRepository
+                .save(DraftDocumentFixture.draftDocument()
+                        .documentId(documentId)
+                        .draftBody(draftBody)
+                        .requestedBy(MEMBER_ID)
+                        .build())
+                .getId();
     }
 
     private void saveSuggestionTerm(

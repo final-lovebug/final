@@ -36,9 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.TestPropertySource;
 
-@TestPropertySource(properties = {"app.crossdomain.dictionary.mode=real", "app.crossdomain.draft-document.mode=real"})
 class DocumentServiceTest extends IntegrationTestSupport {
 
     private static final Long OWNER_ID = 1L;

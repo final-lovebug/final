@@ -12,7 +12,8 @@ public record CandidateTermSearchQuery(
         Integer minOccurrenceCount,
         int page,
         int size,
-        String sort) {
+        String sort,
+        Long memberId) {
     public CandidateTermSearchQuery {
         if (draftDictionaryId == null
                 || page < 0

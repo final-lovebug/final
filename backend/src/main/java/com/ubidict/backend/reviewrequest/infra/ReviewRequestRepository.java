@@ -7,12 +7,18 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ReviewRequestRepository extends JpaRepository<ReviewRequest, Long> {
 
     Optional<ReviewRequest> findByIdAndDeletedAtIsNull(Long id);
+
+    @Lock(jakarta.persistence.LockModeType.OPTIMISTIC_FORCE_INCREMENT)
+    @Query(
+            "select reviewRequest from ReviewRequest reviewRequest where reviewRequest.id = :id and reviewRequest.deletedAt is null")
+    Optional<ReviewRequest> findForRevision(@Param("id") Long id);
 
     @Query("""
             select reviewRequest from ReviewRequest reviewRequest
@@ -32,4 +38,19 @@ public interface ReviewRequestRepository extends JpaRepository<ReviewRequest, Lo
             @Param("requesterId") Long requesterId,
             @Param("reviewerMemberId") Long reviewerMemberId,
             Pageable pageable);
+
+    @Query("""
+            select (count(r) > 0) from ReviewRequest r, RevisionDocument revision
+            where revision.reviewRequestId = r.id
+              and revision.documentId = :documentId
+              and r.type = com.ubidict.backend.reviewrequest.domain.ReviewRequestType.DOCUMENT
+              and r.status in (
+                com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus.PENDING_REVIEW,
+                com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus.IN_REVIEW,
+                com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus.CHANGES_REQUESTED
+              )
+              and r.deletedAt is null
+              and revision.deletedAt is null
+            """)
+    boolean existsOngoingDocumentReview(@Param("documentId") Long documentId);
 }
