@@ -65,4 +65,11 @@ public class RevisionDocument extends BaseEntity {
         revision.reexamineRound = round;
         return revision;
     }
+
+    public void recordResult(int resultVersionNo) {
+        if (resultVersionNo < 1 || this.resultVersionNo != null) {
+            throw new BusinessException(CommonErrorCode.COMMON_INVALID_REQUEST);
+        }
+        this.resultVersionNo = resultVersionNo;
+    }
 }
