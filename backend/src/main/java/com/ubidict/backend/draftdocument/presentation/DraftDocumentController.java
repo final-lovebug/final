@@ -2,7 +2,6 @@ package com.ubidict.backend.draftdocument.presentation;
 
 import com.ubidict.backend.common.presentation.PageResponse;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
-import com.ubidict.backend.draftdocument.presentation.dto.CreateDraftDocumentRequest;
 import com.ubidict.backend.draftdocument.presentation.dto.DraftDocumentResponse;
 import com.ubidict.backend.draftdocument.presentation.dto.ExamineProgressResponse;
 import com.ubidict.backend.draftdocument.presentation.dto.UpdateDraftBodyRequest;
@@ -11,7 +10,6 @@ import com.ubidict.backend.draftdocument.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentSearchQuery;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,15 +44,6 @@ public class DraftDocumentController {
         return PageResponse.from(draftDocumentService
                 .search(new DraftDocumentSearchQuery(documentId, status, page, size, sort, memberId))
                 .map(DraftDocumentResponse::from));
-    }
-
-    @PostMapping
-    public ResponseEntity<DraftDocumentResponse> create(
-            @RequestParam Long memberId, @Valid @RequestBody CreateDraftDocumentRequest request) {
-        DraftDocumentResponse response =
-                DraftDocumentResponse.from(draftDocumentService.create(request.toCommand(memberId)));
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{draftDocumentId}")

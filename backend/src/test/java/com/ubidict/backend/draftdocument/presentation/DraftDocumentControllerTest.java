@@ -9,7 +9,6 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.service.DraftDocumentService;
-import com.ubidict.backend.draftdocument.service.model.CreateDraftDocumentCommand;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
@@ -46,43 +45,6 @@ class DraftDocumentControllerTest {
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);
-    }
-
-    @DisplayName("문서 초안을 생성하면 201과 상세를 응답한다.")
-    @Test
-    void create() {
-        // given
-        given(draftDocumentService.create(any(CreateDraftDocumentCommand.class)))
-                .willReturn(draftDocumentResult("회원은 결제할 수 있다."));
-
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {"documentId": 10, "baseVersionNo": 1, "draftBody": "회원은 결제할 수 있다."}
-                        """)
-                .when()
-                .post("/api/draft-documents?memberId={memberId}", MEMBER_ID)
-                .then()
-                .statusCode(HttpStatus.CREATED.value())
-                .body("draftDocumentId", equalTo(DRAFT_DOCUMENT_ID.intValue()))
-                .body("status", equalTo("EXAMINING"));
-    }
-
-    @DisplayName("원본 문서 식별자가 없으면 400과 공통 검증 실패 코드를 응답한다.")
-    @Test
-    void create_documentIdIsNull() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {"baseVersionNo": 1, "draftBody": "회원은 결제할 수 있다."}
-                        """)
-                .when()
-                .post("/api/draft-documents?memberId={memberId}", MEMBER_ID)
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value())
-                .body("code", equalTo("COMMON_INVALID_REQUEST"));
     }
 
     @DisplayName("문서 초안을 조회하면 200과 상세를 응답한다.")

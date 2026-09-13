@@ -1,6 +1,5 @@
 package com.ubidict.backend.draftdictionary.presentation;
 
-import com.ubidict.backend.draftdictionary.presentation.dto.CreateDraftDictionaryRequest;
 import com.ubidict.backend.draftdictionary.presentation.dto.DraftDictionaryResponse;
 import com.ubidict.backend.draftdictionary.presentation.dto.ExamineProgressResponse;
 import com.ubidict.backend.draftdictionary.presentation.dto.UpdateSourceDocumentsRequest;
@@ -8,7 +7,6 @@ import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,15 +31,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class DraftDictionaryController {
 
     private final DraftDictionaryService draftDictionaryService;
-
-    @PostMapping
-    public ResponseEntity<DraftDictionaryResponse> create(
-            @RequestParam Long memberId, @Valid @RequestBody CreateDraftDictionaryRequest request) {
-        DraftDictionaryResponse response =
-                DraftDictionaryResponse.from(draftDictionaryService.create(request.toCommand(memberId)));
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
 
     @GetMapping("/{draftDictionaryId}")
     public ResponseEntity<DraftDictionaryResponse> read(

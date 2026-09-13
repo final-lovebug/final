@@ -9,11 +9,9 @@ import com.ubidict.backend.draftdictionary.implement.DraftDictionaryRemover;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryReviewReadinessValidator;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryWriter;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdictionary.service.model.CreateDraftDictionaryCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
 import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdictionary.service.model.UpdateSourceDocumentsCommand;
-import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,23 +31,6 @@ public class DraftDictionaryService {
     private final DraftDictionaryCreationPolicyValidator creationPolicyValidator;
     private final DraftDictionaryEventPublisher eventPublisher;
     private final WorkspaceAccessValidator workspaceAccessValidator;
-
-    @Transactional
-    public DraftDictionaryResult create(CreateDraftDictionaryCommand command) {
-        workspaceAccessValidator.validateAtLeast(command.workspaceId(), command.memberId(), Permission.ADMIN);
-        creationPolicyValidator.validate(command.workspaceId());
-        DraftDictionary draftDictionary = draftDictionaryWriter.create(
-                command.workspaceId(), command.dictionaryId(), command.sourceDocumentIds(), command.memberId());
-        eventPublisher.publishCreated(draftDictionary);
-
-        log.info(
-                "[DraftDictionaryService.create] Draft dictionary created. draftDictionaryId={}, workspaceId={}, memberId={}",
-                draftDictionary.getId(),
-                draftDictionary.getWorkspaceId(),
-                command.memberId());
-
-        return DraftDictionaryResult.from(draftDictionary);
-    }
 
     @Transactional(readOnly = true)
     public DraftDictionaryResult read(Long draftDictionaryId, Long memberId) {
