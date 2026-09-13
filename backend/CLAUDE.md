@@ -129,7 +129,12 @@
 | `local` | `application-local.yml` | 로컬 실행. `http://localhost`에서 `Secure` 쿠키가 돌아오지 않으므로 끈다 |
 | `dev` | `application-dev.yml` | 개발 서버. 시크릿을 환경변수로 받고 Parameter Store를 쓰지 않는다 |
 | `prod` | `application-prod.yml` | 운영. Parameter Store에서 시크릿을 읽는다 |
-| `test` | `application-test.yml` | 테스트. DB·Redis 접속은 Testcontainers가 주입하므로 여기 적지 않는다 |
+| `test` | `src/test/resources/application-test.yml` | 테스트. DB·Redis 접속은 Testcontainers가 주입하므로 여기 적지 않는다 |
+
+**AWS Parameter Store는 기본 off다.** `spring.cloud.aws.parameterstore.enabled`가 켜져 있으면
+`SsmClient` 빈이 곧바로 만들어져 로컬·테스트에서도 AWS 리전을 요구하고, 리전이 없으면 컨텍스트가
+뜨지 않는다. 그래서 `application.yml`이 `false`로 두고 **`prod`만 `true`로 켠다** — 시크릿을
+Parameter Store에서 읽는 프로파일이 그것뿐이다.
 
 **`spring.profiles.active` 기본값을 두지 않는다.** `bootRun`은 무-프로파일로 뜨고, 로컬은
 `./gradlew bootRun --args='--spring.profiles.active=local'`로 명시한다. 테스트는

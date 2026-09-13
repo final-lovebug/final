@@ -13,6 +13,12 @@ spring:
           google:
             client-id: "${GOOGLE_CLIENT_ID}"
             client-secret: "${GOOGLE_CLIENT_SECRET}"
+  cloud:
+    aws:
+      parameterstore:
+        # 기본 off. 켜져 있으면 SsmClient 빈이 곧바로 만들어져 로컬·테스트에서도 AWS 리전을 요구하고,
+        # 리전이 없으면 컨텍스트 자체가 뜨지 않는다. 시크릿을 Parameter Store 에서 읽는 prod 만 켠다.
+        enabled: ${AWS_PARAMETER_STORE_ENABLED:false}
 
 app:
   messaging:
