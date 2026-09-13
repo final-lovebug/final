@@ -11,8 +11,9 @@ export interface FetchNotificationsParams {
 }
 
 // docs/API.md "알림 목록 조회" 목업 구현체. 실 연동 시 이 함수 내부만
-// `GET /api/workspaces/{workspaceId}/notifications?memberId=...&unreadOnly=...&page=...&size=...`
-// 호출로 바꾸면 된다 — 반환 타입(Page<Notification>)을 유지하는 한 hooks/화면은 손댈 필요가
+// `GET /api/workspaces/{workspaceId}/notifications?unreadOnly=...&page=...&size=...`
+// 호출로 바꾸면 된다 — 요청자는 Authorization 헤더의 인증 주체에서 해석되므로 memberId를
+// 쿼리로 보내지 않는다. 반환 타입(Page<Notification>)을 유지하는 한 hooks/화면은 손댈 필요가
 // 없다. 정렬은 createdAt desc 고정(sort 화이트리스트가 그거 하나뿐이다).
 export async function fetchNotifications(
   workspaceId: WorkspaceId,
