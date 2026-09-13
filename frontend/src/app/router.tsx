@@ -28,7 +28,8 @@ import { SettingsLabelsPage } from '../pages/settings/SettingsLabelsPage'
 // 각 화면 ↔ 라우트 ↔ 담당 도메인 근거는 frontend/docs/ARCHITECTURE.md 매핑표 참고.
 // 절대 경로 문자열은 이 파일이 아니라 src/shared/config/routes.ts가 기준이다 —
 // 여기서는 상대 세그먼트만 쓰고, 네비게이션(Link/NavLink)에서는 routes.*()를 쓴다.
-// /workspaces 이하는 RequireAuth(Phase 5, Zustand authStore 기준 목업 인증 가드)로 감싼다.
+// /workspaces 이하는 RequireAuth(Zustand authStore 기준 인증 가드 — 실 로그인 흐름과
+// 연결됨, T-INT-15 2026-09-14)로 감싼다.
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/login" replace /> },
   { path: '/login', element: <LoginPage />, handle: { title: '로그인' } },
