@@ -533,7 +533,7 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 **`DIC-3`이 기다린 것은 `RR-4b`의 구현이 아니라 인터페이스 파일 하나다**(2026-09-12 정정).
 
 - `DIC-3`은 **`reviewrequest/infra/port/DictionaryVersionPublishPort`가 존재해야** 어댑터를 구현할 수 있다. 원래는 `RR-4b`가 포트와 스텁을 함께 만들어 자기 Phase를 완결하는 구조였으나(`ARCHITECTURE.md` 「제공 도메인이 아직 없으면 스텁을 함께 만든다」), **선행 PR(`chore/WLSH-145-contracts`)이 그 포트와 스텁을 먼저 만든다.** 그래서 `DIC-3`과 `RR-4b`가 **서로를 기다리지 않고 동시에** 진행된다 — `DIC-3`은 real 어댑터를, `RR-4b`는 그 포트를 주입받는 `ReviseProcessor`를 각자 만든다.
-- `DIC-7`은 그보다 더 뒤다. 임시 API를 그 전에 제거하면 사전집을 만들 방법이 없어진다(`D-27`). **Phase 4지만 6개 도메인이 모두 머지된 뒤 마무리 PR에서 한다.**
+- `DIC-7`은 그보다 더 뒤다. 임시 API를 그 전에 제거하면 사전집을 만들 방법이 없어진다(`D-27`). **Phase 4지만 6개 도메인이 모두 머지된 뒤 마무리 PR에서 한다.** 그 마무리 PR 안에서도 **`T-INT-5`(초안 → 리뷰 요청 진입점)가 선행**이다 — 리뷰 경로가 실제로 이어진 뒤여야 대체 경로가 생긴다(`D-44`·`Y-31`).
 
 ### Phase별 DoD
 
@@ -592,7 +592,7 @@ AssertJ를 쓴다(`assertThat`·`assertThatThrownBy`·`extracting`). `@DisplayNa
 **DIC-7**
 
 - [ ] `POST /dictionary/versions` 엔드포인트와 `ReviseDictionaryRequest`·`TermRequest`가 사라졌다
-- [ ] `DictionaryService.revise`는 남아 `DIC-3`의 어댑터가 호출한다
+- [ ] **`DictionaryService.publish(workspaceId, baseVersionNo, terms, publishedBy)`가 남아 `DIC-3`의 어댑터가 호출한다.** as-built는 진입점이 둘이며(`revise(ReviseDictionaryCommand)`는 HTTP 전용, `publish(...)`는 발행 위임 전용) 어댑터가 쓰는 것은 `publish`다 — **public `revise(ReviseDictionaryCommand)`와 `ReviseDictionaryCommand`·`TermCommand`도 함께 사라지고**, 두 진입점이 공유하던 private 경로만 남는다
 - [ ] `docs/API.md`의 해당 엔드포인트 절이 삭제됐다
 - [ ] 컨트롤러 테스트의 `revise` 케이스가 어댑터 테스트로 옮겨졌다
 
