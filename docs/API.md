@@ -1427,6 +1427,8 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 상태는 `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`다. 성공하면 `draftDictionaryId`로 생성된 초안을 확인할 수 있고, 실패하면 `failureReason`에 원인이 기록된다.
 
+작업 실행은 요청 트랜잭션 커밋 뒤 비동기 리스너가 담당한다. `TermExtractorPort`가 문서 식별자와 활성 사전집 용어 스냅샷을 입력받고 후보어 목록을 반환하며, 현재 구현은 외부 AI를 호출하지 않는 빈 결과 스텁이다. 실제 모델 연동 전에도 이전 사전집 용어를 승계한 초안 생성과 작업 상태 전이 계약은 검증할 수 있다.
+
 ## **에러**
 
 | **상황** | **status** | **code** |
@@ -1456,6 +1458,7 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 진행 중인 용어 추출 작업이 있음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_ALREADY_RUNNING` |
 | 용어 추출 작업 상태를 변경할 수 없음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_STATUS` |
 | 추출 가능한 문서가 없음 | 409 | `DRAFT_DICTIONARY_NO_EXTRACTABLE_DOCUMENT` |
+| 용어 추출 결과가 올바르지 않음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_RESULT` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---
