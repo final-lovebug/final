@@ -8,6 +8,7 @@ import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Participant;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.domain.Workspace;
+import com.ubidict.backend.workspace.domain.event.ParticipantRemovedEvent;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import com.ubidict.backend.workspace.fixture.ParticipantFixture;
 import com.ubidict.backend.workspace.infra.ParticipantRepository;
@@ -16,7 +17,10 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 
+@RecordApplicationEvents
 class ParticipantServiceTest extends IntegrationTestSupport {
 
     private static final Long OWNER_ID = 1L;
@@ -32,6 +36,9 @@ class ParticipantServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @DisplayName("소유자가 아니면 참여자 권한을 변경할 수 없다.")
     @Test
@@ -82,6 +89,26 @@ class ParticipantServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_OWNER_CANNOT_BE_REMOVED);
+    }
+
+    @DisplayName("참여자를 내보내면 회원 식별자를 담은 이탈 이벤트를 발행한다.")
+    @Test
+    void remove_publishesEvent() {
+        // given
+        Long workspaceId = createWorkspace();
+        Participant target = join(workspaceId, 2L, Permission.REGULAR);
+
+        // when
+        participantService.remove(new RemoveParticipantCommand(workspaceId, target.getId(), OWNER_ID));
+
+        // then
+        assertThat(applicationEvents.stream(ParticipantRemovedEvent.class))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.workspaceId()).isEqualTo(workspaceId);
+                    assertThat(event.memberId()).isEqualTo(target.getMemberId());
+                    assertThat(event.occurredAt()).isNotNull();
+                });
     }
 
     @DisplayName("참여자가 아니면 참여자 목록을 조회할 수 없다.")
