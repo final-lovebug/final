@@ -1,7 +1,10 @@
 package com.ubidict.backend.workspace.implement;
 
+import com.ubidict.backend.common.infra.event.EventPublisher;
 import com.ubidict.backend.workspace.domain.Workspace;
+import com.ubidict.backend.workspace.domain.event.WorkspaceDeletedEvent;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
+import java.time.OffsetDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -13,9 +16,11 @@ import org.springframework.stereotype.Component;
 public class WorkspaceRemover {
 
     private final WorkspaceRepository workspaceRepository;
+    private final EventPublisher eventPublisher;
 
     public void remove(Workspace workspace) {
         workspace.delete();
         workspaceRepository.save(workspace);
+        eventPublisher.publish(new WorkspaceDeletedEvent(workspace.getId(), OffsetDateTime.now()));
     }
 }
