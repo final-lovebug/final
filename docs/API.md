@@ -365,6 +365,7 @@ POST /api/members
 
 모든 요청은 임시 요청자 식별자인 `memberId` 쿼리 파라미터를 사용한다. Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 있다.
 권한 변경의 `permission`에는 `ADMIN` 또는 `REGULAR`만 허용하며, 소유권 이전은 별도 엔드포인트를 사용한다.
+참여자를 내보내면 해당 회원을 진행 중인 리뷰의 지정 리뷰어에서 제외할 수 있도록 이탈 이벤트를 발행한다.
 
 ### **워크스페이스 초대**
 
@@ -482,6 +483,7 @@ POST /api/members
 `DELETE /api/workspaces/{workspaceId}?memberId={memberId}` → `204 No Content`
 
 **OWNER만** 삭제할 수 있다. **소프트 삭제**이며 이후 모든 조회에서 빠진다. 참여자 행은 함께 지우지 않는다 — 조회가 워크스페이스에서 먼저 막히기 때문이다.
+삭제가 완료되면 알림과 감사 처리를 위한 워크스페이스 삭제 이벤트를 발행한다.
 
 ## **에러**
 
@@ -906,18 +908,20 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | **Method** | **Path** | **성공** | **태그** |
 | --- | --- | --- | --- |
 | POST | `/api/draft-documents` | `201` | **SHRINK** |
-| GET | `/api/draft-documents` | `200` | KEEP |
+| GET | `/api/draft-documents?memberId={memberId}` | `200` | KEEP |
 | GET | `/api/draft-documents/{draftDocumentId}` | `200` | KEEP |
 | PATCH | `/api/draft-documents/{draftDocumentId}` | `200` | KEEP |
 | DELETE | `/api/draft-documents/{draftDocumentId}` | `204` | KEEP |
 | POST | `/api/draft-documents/{draftDocumentId}/suggestion-terms` | `201` | KEEP |
-| GET | `/api/draft-documents/{draftDocumentId}/suggestion-terms` | `200` | KEEP |
+| GET | `/api/draft-documents/{draftDocumentId}/suggestion-terms?memberId={memberId}` | `200` | KEEP |
 | PATCH | `/api/suggestion-terms/{suggestionTermId}` | `200` | KEEP |
-| DELETE | `/api/suggestion-terms/{suggestionTermId}` | `204` | KEEP |
+| DELETE | `/api/suggestion-terms/{suggestionTermId}?memberId={memberId}` | `204` | KEEP |
 | POST | `/api/suggestion-terms/{suggestionTermId}/acceptance` | `200` | KEEP |
 | POST | `/api/suggestion-terms/{suggestionTermId}/rejection` | `200` | KEEP |
 | POST | `/api/draft-documents/{draftDocumentId}/examine-completion` | `200` | KEEP |
 | GET | `/api/draft-documents/{draftDocumentId}/examine-progress` | `200` | KEEP |
+| POST | `/api/draft-documents/checks` | `202` | KEEP |
+| GET | `/api/draft-documents/checks/{checkJobId}` | `200` | KEEP |
 
 `POST /api/draft-documents?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
 
@@ -957,7 +961,7 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 ## **초안 목록 조회**
 
-`GET /api/draft-documents` → `200 OK`, 본문은 `PageResponse`다.
+`GET /api/draft-documents?memberId={memberId}` → `200 OK`, 본문은 `PageResponse`다. 요청자가 참여한 워크스페이스에 속한 문서의 초안만 반환한다.
 
 | **파라미터** | **기본값** | **설명** |
 | --- | --- | --- |
@@ -983,11 +987,19 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 `anchor`는 초안 본문에서의 구간이다. `startOffset <= endOffset`이어야 하고 음수일 수 없으며, 본문 길이를 넘으면 거절한다.
 
-`GET /api/draft-documents/{draftDocumentId}/suggestion-terms` → `200 OK`, 본문은 `PageResponse`다. 파라미터는 `status`·`page`·`size`·`sort`이고 규격은 위 초안 목록과 같다.
+`GET /api/draft-documents/{draftDocumentId}/suggestion-terms?memberId={memberId}` → `200 OK`, 본문은 `PageResponse`다. 파라미터는 `status`·`page`·`size`·`sort`이고 규격은 위 초안 목록과 같다.
 
 `PATCH /api/suggestion-terms/{suggestionTermId}?memberId={memberId}`는 각 필드를 **선택적으로** 받아 넘어온 것만 바꾼다.
 
-`DELETE /api/suggestion-terms/{suggestionTermId}` → `204 No Content`. **소프트 삭제**다.
+`DELETE /api/suggestion-terms/{suggestionTermId}?memberId={memberId}` → `204 No Content`. **소프트 삭제**다.
+
+## **생성 정책과 데이터 격리**
+
+초안을 만들 때 대상 문서가 존재하고 요청자가 문서의 워크스페이스 참여자인지 확인한다. 같은 문서에 진행 중인 문서 초안·리뷰가 있거나 같은 워크스페이스에 진행 중인 사전 초안이 있으면 생성할 수 없다. `baseVersionNo`는 대상 문서의 현재 버전과 일치해야 한다.
+
+초안과 제안어의 조회·수정·삭제·판정·교정완료는 모두 문서가 속한 워크스페이스 참여자만 실행할 수 있다. 비참여자에게는 리소스 존재를 드러내지 않도록 `404`를 반환한다.
+
+초안 생성과 교정완료 시 각각 `DraftDocumentCreatedEvent`, `DraftDocumentExaminedEvent`를 발행한다. 문서 리뷰 요청 생성·취소·반영 이벤트를 받으면 초안 상태를 각각 `REVIEW_REQUESTED`, `EXAMINED`, `REVISED`로 멱등 전이한다.
 
 ## **제안어 판정과 교정완료**
 
@@ -1017,6 +1029,39 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 
 `POST /api/draft-documents/{draftDocumentId}/examine-completion?memberId={memberId}`는 미처리 제안어가 없을 때 교정을 완료한다. 수용된 제안어를 원문 기준 뒤쪽 위치부터 치환해 `draftBody`를 한 번에 확정하며, 이후 제안어 판정과 초안 본문 수정은 잠긴다. 수용된 앵커가 겹치면 일부 판정을 누락하지 않고 `DRAFT_DOCUMENT_INVALID_ANCHOR`로 거절한다.
 
+## **비동기 문서 대조**
+
+`POST /api/draft-documents/checks?memberId={memberId}`는 다음 요청으로 최신 확정 본문과 활성 사전집의 대조 작업을 접수한다.
+
+```json
+{
+  "documentId": 10
+}
+```
+
+작업을 `PENDING`으로 저장하고 대조 요청 이벤트를 발행한 뒤 `202 Accepted`와 작업 상태를 즉시 반환한다. 같은 문서에 `PENDING` 또는 `RUNNING` 작업이 있으면 중복 접수를 거절한다.
+
+`GET /api/draft-documents/checks/{checkJobId}?memberId={memberId}`는 폴링용 상태 조회 API다. 응답 형식은 다음과 같다.
+
+```json
+{
+  "checkJobId": 300,
+  "documentId": 10,
+  "status": "PENDING",
+  "draftDocumentId": null,
+  "failureReason": null,
+  "requestedBy": 7,
+  "createdAt": "2026-09-13T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-13T10:00:00.000000+09:00"
+}
+```
+
+상태는 `PENDING`·`RUNNING`·`SUCCEEDED`·`FAILED`다. 성공하면 `draftDocumentId`, 실패하면 `failureReason`이 채워진다.
+
+접수 트랜잭션이 커밋된 뒤 비동기 이벤트 리스너가 작업을 `RUNNING`으로 바꾸고 최신 문서 스냅샷과 활성 사전집 용어를 `TermCheckerPort`에 전달한다. 대조 결과의 원문 위치가 실제 본문과 일치할 때만 문서 초안과 제안어를 한 트랜잭션으로 저장하고 작업을 `SUCCEEDED`로 마친다. 처리 중 오류가 발생하면 초안 생성 트랜잭션을 롤백하고 작업을 `FAILED`로 기록한다.
+
+현재 `app.ai.checker.mode=stub`은 빈 고정 결과를 반환한다. 따라서 실제 AI 모델이 연결되기 전에도 비동기 접수·상태 전이·초안 생성 흐름은 검증할 수 있지만, 생성된 초안에 자동 제안어는 포함되지 않는다.
+
 ## **에러**
 
 | **상황** | **status** | **code** |
@@ -1033,6 +1078,17 @@ Workspace API와 같다. 인증 계층(`NFR-USR-001`)이 없어 요청자 회원
 | 거절 사유가 비어 있음 | 400 | `DRAFT_DOCUMENT_REJECT_REASON_REQUIRED` |
 | 처리하지 않은 제안어가 남아 있음 | 409 | `DRAFT_DOCUMENT_SUGGESTION_TERM_UNHANDLED_EXISTS` |
 | 교정완료 뒤 판정·본문 수정·완료를 다시 시도 | 409 | `DRAFT_DOCUMENT_ALREADY_EXAMINED` |
+| 문서 초안 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION` |
+| 같은 문서 또는 워크스페이스에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
+| 대상 문서의 리뷰가 진행 중임 | 409 | `DRAFT_DOCUMENT_UNDER_REVIEW` |
+| 초안 생성 대상 문서가 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_DOCUMENT_NOT_FOUND` |
+| 활성 사전집이 없어 대조할 수 없음 | 404 | `DRAFT_DOCUMENT_DICTIONARY_NOT_FOUND` |
+| 문서 대조 작업이 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_CHECK_NOT_FOUND` |
+| 같은 문서의 대조 작업이 이미 진행 중임 | 409 | `DRAFT_DOCUMENT_CHECK_ALREADY_RUNNING` |
+| 문서 대조 요청이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_CHECK_INVALID_REQUEST` |
+| 문서 대조 작업 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_CHECK_INVALID_STATUS` |
+| 대조 결과의 위치·원문이 현재 본문과 일치하지 않음 | 500 | `DRAFT_DOCUMENT_CHECK_INVALID_RESULT` |
+| 초안 또는 제안어가 속한 워크스페이스의 비참여자 | 404 | 대상 리소스의 `NOT_FOUND` 코드 |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 # **ReviewRequest API**
@@ -1254,6 +1310,8 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | GET | `/api/draft-dictionaries/{draftDictionaryId}/examine-progress` | `200` | KEEP |
 | POST | `/api/draft-dictionaries/{draftDictionaryId}/examine-completion` | `200` | KEEP |
 | POST | `/api/draft-dictionaries/{draftDictionaryId}/review-request` | `200` | **HALF** |
+| POST | `/api/draft-dictionaries/extractions` | `202` | KEEP |
+| GET | `/api/draft-dictionaries/extractions/{extractionJobId}` | `200` | KEEP |
 
 `POST /api/draft-dictionaries?memberId={memberId}`는 다음 JSON으로 초안을 만든다.
 
@@ -1397,7 +1455,40 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 
 `POST /api/draft-dictionaries/{draftDictionaryId}/review-request?memberId={memberId}`는 최종 등재 대상(`REGISTRATION_APPROVED`, `KEPT`)의 표기·영문명·정의 집합이 현재 활성 사전집과 실제로 다를 때 초안을 `REVIEW_REQUESTED`로 바꾼다. 승인 건수만으로 변경 여부를 판단하지 않으므로 기존 용어 수정·제외도 변경으로 인식한다. 최종 등재 대상의 정의는 비어 있을 수 없다.
 
-> 이 리뷰 요청 엔드포인트는 Phase 3의 반쪽 구현이다. 초안 상태만 전이하며 실제 `ReviewRequest` 생성과 연결은 Phase 4에서 구현한다.
+> 이 엔드포인트는 초안을 `REVIEW_REQUESTED`로 전이하고 `DraftDictionaryReviewRequestedEvent`를 발행한다. 실제 `ReviewRequest` 생성은 ReviewRequest 도메인의 이벤트 소비자가 담당하므로 해당 소비자가 함께 배포되어야 전체 흐름이 이어진다.
+
+## **용어 추출 작업 접수와 조회**
+
+`POST /api/draft-dictionaries/extractions?memberId={memberId}`는 용어 추출 작업을 비동기로 접수하고 `202 Accepted`를 응답한다. 워크스페이스 관리자 이상만 요청할 수 있으며, 전달한 문서 중 현재 활성 사전집 기준과 정렬되고 직접 편집되지 않은 문서만 작업 대상에 남긴다. 대상 문서가 하나도 없거나 같은 워크스페이스에 진행 중인 초안·추출 작업이 있으면 요청을 거절한다.
+
+```json
+{
+  "workspaceId": 1,
+  "dictionaryId": null,
+  "sourceDocumentIds": [10, 20]
+}
+```
+
+`dictionaryId`는 기존 사전집이 없는 첫 회차에 `null`이다. 응답과 `GET /api/draft-dictionaries/extractions/{extractionJobId}?memberId={memberId}`의 폴링 응답은 다음 형식이다.
+
+```json
+{
+  "extractionJobId": 300,
+  "workspaceId": 1,
+  "dictionaryId": null,
+  "sourceDocumentIds": [10, 20],
+  "status": "PENDING",
+  "draftDictionaryId": null,
+  "failureReason": null,
+  "requestedBy": 7,
+  "createdAt": "2026-09-13T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-13T10:00:00.000000+09:00"
+}
+```
+
+상태는 `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`다. 성공하면 `draftDictionaryId`로 생성된 초안을 확인할 수 있고, 실패하면 `failureReason`에 원인이 기록된다.
+
+작업 실행은 요청 트랜잭션 커밋 뒤 비동기 리스너가 담당한다. `TermExtractorPort`가 문서 식별자와 활성 사전집 용어 스냅샷을 입력받고 후보어 목록을 반환하며, 현재 구현은 외부 AI를 호출하지 않는 빈 결과 스텁이다. 실제 모델 연동 전에도 이전 사전집 용어를 승계한 초안 생성과 작업 상태 전이 계약은 검증할 수 있다.
 
 ## **에러**
 
@@ -1422,6 +1513,13 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | 이미 리뷰를 요청함 | 409 | `DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED` |
 | 미판정 후보어가 존재함 | 409 | `DRAFT_DICTIONARY_CANDIDATE_TERM_UNDECIDED_EXISTS` |
 | 활성 사전집과 달라진 등재 대상이 없음 | 409 | `DRAFT_DICTIONARY_NO_CHANGED_ITEM` |
+| 진행 중인 초안이 있음 | 409 | `DRAFT_DICTIONARY_ALREADY_EXISTS` |
+| 용어 추출 요청 값이 올바르지 않음 | 400 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_REQUEST` |
+| 용어 추출 작업을 찾을 수 없음 | 404 | `DRAFT_DICTIONARY_EXTRACTION_NOT_FOUND` |
+| 진행 중인 용어 추출 작업이 있음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_ALREADY_RUNNING` |
+| 용어 추출 작업 상태를 변경할 수 없음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_STATUS` |
+| 추출 가능한 문서가 없음 | 409 | `DRAFT_DICTIONARY_NO_EXTRACTABLE_DOCUMENT` |
+| 용어 추출 결과가 올바르지 않음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_RESULT` |
 | 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---

@@ -59,7 +59,7 @@ class SuggestionTermControllerTest {
         given(service.search(any(SuggestionTermSearchQuery.class)))
                 .willReturn(new PageResult<>(java.util.List.of(result()), 0, 20, 1));
         RestAssuredMockMvc.given()
-                .get("/api/draft-documents/2/suggestion-terms")
+                .get("/api/draft-documents/2/suggestion-terms?memberId=1")
                 .then()
                 .statusCode(200)
                 .body("page", equalTo(0))
@@ -80,7 +80,10 @@ class SuggestionTermControllerTest {
 
     @Test
     void delete() {
-        RestAssuredMockMvc.given().delete("/api/suggestion-terms/1").then().statusCode(204);
+        RestAssuredMockMvc.given()
+                .delete("/api/suggestion-terms/1?memberId=1")
+                .then()
+                .statusCode(204);
     }
 
     @Test
@@ -108,7 +111,7 @@ class SuggestionTermControllerTest {
     @Test
     void invalid_sort_returns400() {
         RestAssuredMockMvc.given()
-                .get("/api/draft-documents/2/suggestion-terms?sort=body,asc")
+                .get("/api/draft-documents/2/suggestion-terms?sort=body,asc&memberId=1")
                 .then()
                 .statusCode(400);
     }

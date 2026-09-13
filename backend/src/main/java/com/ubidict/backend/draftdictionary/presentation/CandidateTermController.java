@@ -32,15 +32,16 @@ public class CandidateTermController {
             @RequestParam(required = false) Integer minOccurrenceCount,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "occurrenceCount,desc") String sort) {
-        return ResponseEntity.ok(PageResponse.from(
-                service.search(new CandidateTermSearchQuery(id, status, form, minOccurrenceCount, page, size, sort))
-                        .map(CandidateTermResponse::from)));
+            @RequestParam(defaultValue = "occurrenceCount,desc") String sort,
+            @RequestParam Long memberId) {
+        return ResponseEntity.ok(PageResponse.from(service.search(
+                        new CandidateTermSearchQuery(id, status, form, minOccurrenceCount, page, size, sort, memberId))
+                .map(CandidateTermResponse::from)));
     }
 
     @GetMapping("/candidate-terms/{id}")
-    public ResponseEntity<CandidateTermResponse> read(@PathVariable Long id) {
-        return ResponseEntity.ok(CandidateTermResponse.from(service.read(id)));
+    public ResponseEntity<CandidateTermResponse> read(@PathVariable Long id, @RequestParam Long memberId) {
+        return ResponseEntity.ok(CandidateTermResponse.from(service.read(id, memberId)));
     }
 
     @PatchMapping("/candidate-terms/{id}")
@@ -50,8 +51,8 @@ public class CandidateTermController {
     }
 
     @DeleteMapping("/candidate-terms/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        service.delete(id);
+    public ResponseEntity<Void> delete(@PathVariable Long id, @RequestParam Long memberId) {
+        service.delete(id, memberId);
         return ResponseEntity.noContent().build();
     }
 

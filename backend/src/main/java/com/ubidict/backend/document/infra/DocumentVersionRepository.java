@@ -4,6 +4,8 @@ import com.ubidict.backend.document.domain.DocumentVersion;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,6 +25,14 @@ public interface DocumentVersionRepository extends JpaRepository<DocumentVersion
             order by v.version.versionNo desc
             """)
     List<DocumentVersionSummary> findSummariesByDocumentId(@Param("documentId") Long documentId);
+
+    @Query("""
+            select new com.ubidict.backend.document.infra.DocumentVersionSummary(
+                v.documentId, v.version.versionNo, v.dictionaryVersionNo, v.edited, v.version.publishedAt, v.createdBy)
+            from DocumentVersion v
+            where v.documentId = :documentId
+            """)
+    Page<DocumentVersionSummary> findSummariesByDocumentId(@Param("documentId") Long documentId, Pageable pageable);
 
     /**
      * 문서마다 최신 확정 버전 하나씩을 본문 없이 읽는다. 목록 조회에서 문서 수만큼 질의하지 않기 위한 것이다.

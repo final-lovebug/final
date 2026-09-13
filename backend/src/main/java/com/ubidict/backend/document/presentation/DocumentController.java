@@ -1,5 +1,6 @@
 package com.ubidict.backend.document.presentation;
 
+import com.ubidict.backend.common.presentation.PageResponse;
 import com.ubidict.backend.document.presentation.dto.CreateDocumentRequest;
 import com.ubidict.backend.document.presentation.dto.DocumentResponse;
 import com.ubidict.backend.document.presentation.dto.DocumentSummaryResponse;
@@ -9,7 +10,6 @@ import com.ubidict.backend.document.presentation.dto.EditDocumentContentRequest;
 import com.ubidict.backend.document.presentation.dto.UpdateDocumentRequest;
 import com.ubidict.backend.document.service.DocumentService;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -52,13 +52,16 @@ public class DocumentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<DocumentSummaryResponse>> readAll(
-            @PathVariable Long workspaceId, @RequestParam Long memberId, @RequestParam(required = false) String label) {
-        List<DocumentSummaryResponse> responses = documentService.readAll(workspaceId, memberId, label).stream()
-                .map(DocumentSummaryResponse::from)
-                .toList();
-
-        return ResponseEntity.ok(responses);
+    public ResponseEntity<PageResponse<DocumentSummaryResponse>> readAll(
+            @PathVariable Long workspaceId,
+            @RequestParam Long memberId,
+            @RequestParam(required = false) String label,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort) {
+        return ResponseEntity.ok(PageResponse.from(documentService
+                .readAll(workspaceId, memberId, label, page, size, sort)
+                .map(DocumentSummaryResponse::from)));
     }
 
     @GetMapping("/{documentId}")
@@ -97,14 +100,15 @@ public class DocumentController {
     }
 
     @GetMapping("/{documentId}/versions")
-    public ResponseEntity<List<DocumentVersionSummaryResponse>> readVersions(
-            @PathVariable Long workspaceId, @PathVariable Long documentId, @RequestParam Long memberId) {
-        List<DocumentVersionSummaryResponse> responses =
-                documentService.readVersions(workspaceId, documentId, memberId).stream()
-                        .map(DocumentVersionSummaryResponse::from)
-                        .toList();
-
-        return ResponseEntity.ok(responses);
+    public ResponseEntity<PageResponse<DocumentVersionSummaryResponse>> readVersions(
+            @PathVariable Long workspaceId,
+            @PathVariable Long documentId,
+            @RequestParam Long memberId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(PageResponse.from(documentService
+                .readVersions(workspaceId, documentId, memberId, page, size)
+                .map(DocumentVersionSummaryResponse::from)));
     }
 
     @GetMapping("/{documentId}/versions/{versionNo}")

@@ -1,6 +1,7 @@
 package com.ubidict.backend.document.implement;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.document.domain.Document;
 import com.ubidict.backend.document.domain.DocumentVersion;
 import com.ubidict.backend.document.exception.DocumentErrorCode;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -31,6 +33,12 @@ public class DocumentVersionReader {
 
     public List<DocumentVersionSummary> readHistory(Document document) {
         return documentVersionRepository.findSummariesByDocumentId(document.getId());
+    }
+
+    public PageResult<DocumentVersionSummary> readHistoryPage(Document document, Pageable pageable) {
+        var summaries = documentVersionRepository.findSummariesByDocumentId(document.getId(), pageable);
+        return new PageResult<>(
+                summaries.getContent(), summaries.getNumber(), summaries.getSize(), summaries.getTotalElements());
     }
 
     /**

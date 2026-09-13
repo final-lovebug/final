@@ -1,6 +1,9 @@
 package com.ubidict.backend.document.implement;
 
+import com.ubidict.backend.common.infra.event.EventPublisher;
 import com.ubidict.backend.document.domain.Document;
+import com.ubidict.backend.document.domain.event.DocumentDeletedEvent;
+import java.time.OffsetDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +17,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DocumentRemover {
 
+    private final EventPublisher eventPublisher;
+
     public void remove(Document document) {
         document.delete();
+        eventPublisher.publish(
+                new DocumentDeletedEvent(document.getId(), document.getWorkspaceId(), OffsetDateTime.now()));
     }
 }

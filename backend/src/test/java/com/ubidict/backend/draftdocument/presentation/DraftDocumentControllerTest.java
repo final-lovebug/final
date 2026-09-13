@@ -117,6 +117,19 @@ class DraftDocumentControllerTest {
                 .body("code", equalTo("DRAFT_DOCUMENT_NOT_FOUND"));
     }
 
+    @DisplayName("워크스페이스 비참여자가 문서 초안을 조회하면 404를 응답한다.")
+    @Test
+    void read_notParticipant() {
+        given(draftDocumentService.read(anyLong(), anyLong()))
+                .willThrow(new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_NOT_FOUND));
+
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/api/draft-documents/{draftDocumentId}?memberId={memberId}", DRAFT_DOCUMENT_ID, MEMBER_ID)
+                .then()
+                .statusCode(HttpStatus.NOT_FOUND.value());
+    }
+
     @DisplayName("문서 초안 본문을 수정하면 200과 수정된 상세를 응답한다.")
     @Test
     void updateBody() {

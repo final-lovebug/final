@@ -1,10 +1,11 @@
 package com.ubidict.backend.workspace.presentation;
 
-import com.ubidict.backend.workspace.service.CreateWorkspaceCommand;
-import com.ubidict.backend.workspace.service.RenameWorkspaceCommand;
-import com.ubidict.backend.workspace.service.UpdateRuleSetCommand;
-import com.ubidict.backend.workspace.service.WorkspaceResult;
+import com.ubidict.backend.workspace.presentation.dto.CreateWorkspaceRequest;
+import com.ubidict.backend.workspace.presentation.dto.UpdateRuleSetRequest;
+import com.ubidict.backend.workspace.presentation.dto.UpdateWorkspaceRequest;
+import com.ubidict.backend.workspace.presentation.dto.WorkspaceResponse;
 import com.ubidict.backend.workspace.service.WorkspaceService;
+import com.ubidict.backend.workspace.service.model.WorkspaceResult;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +37,7 @@ public class WorkspaceController {
     @PostMapping
     public ResponseEntity<WorkspaceResponse> create(
             @RequestParam Long memberId, @Valid @RequestBody CreateWorkspaceRequest request) {
-        WorkspaceResult result = workspaceService.create(new CreateWorkspaceCommand(request.name(), memberId));
+        WorkspaceResult result = workspaceService.create(request.toCommand(memberId));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(WorkspaceResponse.from(result));
     }
@@ -60,7 +61,7 @@ public class WorkspaceController {
             @PathVariable Long workspaceId,
             @RequestParam Long memberId,
             @Valid @RequestBody UpdateWorkspaceRequest request) {
-        workspaceService.rename(new RenameWorkspaceCommand(workspaceId, request.name(), memberId));
+        workspaceService.rename(request.toCommand(workspaceId, memberId));
 
         return ResponseEntity.noContent().build();
     }
@@ -77,10 +78,7 @@ public class WorkspaceController {
             @PathVariable Long workspaceId,
             @RequestParam Long memberId,
             @Valid @RequestBody UpdateRuleSetRequest request) {
-        return ResponseEntity.ok(WorkspaceResponse.from(workspaceService.changeRuleSet(new UpdateRuleSetCommand(
-                workspaceId,
-                request.requiredDocumentReviewerCount(),
-                request.requiredDictionaryReviewerCount(),
-                memberId))));
+        return ResponseEntity.ok(
+                WorkspaceResponse.from(workspaceService.changeRuleSet(request.toCommand(workspaceId, memberId))));
     }
 }

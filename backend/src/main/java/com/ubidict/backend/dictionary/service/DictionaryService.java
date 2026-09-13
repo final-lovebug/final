@@ -2,9 +2,11 @@ package com.ubidict.backend.dictionary.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.exception.CommonErrorCode;
+import com.ubidict.backend.common.infra.event.EventPublisher;
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.dictionary.domain.Dictionary;
 import com.ubidict.backend.dictionary.domain.NewTerm;
+import com.ubidict.backend.dictionary.domain.event.DictionaryRevisedEvent;
 import com.ubidict.backend.dictionary.exception.DictionaryErrorCode;
 import com.ubidict.backend.dictionary.implement.DictionaryAppender;
 import com.ubidict.backend.dictionary.implement.DictionaryReader;
@@ -22,6 +24,7 @@ import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DictionaryService {
 
     private final DictionaryReader dictionaryReader;
@@ -41,6 +45,7 @@ public class DictionaryService {
     private final TermAppender termAppender;
     private final TermFormValidator termFormValidator;
     private final WorkspaceAccessValidator workspaceAccessValidator;
+    private final EventPublisher eventPublisher;
 
     /**
      * 새 사전집 버전을 반영한다. 첫 버전과 다음 버전이 같은 경로다 — 둘 다 리뷰 승인의 결과이기 때문이다.
@@ -132,6 +137,13 @@ public class DictionaryService {
 
         List<TermResult> terms =
                 termReader.readAll(next.getId()).stream().map(TermResult::from).toList();
+        eventPublisher.publish(
+                new DictionaryRevisedEvent(next.getWorkspaceId(), next.getId(), next.versionNo(), next.publishedAt()));
+        log.info(
+                "[DictionaryService.revise] Dictionary version published. workspaceId={}, dictionaryId={}, versionNo={}",
+                next.getWorkspaceId(),
+                next.getId(),
+                next.versionNo());
         return DictionaryResult.of(next, new PageResult<>(terms, 0, terms.size(), terms.size()));
     }
 

@@ -32,6 +32,13 @@ public class DictionaryTermQueryAdapter implements DictionaryTermQueryPort {
                 .toList();
     }
 
+    @Override
+    public boolean hasActiveDictionary(Long workspaceId) {
+        return dictionaryRepository
+                .findByWorkspaceIdAndStatus(workspaceId, DictionaryStatus.ACTIVE)
+                .isPresent();
+    }
+
     private TermSnapshot toSnapshot(Term term) {
         return new TermSnapshot(term.getId(), term.getPreferredForm(), term.getEnglishName(), term.getDefinition());
     }

@@ -41,9 +41,10 @@ public class DraftDocumentController {
             @RequestParam(required = false) DraftDocumentStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "createdAt,desc") String sort) {
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @RequestParam Long memberId) {
         return PageResponse.from(draftDocumentService
-                .search(new DraftDocumentSearchQuery(documentId, status, page, size, sort))
+                .search(new DraftDocumentSearchQuery(documentId, status, page, size, sort, memberId))
                 .map(DraftDocumentResponse::from));
     }
 

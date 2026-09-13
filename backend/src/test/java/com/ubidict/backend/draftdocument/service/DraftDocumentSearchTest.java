@@ -9,13 +9,13 @@ import org.junit.jupiter.api.Test;
 class DraftDocumentSearchTest {
     @Test
     void query_acceptsWhitelist() {
-        assertThat(new DraftDocumentSearchQuery(null, null, 0, 20, "updatedAt,asc").sort())
+        assertThat(new DraftDocumentSearchQuery(null, null, 0, 20, "updatedAt,asc", 1L).sort())
                 .isEqualTo("updatedAt,asc");
     }
 
     @Test
     void query_rejectsUnknownSort() {
-        assertThatThrownBy(() -> new DraftDocumentSearchQuery(null, null, 0, 20, "body,asc"))
+        assertThatThrownBy(() -> new DraftDocumentSearchQuery(null, null, 0, 20, "body,asc", 1L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).errorCode())
                 .isEqualTo(CommonErrorCode.COMMON_INVALID_REQUEST);

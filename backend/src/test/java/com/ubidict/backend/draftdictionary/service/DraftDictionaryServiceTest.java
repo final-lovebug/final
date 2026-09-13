@@ -17,7 +17,14 @@ import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdictionary.service.model.RequestDictionaryReviewCommand;
 import com.ubidict.backend.draftdictionary.service.model.UpdateSourceDocumentsCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
+import com.ubidict.backend.workspace.domain.Permission;
+import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
+import com.ubidict.backend.workspace.fixture.ParticipantFixture;
+import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
+import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +33,8 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
 
     private static final Long WORKSPACE_ID = 1L;
     private static final Long MEMBER_ID = 2L;
+    private static final Long REGULAR_ID = 3L;
+    private static final Long STRANGER_ID = 4L;
 
     @Autowired
     private DraftDictionaryService draftDictionaryService;
@@ -35,6 +44,28 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private DraftDictionaryRepository draftDictionaryRepository;
+
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ParticipantRepository participantRepository;
+
+    @BeforeEach
+    void createWorkspace() {
+        Long workspaceId =
+                workspaceRepository.save(WorkspaceFixture.workspace().build()).getId();
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspaceId)
+                .memberId(MEMBER_ID)
+                .permission(Permission.ADMIN)
+                .build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspaceId)
+                .memberId(REGULAR_ID)
+                .permission(Permission.REGULAR)
+                .build());
+    }
 
     @DisplayName("사전집이 없는 첫 회차의 사전 초안을 생성한다.")
     @Test
@@ -81,6 +112,26 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_DUPLICATE_SOURCE_DOCUMENT);
+    }
+
+    @DisplayName("일반 참여자는 사전 초안을 생성할 수 없다.")
+    @Test
+    void create_regularPermission() {
+        assertThatThrownBy(() -> draftDictionaryService.create(
+                        new CreateDraftDictionaryCommand(WORKSPACE_ID, null, List.of(10L), REGULAR_ID)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_ADMIN_REQUIRED);
+    }
+
+    @DisplayName("워크스페이스 비참여자가 사전 초안을 생성하면 존재를 감춘다.")
+    @Test
+    void create_notParticipant() {
+        assertThatThrownBy(() -> draftDictionaryService.create(
+                        new CreateDraftDictionaryCommand(WORKSPACE_ID, null, List.of(10L), STRANGER_ID)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
     }
 
     @DisplayName("미판정 후보어가 없으면 교정을 완료한다.")

@@ -15,7 +15,13 @@ import com.ubidict.backend.draftdictionary.service.model.CreateDraftDictionaryCo
 import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.EditCandidateTermCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
+import com.ubidict.backend.workspace.domain.Permission;
+import com.ubidict.backend.workspace.fixture.ParticipantFixture;
+import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
+import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +39,28 @@ class CandidateTermServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private CandidateTermRepository candidateTermRepository;
+
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ParticipantRepository participantRepository;
+
+    @BeforeEach
+    void createWorkspace() {
+        Long workspaceId =
+                workspaceRepository.save(WorkspaceFixture.workspace().build()).getId();
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspaceId)
+                .memberId(MEMBER_ID)
+                .permission(Permission.ADMIN)
+                .build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspaceId)
+                .memberId(3L)
+                .permission(Permission.REGULAR)
+                .build());
+    }
 
     @DisplayName("후보어를 등재 승인하고 판정자를 저장한다.")
     @Test
@@ -134,7 +162,7 @@ class CandidateTermServiceTest extends IntegrationTestSupport {
         assertNotExaminable(() -> candidateTermService.add(addCommand(draftDictionaryId, "추가어", "추가 정의")));
         assertNotExaminable(() ->
                 candidateTermService.edit(new EditCandidateTermCommand(candidateTermId, "수정어", null, null, MEMBER_ID)));
-        assertNotExaminable(() -> candidateTermService.delete(candidateTermId));
+        assertNotExaminable(() -> candidateTermService.delete(candidateTermId, MEMBER_ID));
     }
 
     private Long createDraft() {
