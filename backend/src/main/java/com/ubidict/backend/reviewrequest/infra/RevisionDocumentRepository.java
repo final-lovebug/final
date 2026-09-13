@@ -8,4 +8,6 @@ public interface RevisionDocumentRepository extends JpaRepository<RevisionDocume
     List<RevisionDocument> findByReviewRequestId(Long id);
 
     Optional<RevisionDocument> findByReviewRequestIdAndReexamineRound(Long id, int round);
+
+    Optional<RevisionDocument> findTopByReviewRequestIdOrderByReexamineRoundDesc(Long reviewRequestId);
 }

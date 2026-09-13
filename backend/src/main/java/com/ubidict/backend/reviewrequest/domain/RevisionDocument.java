@@ -52,4 +52,17 @@ public class RevisionDocument extends BaseEntity {
     public static RevisionDocument create(Long r, Long d, int v, Long dd, String b, Long by) {
         return new RevisionDocument(r, d, v, dd, b, by);
     }
+
+    public static RevisionDocument reexamine(
+            RevisionDocument previous, int round, String proposedBody, Long createdBy) {
+        RevisionDocument revision = new RevisionDocument(
+                previous.reviewRequestId,
+                previous.documentId,
+                previous.baseVersionNo,
+                previous.draftDocumentId,
+                proposedBody,
+                createdBy);
+        revision.reexamineRound = round;
+        return revision;
+    }
 }

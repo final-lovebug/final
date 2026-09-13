@@ -8,4 +8,6 @@ public interface RevisionDictionaryRepository extends JpaRepository<RevisionDict
     List<RevisionDictionary> findByReviewRequestId(Long id);
 
     Optional<RevisionDictionary> findByReviewRequestIdAndReexamineRound(Long id, int round);
+
+    Optional<RevisionDictionary> findTopByReviewRequestIdOrderByReexamineRoundDesc(Long reviewRequestId);
 }

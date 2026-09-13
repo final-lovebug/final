@@ -43,4 +43,15 @@ public class RevisionDictionary extends BaseEntity {
     public static RevisionDictionary create(Long r, Long d, int v, Long dd, Long by) {
         return new RevisionDictionary(r, d, v, dd, by);
     }
+
+    public static RevisionDictionary reexamine(RevisionDictionary previous, int round, Long createdBy) {
+        RevisionDictionary revision = new RevisionDictionary(
+                previous.reviewRequestId,
+                previous.dictionaryId,
+                previous.baseVersionNo,
+                previous.draftDictionaryId,
+                createdBy);
+        revision.reexamineRound = round;
+        return revision;
+    }
 }
