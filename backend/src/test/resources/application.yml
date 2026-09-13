@@ -30,6 +30,8 @@ app:
       mode: ${DRAFT_DOCUMENT_CROSSDOMAIN_MODE:real}
     draft-dictionary:
       mode: ${DRAFT_DICTIONARY_CROSSDOMAIN_MODE:real}
+    review-request:
+      mode: ${REVIEW_REQUEST_CROSSDOMAIN_MODE:real}
     workspace:
       mode: ${WORKSPACE_CROSSDOMAIN_MODE:real}
     document-publish:
