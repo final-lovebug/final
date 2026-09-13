@@ -24,6 +24,8 @@ public enum DraftDictionaryErrorCode implements ErrorCode {
     DRAFT_DICTIONARY_ALREADY_EXAMINED(HttpStatus.CONFLICT, "이미 교정이 완료된 초안입니다."),
     DRAFT_DICTIONARY_NOT_EXAMINED(HttpStatus.CONFLICT, "교정 완료된 초안만 리뷰를 요청할 수 있습니다."),
     DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED(HttpStatus.CONFLICT, "이미 리뷰를 요청한 초안입니다."),
+    DRAFT_DICTIONARY_INVALID_STATUS_TRANSITION(HttpStatus.CONFLICT, "사전 초안 상태를 변경할 수 없습니다."),
+    DRAFT_DICTIONARY_ALREADY_EXISTS(HttpStatus.CONFLICT, "워크스페이스에 진행 중인 초안이 있습니다."),
     DRAFT_DICTIONARY_CANDIDATE_TERM_UNDECIDED_EXISTS(HttpStatus.CONFLICT, "미판정 후보어가 존재합니다."),
     DRAFT_DICTIONARY_NO_CHANGED_ITEM(HttpStatus.CONFLICT, "이전 버전과 달라진 항목이 없습니다."),
     DRAFT_DICTIONARY_INVALID_DECISION(HttpStatus.BAD_REQUEST, "지원하지 않는 후보어 판정입니다.");
