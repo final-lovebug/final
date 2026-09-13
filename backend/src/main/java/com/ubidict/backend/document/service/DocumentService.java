@@ -33,6 +33,8 @@ import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class DocumentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private final DocumentReader documentReader;
     private final DocumentAppender documentAppender;
@@ -142,6 +146,11 @@ public class DocumentService {
         document.publishNext(command.memberId());
         DocumentVersion version =
                 documentVersionAppender.appendEdited(document, previous, command.content(), command.memberId());
+        log.info(
+                "[DocumentService.editContent] Document content edited documentId={}, workspaceId={}, versionNo={}",
+                document.getId(),
+                document.getWorkspaceId(),
+                version.versionNo());
         return DocumentResult.of(
                 document, version, readLabelNames(document), activeDictionaryVersionNo(command.workspaceId()));
     }
@@ -168,6 +177,7 @@ public class DocumentService {
 
         Document document = documentReader.read(documentId, workspaceId);
         documentRemover.remove(document);
+        log.info("[DocumentService.delete] Document deleted documentId={}, workspaceId={}", documentId, workspaceId);
     }
 
     /**
