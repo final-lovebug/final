@@ -1561,3 +1561,99 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | 요청 DTO 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---
+
+# **Notification API**
+
+도메인 이벤트로 만들어진 알림을 조회·읽음 처리하고, 워크스페이스의 알림 수신 설정을 관리한다. 관련 도메인은 `notification`이다.
+
+**알림은 이 API로 만들지 않는다.** 생성 경로는 HTTP가 아니라 이벤트다 — 리뷰 요청이 만들어지거나 판정이 제출되거나 개정안이 반영되면 `notification`이 그 이벤트를 비동기로 받아 행을 만든다(`NFR-NTF-003`). 그래서 `POST`가 없다.
+
+## **요청자 식별 — 임시 방식**
+
+인증 계층(`NFR-USR-001`)이 없어 요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다. **인증 전까지 운영 배포 대상이 아니다.** 알림은 수신자 본인만 보는 자원이라 이 파라미터를 신뢰하는 것이 특히 위험하다 — 인증이 들어오면 `memberId`는 전부 사라지고 인증 주체에서 해석한다.
+
+## **알아 둘 것 셋**
+
+- **남의 알림은 `404`다.** 존재하지만 내 것이 아닌 알림에 `403`을 주면 그 알림의 존재가 드러난다(`NFR-WS-001`). 비참여 워크스페이스도 같다.
+- **읽음 처리는 멱등이다.** 이미 읽은 알림에 다시 `read`를 걸어도 `200`이고 `readAt`은 처음 읽은 시각 그대로다.
+- **수신 설정과 채널은 MVP1에 없다**(`D-54`). 전달 수단이 인앱 하나뿐이라 고를 것이 없다. 응답에 `channels`가 없는 이유이기도 하다. Slack·메일은 `REQ-NTF-005`~`006`으로 MVP2다.
+
+## **엔드포인트**
+
+| **Method** | **Path** | **성공** | **권한** |
+| --- | --- | --- | --- |
+| GET | `/api/workspaces/{workspaceId}/notifications` | `200` | 참여자 |
+| GET | `/api/workspaces/{workspaceId}/notifications/unread-count` | `200` | 참여자 |
+| PATCH | `/api/workspaces/{workspaceId}/notifications/{notificationId}/read` | `200` | 수신자 본인 |
+| PATCH | `/api/workspaces/{workspaceId}/notifications/read-all` | `200` | 참여자 |
+
+## **알림 목록 조회**
+
+`GET /api/workspaces/{workspaceId}/notifications?memberId={memberId}&page=0&size=20&unreadOnly=false`
+
+**항상 요청자 본인이 수신자인 알림만** 돌려준다. `recipientId`를 파라미터로 받지 않는 이유다.
+
+페이징은 «페이징·정렬 규격»을 따른다. `sort` 화이트리스트는 `createdAt` 하나이고 기본값은 `createdAt,desc`다 — 알림은 최신순으로만 보므로 다른 축을 열면 인덱스 없는 정렬이 생긴다. `unreadOnly=true`면 안 읽은 것만 거른다.
+
+```json
+{
+  "content": [
+    {
+      "notificationId": 42,
+      "workspaceId": 1,
+      "type": "REVISED",
+      "targetType": "REVIEW_REQUEST",
+      "targetId": 7,
+      "title": "기획 정책 정의서 개정안이 반영되었습니다",
+      "message": "r5 → r6",
+      "read": false,
+      "readAt": null,
+      "createdAt": "2026-09-13T10:12:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+`read`와 `readAt`은 항상 함께 움직인다 — `read: false`면 `readAt`은 반드시 `null`이다. 클라이언트는 둘 중 하나만 봐도 된다.
+
+**버튼 문구와 이동 경로는 응답에 없다.** `type`과 `targetType`·`targetId`에서 화면이 파생한다(`D-49`).
+
+## **미읽음 수 조회**
+
+`GET /api/workspaces/{workspaceId}/notifications/unread-count?memberId={memberId}`
+
+헤더 벨의 표시용이다. 목록을 받아 세지 않게 하려고 따로 둔다.
+
+```json
+{ "unreadCount": 3 }
+```
+
+## **읽음 처리**
+
+`PATCH /api/workspaces/{workspaceId}/notifications/{notificationId}/read?memberId={memberId}`
+
+요청 본문이 없다. 갱신된 알림을 목록 항목과 같은 형식으로 돌려준다. 이미 읽었으면 아무것도 바뀌지 않고 `200`이다.
+
+## **모두 읽음**
+
+`PATCH /api/workspaces/{workspaceId}/notifications/read-all?memberId={memberId}`
+
+요청자 본인의 안 읽은 알림을 한 번에 읽음으로 바꾼다. 알림 패널의 「모두 읽음」이 쓴다.
+
+```json
+{ "updated": 5 }
+```
+
+## **에러**
+
+| 상황 | 상태 | 코드 |
+| --- | --- | --- |
+| 알림이 없거나 내 것이 아님 | 404 | `NOTIFICATION_NOT_FOUND` |
+| 참여하지 않은 워크스페이스 | 404 | `WORKSPACE_NOT_FOUND` |
+| 요청 DTO 검증 실패, `memberId` 누락, `sort` 화이트리스트 밖 | 400 | `COMMON_INVALID_REQUEST` |
+
+---

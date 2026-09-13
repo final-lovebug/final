@@ -501,14 +501,35 @@
 | 식별자 | id | NotificationId | O |  |
 | 수신자 | recipientId | MemberId | O |  |
 | 워크스페이스 | workspaceId | WorkspaceId | O |  |
-| 유형 | type | Enum | O | 리뷰요청도착 / 코멘트등록 / 승인 / 변경요청 / 반영완료 / 취소 / 대조완료 / 추출완료 — `반려`는 `ReviewRequest.status`에서 삭제됐다(2026-09-10) |
-| 대상 | targetType, targetId | Enum, UUID | O | 눌렀을 때 이동할 곳 |
-| 본문 | message | String | O |  |
-| 채널 | channels | List<Enum> | O | 인앱 / 이메일 / 슬랙 |
-| 읽음 | readAt | DateTime | X | null이면 안 읽음 |
+| 유형 | type | Enum | O | 리뷰요청도착 / 승인 / 변경요청 / 반영완료 / 취소 — **MVP1은 이 5종뿐이다**(`D-47`). 코멘트등록 / 대조완료 / 추출완료는 트리거할 이벤트가 없어 뒤로 미뤘다. `반려`는 `ReviewRequest.status`에서 삭제됐다(2026-09-10) |
+| 대상 | targetType, targetId | Enum, Long | O | 눌렀을 때 이동할 곳. `targetType`은 DOCUMENT / DICTIONARY / REVIEW_REQUEST |
+| 제목 | title | String | O | 알림 패널의 첫 줄. 완결된 문장이다 — 「기획 정책 정의서 검토가 끝났습니다」(`D-49`) |
+| 본문 | message | String | O | 알림 패널의 메타 줄 — 「제안 12건 · 12분 전」 |
+| ~~채널~~ | ~~channels~~ | ~~List<Enum>~~ | ~~O~~ | **MVP1에서 제거(`D-54`).** 전달 수단이 인앱 하나뿐이라 값이 늘 같았다. MVP2에 채널이 둘 이상 생길 때 되살린다 |
+| 읽음 여부 | read | Boolean | O | `false`가 기본. `readAt`과 짝이다 — **`markRead()` 한 곳에서만 동시에 바뀐다**(`D-49`) |
+| 읽음 시각 | readAt | DateTime | X | 읽은 순간. 안 읽었으면 null. `read == (readAt != null)`이 불변식이다 |
+| 중복 방지 키 | dedupeKey | String | O | 이벤트 내용에서 결정론적으로 파생한다. `(recipientId, dedupeKey)`가 유일해 같은 이벤트가 두 번 도착해도 알림은 1건이다(`D-52`) |
 | 생성일시 | createdAt | DateTime | O |  |
-| 생성자 | createdBy | MemberId | O | 시스템 발행이면 시스템 |
+| 생성자 | createdBy | MemberId | X | 알림을 유발한 행위자. **시스템 발행이면 null**이다 |
 | 수정일시 | updatedAt | DateTime | O | 읽음 처리 시점과 연동 |
+
+**CTA 문구와 이동 경로는 저장하지 않는다.** 프로토타입 패널이 알림마다 다른 버튼 문구를 보여 주지만(`확인` / `사전집 보기` / `최신 사전집으로 갱신`), 이것은 `type`·`targetType`에서 화면이 파생할 수 있는 값이다. DB에 넣으면 문구를 고칠 때 과거 행까지 손대야 한다.
+
+> **수신자는 유형마다 다르다.** 리뷰요청도착은 **지정된 리뷰어에게만** 가고 지정된 리뷰어가 없으면 알림을 만들지 않는다. 승인·변경요청·취소는 요청자에게, **반영완료는 워크스페이스 참여자 전원**에게 간다 — 새 문서·사전집 버전이 생긴 사건이라 요청 관계자를 넘어 전체가 알아야 의미가 있다. 모든 유형에서 **수신자와 행위자가 같으면 행을 만들지 않는다.**
+
+### ~~NotificationSetting (알림 설정)~~ — MVP2로 미룸(`D-54`)
+
+| 속성 | 영문 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- | --- |
+| 식별자 | id | NotificationSettingId | O |  |
+| 워크스페이스 | workspaceId | WorkspaceId | O | `(workspaceId, type)`이 유일하다 |
+| 유형 | type | Enum | O | `Notification.type`과 같은 축 |
+| 채널 | channels | List<Enum> | O | 이 유형을 어느 채널로 보낼지. **비어 있으면 그 유형은 알림을 만들지 않는다** |
+| 생성일시 | createdAt | DateTime | O |  |
+| 생성자 | createdBy | MemberId | X | 설정을 만든 사람. 이벤트 핸들러가 기본값을 깔면 행위자가 없어 null이다 |
+| 수정일시 | updatedAt | DateTime | O |  |
+
+**워크스페이스 단위다**(`D-50`). 참여자별로 두지 않는다 — 설정 화면이 워크스페이스 설정 안에 있고 참여자별 구분이 없으며, 화면의 채널 열이 유형별이 아니라 **통째로** 켜지고 꺼진다. 워크스페이스를 처음 조회할 때 5개 유형 × `[인앱]`으로 만들어진다.
 
 ---
 
@@ -677,10 +698,10 @@ Dictionary (새 버전)        ⑧ 초안의 최종 용어 목록이 그대로 �
   않는다. 필요하면 회원이 Google 계정의 '타사 앱 연결'에서 직접 해제해야 한다.
 
 > **모델 반영 필요(미확정)** — 위 정책 중 아직 엔티티 표에 없는 항목:
-> - **알림 설정 모델** — 유형별 수신 여부·채널을 어떤 단위(워크스페이스 / 참여자)로 둘지. notification 도메인 작업에서 확정한다. **6개 도메인 범위 밖이다** — 각 도메인은 이벤트만 발행하고 소비자가 없어도 된다
 > - `Workspace`의 **설명·태그·공개여부** — `REQ-WS-001`·`REQ-WS-006`이 「모델 미정의」로 미뤘다. 필요해질 때 여기에 먼저 추가한다
 >
 > **해소된 항목**
+> - ~~**알림 설정 모델**~~ — **해소(9/13).** **워크스페이스 단위**다(`D-50`). `NotificationSetting(workspaceId, type, channels)`을 워크스페이스당 유형별 1행으로 둔다. 참여자별로 두지 않는 이유는 설정 화면이 워크스페이스 설정 안에 있고 채널 열이 통째로 켜지고 꺼지기 때문이다. 6개 도메인 범위 밖이라 미뤄 뒀던 것을 **Notification 도메인 신설(`D-47`)로 함께 확정했다**
 > - ~~**참여자 권한 변경 주체**~~ — **해소(9/10).** **Owner 전용**이다. 「Admin은 Regular만 내보낼 수 있고 Admin을 내보내는 것은 Owner만」이라는 «삭제» 규칙과 같은 서열 원칙을 권한 변경에 적용한 결과다 — 같은 서열끼리 서로를 조작하지 못한다
 > - ~~**참여자 삭제 방식**~~ — **해소(9/10).** **소프트 삭제**다. `Participant`가 `deletedAt`을 갖고 모든 조회에서 `deleted_at is null`을 건다. `leftAt`을 따로 두지 않는다
 >   - 워크스페이스 삭제도 소프트 삭제다
@@ -723,4 +744,6 @@ Dictionary (새 버전)        ⑧ 초안의 최종 용어 목록이 그대로 �
 | RevisionDictionary | Reexamine | RevisionDictionary | 자기 반복 |
 | ReviewRequest | Revise | DocumentVersion | 새 문서 버전 생성 |
 | ReviewRequest | Revise | Dictionary | 새 사전집 버전 생성. 기존 활성 사전집은 보관중으로 내려간다 |
-| 각 단계 | 이벤트 발행 | Notification | 그래프에는 선이 없지만 필요 |
+| 각 단계 | 이벤트 발행 | Notification | 그래프에는 선이 없지만 필요. **2026-09-13에 리뷰 5종의 소비자가 생겼다**(`D-47`) |
+| Workspace | 소유 | NotificationSetting | 워크스페이스당 유형별 1행. 채널이 비면 그 유형은 알림을 만들지 않는다 |
+| Notification | 참조 | Member | `recipientId`가 수신 회원을 가리킴 |

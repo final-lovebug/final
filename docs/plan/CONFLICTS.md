@@ -17,17 +17,18 @@
 | `D-19`~`D-32` | 큰 흐름을 받아 확정한 나머지 결정 | 전역 | 이 문서 3절 |
 | `D-33`~`D-43` | **잔여 태스크 병렬화 세션(2026-09-12)과 도메인 Phase 3~4가 확정한 결정** | 전역 | 이 문서 3-1절 |
 | `D-44`~`D-46` | **마무리 통합 세션(2026-09-13)이 확정한 결정** | 전역 | 이 문서 3-1절 |
+| `D-47`~`D-54` | **Notification 도메인 세션(2026-09-13)이 확정한 결정** | 전역 | 이 문서 3-2절 |
 | `R-1`~`R-24` | **큰 흐름이 뒤집은 기존 결정** | 전역 | 이 문서 4절. 문서 수정이 구현보다 앞선다 |
 | `F-1`~`F-6` | 뒤집힘이 만든 새 과제 | 전역 | 이 문서 5절 |
 | `X-*` | 문서 ↔ 문서 충돌 | 전역 | 이 문서 6절 |
 | `Y-*` | 문서 ↔ 코드 충돌 | 전역 | 이 문서 7절 |
 | `O-*` | 기존 계획 문서가 남긴 열린 질문 | 전역 | 이 문서 8절 |
 
-**태스크 ID 접두사** — `WS-*`(Workspace) `DOC-*`(Document) `DIC-*`(Dictionary) `DD-*`(DraftDocument) `DI-*`(DraftDictionary) `RR-*`(ReviewRequest) `T-*`(통합·공통).
+**태스크 ID 접두사** — `WS-*`(Workspace) `DOC-*`(Document) `DIC-*`(Dictionary) `DD-*`(DraftDocument) `DI-*`(DraftDictionary) `RR-*`(ReviewRequest) `NT-*`(Notification) `T-*`(통합·공통).
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다.
 
-**새 결정 ID는 `D-47`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
+**새 결정 ID는 `D-55`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
 
 ### `D-1`~`D-18` 색인 — 이 문서 밖에 정의된 결정
 
@@ -159,6 +160,35 @@
 
 ---
 
+## 3-2. Notification 도메인 세션이 확정한 결정 (`D-47`~`D-54`)
+
+2026-09-13. `X-12`가 「이벤트는 발행하고 소비자가 없어도 된다」로 유예해 둔 자리를 채운다. 6개 도메인이 이벤트 record를 계약으로 만들어 뒀지만 **소비자가 하나도 없었다.** Notification이 그 첫 소비자이고, 동시에 `D-24`가 정해 둔 「로컬·테스트 인메모리 / AWS 배포 SQS」 2-어댑터 구조를 처음으로 실제 코드로 완성한다.
+
+**이번 범위는 소비 측뿐이다.** 발행부는 `RR-4d`가 넣었고 이 도메인은 건드리지 않는다.
+
+| ID | 확정 내용 | 해소 |
+| --- | --- | --- |
+| **D-47** | **Notification을 7번째 도메인으로 신설한다.** `com.ubidict.backend.notification`. MVP1 알림 유형은 **리뷰 라이프사이클 5종**(`REVIEW_REQUEST_RECEIVED`·`APPROVED`·`CHANGES_REQUESTED`·`REVISED`·`CANCELED`)이다. `DOMAIN.md`가 함께 적은 `코멘트등록`·`대조완료`·`추출완료`는 **enum에 정의하지 않는다** — 셋 다 구독할 이벤트가 없다. `Comment` 엔티티는 `RR-4a`로 들어왔지만 코멘트 등록 이벤트가 없고, 추출·대조는 작업 테이블 폴링이라(`D-34`) 완료 이벤트가 알림용으로 설계되지 않았다. 값만 만들어 두면 아무도 만들지 않는 알림 유형이 enum에 남는다 | `X-12` |
+| **D-48** | **태스크 ID 접두사 `NT-`**, **Flyway 대역 `700~799`**. `EXECUTION_ORDER.md` 0절 접두사 표·3절 대역 표와 `backend/CLAUDE.md` 대역 표에 행을 더한다 | 신규 도메인이 요구한 자리 |
+| **D-49** | **`Notification.title`과 `Notification.read`를 신설한다.** `DOMAIN.md`는 `message` 한 필드만 뒀는데 프로토타입 알림 패널(`ui/main.js` `renderNotifPanel`)이 **제목·메타 2줄**을 그린다. CTA 문구(`확인` / `사전집 보기`)와 이동 경로는 저장하지 않고 프론트가 `type`·`targetType`으로 파생한다 — 문구를 DB에 넣으면 화면 문구를 고칠 때 과거 행까지 손대야 한다. `read`는 `readAt`과 함께 두되 **`markRead()` 한 곳에서만 동시에 바뀐다**(`read == (readAt != null)` 불변식) | `ui/data.js` `NOTIFICATIONS`와 `model/types.ts`의 간극 |
+| **D-50** | **알림 설정은 워크스페이스 단위다.** `NotificationSetting(workspaceId, type, channels)`, 워크스페이스당 유형별 1행. 근거 — 프론트 설정 화면이 `/workspaces/:id/settings/notifications`에 있고 참여자별 구분이 없으며, 매트릭스의 **채널 열이 통째로** 켜지고 꺼진다(인앱 열 전체 `✓`, 나머지 전체 `–`). 채널이 빈 유형은 알림을 만들지 않는다. **MVP1은 `IN_APP`만 실제로 전달된다** — `EMAIL`·`SLACK`은 `REQ-NTF-005`~`006`이 MVP2라 어댑터를 만들지 않고, 미지원 채널은 WARN 로그만 남기고 넘어간다(`NFR-NTF-001`의 채널 어댑터 인터페이스는 지금 넣는다) | `X-11`. `DOMAIN.md` «모델 반영 필요(미확정)»의 **알림 설정 모델** 항목 **해소** |
+| **D-51** | **알림 멱등은 Redis가 아니라 DB 유니크 키로 한다.** `uq_notification_recipient_dedupe (recipient_id, dedupe_key)`. `dedupe_key`는 이벤트 내용에서 **결정론적으로** 파생한다(`RR_REVISED:{reviewRequestId}:{resultVersionNo}`, `REVIEW_SUBMITTED:{reviewRequestId}:{memberId}:{targetRound}` 등) — 시각이나 난수를 섞지 않아 재수신이 같은 키를 만든다. `NFR-MSG-003`의 Redis SETNX(`dedupe:{group}:{eventId}`)는 Redis를 쓰는 코드가 아직 0줄이고(`Y-22`) TTL 1일이 지나면 방어가 사라지는 반면 DB 제약은 영구적이다 | `NFR-NTF-002`·`NFR-MSG-003` |
+| **D-52** | **SQS 발행 어댑터는 `common/infra/event/sqs/`에 둔다.** `ARCHITECTURE.md` «이벤트 발행 규약 — 배치»가 「배포용 어댑터는 같은 포트를 구현해 `infra` 하위에 기술별 패키지로 추가한다」고 규정한 자리다. `EXECUTION_ORDER.md` 3절의 「`common/**`은 아무도 수정하지 않는다」에 대한 예외로 기록한다 — **기존 파일을 고치는 것이 아니라 새 패키지를 더하는 것**이라 다른 도메인 PR과 충돌하지 않는다. 수신 어댑터는 소비 도메인에 둔다(`notification/infra/event/`). 인메모리와 SQS 두 어댑터가 **같은 공용 핸들러**에 위임한다. **봉투의 본문은 해석하지 않은 JSON으로 싣고 타입 이름만 알린다** — `DomainEvent`는 구현이 16종인 마커 인터페이스라 타입 정보 없이 직렬화하면 역직렬화가 「no Creators」로 깨지는데, Jackson `@JsonSubTypes`로 막으면 `common`이 6개 도메인의 이벤트를 전부 import해야 해 의존 방향이 뒤집힌다. 어느 record로 되돌릴지는 **그 이벤트를 구독하는 도메인**이 정한다(`notification/infra/event/SubscribedEvents`). 메시지는 문자열로 주고받아 spring-cloud-aws 기본 컨버터의 `ObjectMapper`에 기대지 않는다. **의존성 추가 시 `spring.cloud.aws.region.static` 기본값을 함께 넣어야 한다** — 스타터가 AWS 오토컨피그를 켜면 SDK 클라이언트가 빈 생성 시점에 리전을 요구해, 없으면 알림과 무관한 기존 `@SpringBootTest`까지 전부 깨진다 | `D-24`. `Y-28`의 「`app.messaging.mode`를 실제로 읽는 코드가 없다」 **해소** |
+
+| **D-53** | **도메인 이벤트 큐는 표준 큐를 쓴다.** FIFO가 아니다. 따라서 `MessageGroupId`·`MessageDeduplicationId`를 붙이지 않는다 — FIFO 전용 파라미터라 표준 큐에 실어 보내면 SQS가 무시하는 것이 아니라 `InvalidParameterValue`로 **거절**한다. `EventEnvelope.aggregateId`는 추적·집계 용도로 남기고, 나중에 FIFO로 바꾸면 그대로 그룹 키가 된다. **대가는 둘** — ① 순서가 보장되지 않아 `NFR-MSG-006`을 충족할 수 없다(요구사항을 `대기`로 되돌리고 비고에 사유를 적었다) ② 중복 수신이 일어난다. ②는 소비 측이 막는다 — 알림은 `dedupeKey` 유니크 제약으로 재수신이 행을 늘리지 않게 한다(`D-51`) | `R-21`이 전제한 FIFO를 표준 큐로 정정 |
+
+| **D-54** | **채널 개념을 MVP1에서 걷어낸다.** `NotificationChannel`·채널 어댑터(`NotificationSender`·`NotificationChannelDispatcher`)·`NotificationSetting`(엔티티·서비스·컨트롤러·테이블)을 전부 제거했다. **MVP1의 전달 수단은 인앱 하나뿐이고, 인앱은 DB에 행이 있는 것이 곧 전달**이라 발송 계층 전체가 구현체 1개짜리 빈 껍데기였다 — `InAppNotificationSender.send()`는 실제로 아무 일도 하지 않았다. 설정 화면도 고를 채널이 없어 의미가 없었다. `NFR-NTF-001`(채널 추상화)·`REQ-NTF-009`(수신 설정)를 **MVP2로 내리고 대기로 되돌렸다**. Slack(`REQ-NTF-005`)을 붙일 때 **실제 두 번째 채널을 보면서** 설계한다 — 하나뿐일 때 미리 그린 추상화는 대개 두 번째가 오면 맞지 않는다. `DOMAIN.md`의 「알림 설정은 워크스페이스 단위」(`D-50`)는 결정으로 유지하되 구현은 MVP2다 | `NFR-NTF-001` 비고의 「MVP1에 설계만 반영」을 뒤집는다 |
+
+> **수신자 정책은 유형마다 다르다.** `REVIEW_REQUEST_RECEIVED`는 **지정된 리뷰어**에게만 가고 지정된 리뷰어가 없으면 알림을 만들지 않는다. `APPROVED`·`CHANGES_REQUESTED`·`CANCELED`는 요청자에게, `REVISED`는 **워크스페이스 참여자 전원**에게 간다 — 반영완료는 새 문서·사전집 버전이 생긴 사건이라 요청 관계자를 넘어 전체가 알아야 의미가 있다. 모든 유형에 **자기 알림 억제**를 건다(수신자 == 행위자면 행을 만들지 않는다).
+>
+> 「지정된 리뷰어가 없으면 아무에게도 보내지 않는다」가 `G-4`(미지정 참여자도 정족수에 산입된다)와 모순되지 않는다 — **지정은 알림을 누구에게 보낼지를 정할 뿐 리뷰 자격을 제한하지 않는다.** 지정되지 않은 참여자는 알림 없이도 목록에서 요청을 보고 리뷰할 수 있다.
+
+> **이벤트 5종 중 `workspaceId`를 가진 것은 `ReviewRequestCreatedEvent` 하나뿐이고, 제목은 어느 이벤트에도 없다.** 그래서 알림 문구와 워크스페이스 범위를 `notification/infra/port/ReviewRequestQueryPort`·`WorkspaceQueryPort`로 되짚어 조회한다. `ARCHITECTURE.md`가 이것을 허용한다 — 「상태가 필요한 컨슈머는 식별자로 다시 조회한다」. 어댑터는 **소비 도메인**에 둔다(`D-33`).
+
+> **`ReviewSubmittedEvent`에 `verdict`를 더하는 예외는 필요 없어졌다.** 이 세션이 처음 계획할 때는 record가 `(reviewRequestId, reviewerMemberId, occurredAt)`뿐이라 승인과 변경요청을 구분할 수 없었는데, **`RR-4d`가 `verdict`와 `targetRound`를 포함해 발행부를 넣었다.** 알림은 그것을 그대로 쓴다 — `reviewrequest` 패키지를 건드리지 않는다.
+
+---
+
 ## 4. 큰 흐름이 뒤집은 기존 결정 (`R-1`~`R-24`)
 
 모두 기존 문서에 「확정」으로 적혀 있던 것이다. 루트 `CLAUDE.md`의 "결정이 바뀌면 코드보다 문서를 먼저 갱신한다"에 따라 **`T-DOC-1`(9절)이 모든 구현보다 앞선다.**
@@ -233,8 +263,8 @@
 | **X-08** | `NFR-CMN-003` 「에러 포맷 code·message·**traceId**」 ↔ 2필드(`{code, message}`) | `REQUIREMENTS.md` / `EXCEPTION.md`·`API.md`·`ErrorResponse` | **제안**: `LOG.md`가 이미 「에러 응답에 trace id 포함」과 MDC 규약을 갖고 있으므로 `ErrorResponse`에 `traceId`를 더한다. `T-INT-3`(인증·공통 설정)과 함께 처리 | 제안 |
 | **X-09** | `API.md` 공통 규칙은 검증 실패 코드를 `INVALID_INPUT`이라 하는데, 같은 문서 에러 표와 구현은 `COMMON_INVALID_REQUEST`다 | `API.md` «공통 규칙» / 같은 문서의 각 도메인 에러 표, `CommonErrorCode` | 구현이 정답이다. `T-DOC-1`에서 공통 규칙 문구를 `COMMON_INVALID_REQUEST`로 고친다 | 제안 |
 | **X-10** | `REQ-WS-001`의 「태그·설명·공개여부」와 `REQ-WS-006`의 「설명(도메인 소개)」 ↔ `Workspace`에 `description`이 없다 | `REQUIREMENTS.md` 비고 / `DOMAIN.md` `Workspace` 표 | 양쪽 비고가 「모델 미정의 — 필요해지면 `DOMAIN.md`에 먼저 추가」로 이미 처리했다. **모델에 넣지 않고 근거만 기록**한다 | 제안 |
-| **X-11** | `DOMAIN.md` «모델 반영 필요(미확정)» 3건 — 참여자 권한 변경 주체 / 참여자 삭제 방식(`leftAt`) / 알림 설정 모델 | `DOMAIN.md` «모델 반영 필요(미확정)» 블록 | 권한 변경 주체는 `WS-1`, 삭제 방식은 `WS-2`에서 확정한다. 알림 설정 모델은 Notification 도메인 몫이라 6개 범위 밖(`X-12`) | 제안 |
-| **X-12** | `Notification`이 `DOMAIN.md`·`UBIQUITOUS_LANGUAGE.md`(「미정」)에 있으나 6개 도메인 범위 밖 ↔ 각 도메인이 발행하는 이벤트의 소비자가 없다 | `DOMAIN.md` / 3개 계획 문서 9절의 「Notification(미정)」 | **이벤트는 발행하고 소비자가 없어도 된다.** 6개 문서 9절은 수신자 칸에 `Notification(미정)`을 그대로 쓴다 | 제안 |
+| **X-11** | `DOMAIN.md` «모델 반영 필요(미확정)» 3건 — 참여자 권한 변경 주체 / 참여자 삭제 방식(`leftAt`) / 알림 설정 모델 | `DOMAIN.md` «모델 반영 필요(미확정)» 블록 | 권한 변경 주체는 `WS-1`, 삭제 방식은 `WS-2`에서 확정한다. **알림 설정 모델은 워크스페이스 단위로 확정됐다(`D-50`)** | 해소(`D-50`) |
+| **X-12** | `Notification`이 `DOMAIN.md`·`UBIQUITOUS_LANGUAGE.md`(「미정」)에 있으나 6개 도메인 범위 밖 ↔ 각 도메인이 발행하는 이벤트의 소비자가 없다 | `DOMAIN.md` / 3개 계획 문서 9절의 「Notification(미정)」 | **이벤트는 발행하고 소비자가 없어도 된다.** 6개 문서 9절은 수신자 칸에 `Notification(미정)`을 그대로 쓴다. **2026-09-13에 Notification 도메인이 신설돼 리뷰 5종의 소비자가 생겼다(`D-47`)** | 해소(`D-47`) |
 | **X-13** | `Invitation` 엔티티 표가 `DOMAIN.md`에 있으나 코드·API가 전무 | `DOMAIN.md` «Invitation (초대)» 표 / `REQ-WS-003` 「대기」 | `WORKSPACE_PLAN.md` 3절에 `상태=추가`로 싣고 `WS-3`에서 구현한다 | 제안 |
 | **X-14** | 참여자 정원 5명 ↔ `RuleSet` 상한 「참여자 수 이하(0~5)」 — 검증 주체는 Workspace로 확정됐으나 구현·API가 없다 | `DOMAIN.md` «워크스페이스 · 권한»·«리뷰 규칙» / `RuleSet.java` 주석 | `WS-4`가 룰셋 수정과 정원 검증을 함께 구현한다. `G-4`의 선행 | 제안 |
 | **X-15** | `NFR-DOC-002` 원문 저장소 추상화(S3)가 「보류」로 살아 있다 | `REQUIREMENTS.md` | 폐기 확정 | 해소(`G-5`·`R-16`) |
@@ -326,10 +356,10 @@
 
 ## 10. 남은 결정 대기
 
-**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건은 `D-33`~`D-36`으로, 도메인 Phase 3~4가 드러낸 것은 `D-38`~`D-43`으로 확정했다. 2026-09-13 마무리 통합이 드러낸 3건도 `D-44`~`D-46`으로 확정했다.
+**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건은 `D-33`~`D-36`으로, 도메인 Phase 3~4가 드러낸 것은 `D-38`~`D-43`으로 확정했다. 2026-09-13 마무리 통합이 드러낸 3건도 `D-44`~`D-46`으로, Notification 도메인 세션이 확정한 8건은 `D-47`~`D-54`로 확정했다.
 
 `상태` 칸이 `제안`인 항목(`X-04`·`X-05`·`X-08`~`X-14`·`X-17`, `Y-22`)과 `기록`인 항목(`Y-24`~`Y-27`)은 **결정이 필요한 것이 아니라 담당 태스크에서 형태를 정하는 것**이다. 설계 방향은 이미 정해져 있다.
 
 **남은 예외는 둘이다.** **`D-35`의 실제 LLM 연동**은 새 의존성·API 키·프롬프트 설계가 필요하므로 루트 `CLAUDE.md`의 「새 라이브러리·의존성 추가는 사전에 제안하고 승인받는다」에 따라 그 시점에 별도로 합의한다. **`X-08`(`ErrorResponse.traceId`)**은 마무리 통합 세션에서 범위 밖으로 두기로 했으므로 `NFR-CMN-003`이 계속 미충족이며 담당 태스크를 다시 정해야 한다.
 
-새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-47`부터 붙인다.
+새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-55`부터 붙인다.

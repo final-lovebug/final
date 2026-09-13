@@ -17,7 +17,7 @@
 - **영속성** — Spring Data JPA + MySQL
 - **스키마 마이그레이션** — Flyway
 - **캐시·세션** — Redis
-- **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS.** 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다
+- **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS**(`spring-cloud-aws-starter-sqs`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 발행 어댑터 둘은 `common/infra/event/`(인메모리)와 `common/infra/event/sqs/`(SQS)에 있고 `@ConditionalOnProperty`로 배타 선택된다. 수신 어댑터는 소비 도메인에 두며 **둘이 같은 공용 핸들러에 위임한다.** 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다
 - **인증·인가** — Spring Security, JWT (JJWT), OAuth2
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
 - **관측** — Actuator, Micrometer(Prometheus), OpenTelemetry / Grafana LGTM
@@ -42,6 +42,7 @@
 - 400 - 499: draftdocument 도메인
 - 500 - 599: draftdictionary 도메인
 - 600 - 699: reviewrequest 도메인
+- 700 - 799: notification 도메인
 - 900 - 999: 공통 / 사후 정리
 
 ---
@@ -92,8 +93,9 @@
 - 테스트용 컨테이너는 별도로 `TestcontainersConfiguration`이 관리한다.
   (MySQL, Redis, Grafana LGTM — 이미지 태그는 `compose.yaml`과 맞춘다.)
 - 메시징은 로컬·테스트에서 인메모리 어댑터를 쓰므로 로컬 인프라가 필요 없다.
-  **배포용 SQS 어댑터를 추가할 때** 대응하는 로컬 대체 컨테이너(LocalStack 등)를
-  `compose.yaml`과 테스트에 함께 넣는다.
+  **SQS 어댑터는 들어왔지만**(`app.messaging.mode=sqs`일 때만 뜬다) 로컬 대체 컨테이너는
+  아직 없다. SQS 경로를 실제 메시지로 검증해야 할 때 LocalStack을 `compose.yaml`과
+  `TestcontainersConfiguration`에 함께 넣는다 — 한쪽만 넣으면 테스트가 로컬에서만 돈다.
 
 ### 환경변수
 
