@@ -15,6 +15,8 @@ public interface DraftDocumentRepository extends JpaRepository<DraftDocument, Lo
     boolean existsByDocumentIdInAndStatusNotAndDeletedAtIsNull(
             Collection<Long> documentIds, DraftDocumentStatus status);
 
+    boolean existsByDocumentIdAndStatusNotAndDeletedAtIsNull(Long documentId, DraftDocumentStatus status);
+
     Optional<DraftDocument> findByIdAndDeletedAtIsNull(Long id);
 
     List<DraftDocument> findAllByDocumentIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long documentId);
@@ -27,4 +29,9 @@ public interface DraftDocumentRepository extends JpaRepository<DraftDocument, Lo
 
     Page<DraftDocument> findAllByDocumentIdAndStatusAndDeletedAtIsNull(
             Long documentId, DraftDocumentStatus status, Pageable pageable);
+
+    Page<DraftDocument> findAllByDocumentIdInAndDeletedAtIsNull(Collection<Long> documentIds, Pageable pageable);
+
+    Page<DraftDocument> findAllByDocumentIdInAndStatusAndDeletedAtIsNull(
+            Collection<Long> documentIds, DraftDocumentStatus status, Pageable pageable);
 }

@@ -19,4 +19,9 @@ public class DictionaryTermQueryStub implements DictionaryTermQueryPort {
     public List<TermSnapshot> readActiveTerms(Long workspaceId) {
         return List.of();
     }
+
+    @Override
+    public boolean hasActiveDictionary(Long workspaceId) {
+        return false;
+    }
 }

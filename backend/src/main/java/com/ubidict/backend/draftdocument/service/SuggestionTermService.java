@@ -6,6 +6,7 @@ import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.draftdocument.domain.DraftDocument;
 import com.ubidict.backend.draftdocument.domain.SuggestionTerm;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import com.ubidict.backend.draftdocument.implement.DraftDocumentAccessValidator;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentReader;
 import com.ubidict.backend.draftdocument.implement.SuggestionTermProcessor;
 import com.ubidict.backend.draftdocument.implement.SuggestionTermReader;
@@ -32,10 +33,12 @@ public class SuggestionTermService {
     private final SuggestionTermWriter writer;
     private final DraftDocumentReader draftReader;
     private final SuggestionTermProcessor processor;
+    private final DraftDocumentAccessValidator accessValidator;
 
     @Transactional
     public SuggestionTermResult add(AddSuggestionTermCommand c) {
         DraftDocument draftDocument = draftReader.read(c.draftDocumentId());
+        accessValidator.validateAccess(draftDocument, c.memberId());
         draftDocument.validateExamining();
         validateAnchor(c.anchor(), draftDocument);
         return SuggestionTermResult.from(
@@ -46,6 +49,7 @@ public class SuggestionTermService {
     public SuggestionTermResult edit(EditSuggestionTermCommand c) {
         SuggestionTerm suggestionTerm = reader.read(c.id());
         DraftDocument draftDocument = draftReader.read(suggestionTerm.getDraftDocumentId());
+        accessValidator.validateAccess(draftDocument, c.memberId());
         draftDocument.validateExamining();
         if (c.anchor() != null) {
             validateAnchor(c.anchor(), draftDocument);
@@ -54,9 +58,11 @@ public class SuggestionTermService {
     }
 
     @Transactional
-    public void delete(Long id) {
+    public void delete(Long id, Long memberId) {
         SuggestionTerm suggestionTerm = reader.read(id);
-        draftReader.read(suggestionTerm.getDraftDocumentId()).validateExamining();
+        DraftDocument draftDocument = draftReader.read(suggestionTerm.getDraftDocumentId());
+        accessValidator.validateAccess(draftDocument, memberId);
+        draftDocument.validateExamining();
         suggestionTerm.delete();
     }
 
@@ -64,6 +70,7 @@ public class SuggestionTermService {
     public SuggestionTermResult accept(AcceptSuggestionTermCommand command) {
         SuggestionTerm suggestionTerm = reader.read(command.suggestionTermId());
         DraftDocument draftDocument = draftReader.read(suggestionTerm.getDraftDocumentId());
+        accessValidator.validateAccess(draftDocument, command.memberId());
         processor.accept(draftDocument, suggestionTerm, command.memberId());
 
         log.info(
@@ -79,6 +86,7 @@ public class SuggestionTermService {
     public SuggestionTermResult reject(RejectSuggestionTermCommand command) {
         SuggestionTerm suggestionTerm = reader.read(command.suggestionTermId());
         DraftDocument draftDocument = draftReader.read(suggestionTerm.getDraftDocumentId());
+        accessValidator.validateAccess(draftDocument, command.memberId());
         processor.reject(draftDocument, suggestionTerm, command.memberId(), command.rejectReason());
 
         log.info(
@@ -92,6 +100,8 @@ public class SuggestionTermService {
 
     @Transactional(readOnly = true)
     public PageResult<SuggestionTermResult> search(SuggestionTermSearchQuery q) {
+        DraftDocument draftDocument = draftReader.read(q.draftDocumentId());
+        accessValidator.validateAccess(draftDocument, q.memberId());
         String[] s = q.sort().split(",");
         Page<SuggestionTerm> x = reader.search(
                 q.draftDocumentId(),

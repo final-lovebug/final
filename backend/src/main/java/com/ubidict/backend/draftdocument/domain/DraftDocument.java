@@ -83,6 +83,36 @@ public class DraftDocument extends BaseEntity {
         return status == DraftDocumentStatus.EXAMINED;
     }
 
+    public void markReviewRequested() {
+        if (status == DraftDocumentStatus.REVIEW_REQUESTED) {
+            return;
+        }
+        if (status != DraftDocumentStatus.EXAMINED) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION);
+        }
+        status = DraftDocumentStatus.REVIEW_REQUESTED;
+    }
+
+    public void reopen() {
+        if (status == DraftDocumentStatus.EXAMINED) {
+            return;
+        }
+        if (status != DraftDocumentStatus.REVIEW_REQUESTED) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION);
+        }
+        status = DraftDocumentStatus.EXAMINED;
+    }
+
+    public void markRevised() {
+        if (status == DraftDocumentStatus.REVISED) {
+            return;
+        }
+        if (status != DraftDocumentStatus.REVIEW_REQUESTED) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION);
+        }
+        status = DraftDocumentStatus.REVISED;
+    }
+
     private static int validateBaseVersionNo(int baseVersionNo) {
         if (baseVersionNo < 1) {
             throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_BASE_VERSION);

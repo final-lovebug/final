@@ -25,7 +25,9 @@ import com.ubidict.backend.draftdocument.service.model.RejectSuggestionTermComma
 import com.ubidict.backend.draftdocument.service.model.SuggestionTermResult;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Workspace;
+import com.ubidict.backend.workspace.fixture.ParticipantFixture;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,9 @@ class SuggestionTermDecisionServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ParticipantRepository participantRepository;
 
     @Autowired
     private DocumentRepository documentRepository;
@@ -138,6 +143,10 @@ class SuggestionTermDecisionServiceTest extends IntegrationTestSupport {
     private SuggestionTermResult createSuggestionTerm(String suggestionTerm) {
         Workspace workspace = workspaceRepository.save(
                 WorkspaceFixture.workspace().createdBy(MEMBER_ID).build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspace.getId())
+                .memberId(MEMBER_ID)
+                .build());
         Document document = documentRepository.save(DocumentFixture.document()
                 .workspaceId(workspace.getId())
                 .createdBy(MEMBER_ID)
