@@ -16,8 +16,12 @@ export type NotificationType =
 export type NotificationTargetType = 'DOCUMENT' | 'DICTIONARY' | 'REVIEW_REQUEST'
 
 /**
- * 버튼 문구와 이동 경로는 담지 않는다(D-46). `type`·`targetType`·`targetId`에서 화면이
+ * 버튼 문구와 이동 경로는 담지 않는다(D-49). `type`·`targetType`·`targetId`에서 화면이
  * 파생한다 — routes.ts와 함께 features/notification/model/resolveNotificationLink.ts 참고.
+ *
+ * **채널(`channels`)은 없다** — `D-54`로 MVP1에서 `NotificationChannel` 개념 자체가
+ * 백엔드에서 제거됐다. 아래 `NotificationSettings` 계열은 아직 목업으로만 남아 있는
+ * 설정 화면이 쓰는 타입이라 별개다(`T-INT-13` 참고).
  */
 export interface Notification {
   id: NotificationId
@@ -27,7 +31,6 @@ export interface Notification {
   targetId: string
   title: string
   message: string
-  channels: NotificationChannel[]
   /** `readAt != null`과 항상 함께 움직인다(read == (readAt != null) 불변식). */
   read: boolean
   readAt: string | null

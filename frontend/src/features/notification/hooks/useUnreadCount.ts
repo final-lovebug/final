@@ -6,5 +6,6 @@ export function useUnreadCount(workspaceId: WorkspaceId) {
   return useQuery({
     queryKey: ['notifications', workspaceId, 'unread-count'],
     queryFn: () => fetchUnreadCount(workspaceId),
+    enabled: workspaceId !== '',
   })
 }

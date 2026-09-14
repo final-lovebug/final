@@ -1,8 +1,8 @@
-import { delay } from '../../../shared/lib/delay'
+import { httpClient } from '../../../shared/api/httpClient'
 import type { Page } from '../../../shared/types/common'
 import type { WorkspaceId } from '../../../shared/types/ids'
-import { NOTIFICATION_FIXTURES } from '../model/fixtures'
 import type { Notification } from '../model/types'
+import { toNotification, type NotificationApiResponse, type PageResponse } from './notificationApi'
 
 export interface FetchNotificationsParams {
   unreadOnly?: boolean
@@ -10,29 +10,30 @@ export interface FetchNotificationsParams {
   size?: number
 }
 
-// docs/API.md "알림 목록 조회" 목업 구현체. 실 연동 시 이 함수 내부만
-// `GET /api/workspaces/{workspaceId}/notifications?unreadOnly=...&page=...&size=...`
-// 호출로 바꾸면 된다 — 요청자는 Authorization 헤더의 인증 주체에서 해석되므로 memberId를
-// 쿼리로 보내지 않는다. 반환 타입(Page<Notification>)을 유지하는 한 hooks/화면은 손댈 필요가
-// 없다. 정렬은 createdAt desc 고정(sort 화이트리스트가 그거 하나뿐이다).
+// 실제 백엔드 연동(docs/API.md "알림 목록 조회",
+// GET /api/workspaces/{workspaceId}/notifications).
+//
+// 목록은 언제나 요청자 본인의 것이다 — 수신자를 파라미터로 받지 않는다(인증 주체에서
+// 해석한다). 정렬은 createdAt desc 고정이다(sort 화이트리스트가 그거 하나뿐).
 export async function fetchNotifications(
   workspaceId: WorkspaceId,
   { unreadOnly = false, page = 0, size = 20 }: FetchNotificationsParams = {},
 ): Promise<Page<Notification>> {
-  await delay()
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+    sort: 'createdAt,desc',
+  })
+  if (unreadOnly) params.set('unreadOnly', 'true')
 
-  const all = NOTIFICATION_FIXTURES.filter((n) => n.workspaceId === workspaceId)
-    .filter((n) => !unreadOnly || !n.read)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-
-  const start = page * size
-  const content = all.slice(start, start + size)
-
+  const response = await httpClient.get<PageResponse<NotificationApiResponse>>(
+    `/api/workspaces/${workspaceId}/notifications?${params.toString()}`,
+  )
   return {
-    content,
-    page,
-    size,
-    totalElements: all.length,
-    totalPages: Math.max(1, Math.ceil(all.length / size)),
+    content: response.content.map(toNotification),
+    page: response.page,
+    size: response.size,
+    totalElements: response.totalElements,
+    totalPages: response.totalPages,
   }
 }
