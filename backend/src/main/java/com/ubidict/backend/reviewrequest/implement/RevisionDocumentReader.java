@@ -49,4 +49,23 @@ public class RevisionDocumentReader {
                         com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode
                                 .REVIEW_REQUEST_REVISION_NOT_FOUND));
     }
+
+    /**
+     * 목록/상세 응답에 대상 문서 id를 실어 보내기 위한 배치 조회(T-INT-12). 회차별로 여러 행이
+     * 있을 수 있어(재교정) 리뷰 요청 id별로 가장 최신 회차만 남긴다.
+     */
+    public Map<Long, RevisionDocument> readLatestByReviewRequestIds(Collection<Long> reviewRequestIds) {
+        if (reviewRequestIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, RevisionDocument> latest = new HashMap<>();
+        for (RevisionDocument revision : repository.findAllByReviewRequestIdIn(reviewRequestIds)) {
+            latest.merge(revision.getReviewRequestId(), revision, RevisionDocumentReader::latestRound);
+        }
+        return latest;
+    }
+
+    private static RevisionDocument latestRound(RevisionDocument a, RevisionDocument b) {
+        return a.getReexamineRound() >= b.getReexamineRound() ? a : b;
+    }
 }

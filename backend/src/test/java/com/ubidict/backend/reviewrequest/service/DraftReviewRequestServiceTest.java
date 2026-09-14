@@ -32,6 +32,7 @@ import com.ubidict.backend.reviewrequest.infra.RevisionDocumentRepository;
 import com.ubidict.backend.reviewrequest.service.model.RequestDictionaryReviewCommand;
 import com.ubidict.backend.reviewrequest.service.model.RequestDocumentReviewCommand;
 import com.ubidict.backend.reviewrequest.service.model.ReviewRequestResult;
+import com.ubidict.backend.reviewrequest.service.model.ReviewRequestSearchQuery;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.domain.Workspace;
@@ -59,6 +60,9 @@ class DraftReviewRequestServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private DraftReviewRequestService draftReviewRequestService;
+
+    @Autowired
+    private ReviewRequestService reviewRequestService;
 
     @Autowired
     private RevisionService revisionService;
@@ -253,6 +257,53 @@ class DraftReviewRequestServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NOT_EXAMINED);
+    }
+
+    @DisplayName("문서 리뷰 요청 목록·상세 응답에 대상 문서 id와 리뷰어 수가 실린다(T-INT-12).")
+    @Test
+    void search_includesTargetIdAndReviewerCount() {
+        Long documentId = documentRepository
+                .save(DocumentFixture.document()
+                        .workspaceId(workspaceId)
+                        .createdBy(ADMIN_ID)
+                        .build())
+                .getId();
+        DraftDocument draft = draftDocumentRepository.save(DraftDocumentFixture.draftDocument()
+                .documentId(documentId)
+                .draftBody("교정한 본문")
+                .requestedBy(ADMIN_ID)
+                .status(DraftDocumentStatus.EXAMINED)
+                .build());
+
+        ReviewRequestResult created = draftReviewRequestService.requestDocumentReview(
+                new RequestDocumentReviewCommand(draft.getId(), "정산 문서 리뷰", null, List.of(REGULAR_ID), ADMIN_ID));
+
+        var searched = reviewRequestService.search(
+                new ReviewRequestSearchQuery(workspaceId, null, null, null, null, 0, 20, null));
+        assertThat(searched.content())
+                .filteredOn(r -> r.reviewRequestId().equals(created.reviewRequestId()))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.targetId()).isEqualTo(documentId);
+                    assertThat(r.reviewerCount()).isEqualTo(1);
+                });
+
+        ReviewRequestResult read = reviewRequestService.read(created.reviewRequestId(), ADMIN_ID);
+        assertThat(read.targetId()).isEqualTo(documentId);
+        assertThat(read.reviewerCount()).isEqualTo(1);
+    }
+
+    @DisplayName("사전 리뷰 요청은 대상 사전집 id가 없으면(첫 발행) targetId가 null이다.")
+    @Test
+    void read_dictionaryTargetIdNullOnFirstVersion() {
+        Long draftDictionaryId = examinedDraftDictionary();
+
+        ReviewRequestResult created = draftReviewRequestService.requestDictionaryReview(
+                new RequestDictionaryReviewCommand(draftDictionaryId, "사전집 리뷰", null, List.of(), ADMIN_ID));
+
+        ReviewRequestResult read = reviewRequestService.read(created.reviewRequestId(), ADMIN_ID);
+        assertThat(read.targetId()).isNull();
+        assertThat(read.reviewerCount()).isZero();
     }
 
     @DisplayName("개정안 이력은 참여자만 조회할 수 있다.")
