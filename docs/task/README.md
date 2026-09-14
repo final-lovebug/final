@@ -48,7 +48,7 @@
 | [T-INT-11](T-INT-11-dictionary.md) | dictionary 실연동(범위 축소) | A | T-INT-20(후보어만) | **코드 작성 완료**(범위 내 — 후보어 제외, QA 대기, 2026-09-14) | |
 | [T-INT-12](T-INT-12-review.md) | review(리뷰 요청) 실연동 | A | 없음 | **보류**(2026-09-14, 구조적 재설계 필요) | |
 | [T-INT-13](T-INT-13-notification.md) | notification 실연동 | A | 없음 | **보류**(2026-09-14, 대응 API 없음 — 파일 참고) | |
-| [T-INT-14](T-INT-14-member.md) | member 잔여 실연동 | A | T-INT-18 | **보류**(2026-09-14, 백엔드 보강 필요) | |
+| [T-INT-14](T-INT-14-member.md) | member 잔여 실연동 | A | T-INT-18(완료) | **완료**(2026-09-14) | |
 | [T-INT-15](T-INT-15-auth-guard.md) | 인증 가드(`RequireAuth`) 점검 | A | 없음 | **완료**(2026-09-14, 주석 정정만) | |
 | [T-INT-16](T-INT-16-env-config.md) | 프론트 환경설정 정리 | A | 없음 | **완료**(2026-09-14) | |
 | [T-INT-17](T-INT-17-extraction-ui.md) | 추출/대조 결과 화면 | B | T-INT-8 | 대기 | |

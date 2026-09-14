@@ -1,8 +1,8 @@
 # T-INT-14 — member 잔여 실연동
 
-상태: **보류(2026-09-14, 백엔드 보강 필요 — 아래 참고)** | 담당자: (미정)
+상태: **완료(2026-09-14)** | 담당자: (세션 진행)
 근거: `docs/plan/INTEGRATION_PLAN.md` 2절 Track A · 2026-09-14 사용자 결정
-의존: **T-INT-18**(백엔드: 참여자 응답에 이름/이메일 포함)
+의존: **T-INT-18**(완료)
 
 `member`는 `fetchCurrentMember`·`withdrawMember`가 이미 실연동돼 있고
 `fetchWorkspaceMembers.ts` 하나만 목업이다.
@@ -25,18 +25,22 @@
 (`docs/task/T-INT-18-participant-member-info.md`). 이 태스크는 그 완료 후 아래
 순서로 재개한다.
 
-## 체크리스트(T-INT-18 완료 후 진행)
+## 체크리스트
 
-- [ ] `api/fetchWorkspaceMembers.ts` 구현 — 두 호출을 합친다:
-      1. `GET /api/workspaces/{workspaceId}/participants`(`docs/API.md` 423행)로
-         참여자 목록(`memberId`·`permission`·`joinedAt`) 조회
-      2. 그 `memberId` 배열을 `GET /api/members?ids=1,2,3`(T-INT-18 산출물)에 넘겨
+- [x] `api/fetchWorkspaceMembers.ts` 구현 — 두 호출을 합침:
+      1. `GET /api/workspaces/{workspaceId}/participants`로 참여자 목록
+         (`memberId`·`permission`·`joinedAt`) 조회. 참여자가 0명이면 두 번째 호출
+         없이 바로 빈 배열 반환
+      2. 그 `memberId` 배열을 `GET /api/members?ids=1,2,3`(T-INT-18)에 넘겨
          이름/이메일 조회
-      3. 두 결과를 `memberId` 기준으로 join해 `WorkspaceMemberListItem` 완성
-      (`ParticipantResponse`의 정확한 필드는 `backend/.../workspace/presentation/
-      dto/ParticipantResponse.java`로 이미 확인됨: `{participantId, workspaceId,
-      memberId, permission, joinedAt}`)
-- [ ] `model/fixtures.ts`의 `WORKSPACE_MEMBER_FIXTURES` — 화면이 더 이상 참조하지
-      않으면 그대로 둬도 무방
-- [ ] 화면 확인: `settings/members` 화면에서 실 참여자 목록·권한 표시 QA
-- [ ] 커밋 브랜치 `feat/WLSH-{티켓}-fe-member-real-api`, PR 생성
+      3. 두 결과를 `memberId` 기준으로 join. 배치 조회에서 빠진 회원(탈퇴 등)은
+         이름/이메일을 "—"로 표시
+- [x] `model/fixtures.ts`의 `WORKSPACE_MEMBER_FIXTURES` — 더 이상 참조하는 곳
+      없어졌지만 그대로 둠(관례상 억지로 안 지움)
+- [x] 부수 수정: `SettingsMembersPage.tsx`의 `joinedAt` 표시를
+      `new Date(...).toLocaleDateString('ko-KR')`로 포맷(실 API가 전체
+      ISO 타임스탬프를 주므로 그대로 찍으면 지저분해 보임)
+- [x] `npx tsc -b`·`npm run lint` 통과
+- [ ] 화면 확인: `settings/members` 화면에서 실 참여자 목록·권한 표시 QA —
+      **로컬 백엔드 기동 후 사용자가 직접 확인 필요**
+- [ ] 커밋 브랜치 `feat/WLSH-{티켓}-fe-member-real-api`, PR — **사용자 지시 시 진행**
