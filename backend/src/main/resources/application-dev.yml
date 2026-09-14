@@ -4,6 +4,19 @@
 # 그래서 spring.config.import 가 없고 spring.cloud.aws.parameterstore.enabled 도 기본값(false)을 그대로 쓴다.
 # 값은 저장소에 두지 않고 ${VAR} 참조만 남긴다(루트 CLAUDE.md 「시크릿은 환경변수 또는 AWS 파라미터 스토어로 주입한다」).
 spring:
+  # LocalStack 으로 SQS 경로를 실제 메시지로 검증한다(D-70). 엔드포인트만 갈아끼우면
+  # prod 와 같은 코드가 돈다(NFR-INF-005) — LocalStack 은 자격증명 값을 보지 않는다.
+  cloud:
+    aws:
+      endpoint: ${AWS_ENDPOINT:http://localhost:4566}
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID:test}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:test}
+      sqs:
+        # 큐가 없으면 만든다. 초기화 스크립트와 리스너 기동의 순서 경합을 없앤다(D-74).
+        # prod 는 기본값(fail)을 유지한다 — 이름을 틀린 채 새 큐가 조용히 생기는 사고를 막는다.
+        queue-not-found-strategy: create
+
   datasource:
     url: "${DB_URL}"
     username: "${DB_USERNAME}"
@@ -19,3 +32,8 @@ management:
       show-details: always
       probes:
         enabled: true
+
+app:
+  ai:
+    dispatch:
+      mode: sqs

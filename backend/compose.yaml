@@ -1,4 +1,15 @@
 services:
+  # AI 워커 요청 큐(SQS)의 로컬 대체(D-70). 포트를 고정하는 이유는
+  # spring-boot-docker-compose 가 LocalStack 커넥션 정보를 자동 주입하지 않기 때문이다 —
+  # application-dev.yml 이 이 주소를 직접 가리킨다.
+  localstack:
+    image: 'localstack/localstack:4'
+    environment:
+      - 'SERVICES=sqs'
+      - 'EAGER_SERVICE_LOADING=1'
+      - 'DEBUG=0'
+    ports:
+      - '4566:4566'
   grafana-lgtm:
     image: 'grafana/otel-lgtm:latest'
     ports:

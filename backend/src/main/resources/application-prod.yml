@@ -37,10 +37,13 @@ app:
     mode: sqs
     sqs:
       queue: lovebug-domain-event
-      # 추출·대조 워커용 큐. AWS에 이미 프로비저닝돼 있으나 읽는 코드가 없어 아직 살리지 않는다.
-      # DD-5(문서 대조)·DI-5(용어 추출)가 워커를 넣을 때 주석을 푼다.
-      # llm-request-queue: lovebug-llm-request
-      # llm-reply-queue: lovebug-llm-reply
+      # AI 워커 전용 큐(D-63). DLQ 와 redrive policy 는 인프라에서 건다(NFR-MSG-004).
+      llm-request-queue: lovebug-llm-request
+  ai:
+    dispatch:
+      mode: sqs
+    # 운영에서는 워커가 실제 모델을 호출한다.
+    mode: real
   jwt:
     secret: ${jwt.secret}
   oauth:

@@ -12,3 +12,13 @@ app:
     cookie:
       # 테스트는 https 가 아니므로 Secure 쿠키 검증에 기대지 않는다.
       secure: false
+
+  ai:
+    dispatch:
+      # 기본은 인프로세스 대역이다. 실제 SQS 왕복을 보는 테스트만 @TestPropertySource 로 sqs 를 켠다 —
+      # 전 테스트가 LocalStack 을 띄우면 컨테이너가 넷이 되고 빌드 JVM 과 메모리를 다툰다.
+      mode: in-process
+    timeout:
+      # 스위퍼가 테스트 도중 끼어들어 작업을 실패시키지 않게 끈다.
+      # 회수 동작 자체는 TimeoutService 를 직접 불러 검증한다.
+      enabled: false
