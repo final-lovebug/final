@@ -1,5 +1,6 @@
 package com.ubidict.backend.draftdictionary.service;
 
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.implement.CandidateTermReader;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryCreationPolicyValidator;
@@ -10,11 +11,15 @@ import com.ubidict.backend.draftdictionary.implement.DraftDictionaryReviewReadin
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryWriter;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
+import com.ubidict.backend.draftdictionary.service.model.DraftDictionarySearchQuery;
 import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdictionary.service.model.UpdateSourceDocumentsCommand;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +42,24 @@ public class DraftDictionaryService {
         DraftDictionary draftDictionary = draftDictionaryReader.read(draftDictionaryId);
         workspaceAccessValidator.validateParticipant(draftDictionary.getWorkspaceId(), memberId);
         return DraftDictionaryResult.from(draftDictionary);
+    }
+
+    /** 워크스페이스 기준 사전 초안 목록 조회(T-INT-20, D-64). */
+    @Transactional(readOnly = true)
+    public PageResult<DraftDictionaryResult> search(DraftDictionarySearchQuery query) {
+        workspaceAccessValidator.validateParticipant(query.workspaceId(), query.memberId());
+
+        String[] p = query.sort().split(",");
+        Page<DraftDictionary> page = draftDictionaryReader.search(
+                query.workspaceId(),
+                query.status(),
+                PageRequest.of(query.page(), query.size(), Sort.by(Sort.Direction.fromString(p[1]), p[0])));
+
+        return new PageResult<>(
+                page.getContent().stream().map(DraftDictionaryResult::from).toList(),
+                query.page(),
+                query.size(),
+                page.getTotalElements());
     }
 
     @Transactional

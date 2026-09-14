@@ -17,9 +17,11 @@ import com.ubidict.backend.draftdictionary.implement.ExtractionJobCompletionEven
 import com.ubidict.backend.draftdictionary.implement.ExtractionJobReader;
 import com.ubidict.backend.draftdictionary.implement.ExtractionResultValidator;
 import com.ubidict.backend.draftdictionary.infra.port.ExtractedTerm;
+import com.ubidict.backend.draftdictionary.service.model.AddCandidateTermCommand;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class DraftDictionaryExtractionExecutionServiceTest {
@@ -73,6 +75,25 @@ class DraftDictionaryExtractionExecutionServiceTest {
         verify(termWriter).add(any());
         verify(draftEventPublisher).publishCreated(draft);
         verify(completionEventPublisher).publishCompleted(job);
+    }
+
+    @DisplayName("추출 결과의 표기 변형(그룹핑 정보)을 후보어 추가 커맨드까지 그대로 넘긴다.")
+    @Test
+    void complete_preservesVariantForms() {
+        ExtractionJob job = job();
+        job.start();
+        DraftDictionary draft = DraftDictionary.create(1L, null, List.of(10L), 2L);
+        ReflectionTestUtils.setField(draft, "id", 40L);
+        ExtractedTerm term = new ExtractedTerm(
+                "고객", "정의", "Customer", List.of(10L), 2, List.of("문맥"), List.of("고객", "커스터머", "클라이언트"));
+        given(jobReader.read(30L)).willReturn(job);
+        given(draftWriter.create(1L, null, List.of(10L), 2L)).willReturn(draft);
+
+        service.complete(30L, List.of(10L), List.of(term));
+
+        ArgumentCaptor<AddCandidateTermCommand> captor = ArgumentCaptor.forClass(AddCandidateTermCommand.class);
+        verify(termWriter).add(captor.capture());
+        assertThat(captor.getValue().variantForms()).containsExactly("고객", "커스터머", "클라이언트");
     }
 
     private ExtractionJob job() {

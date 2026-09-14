@@ -11,5 +11,7 @@ public interface RevisionDictionaryRepository extends JpaRepository<RevisionDict
 
     Optional<RevisionDictionary> findTopByReviewRequestIdOrderByReexamineRoundDesc(Long reviewRequestId);
 
+    List<RevisionDictionary> findAllByReviewRequestIdIn(Collection<Long> reviewRequestIds);
+
     boolean existsByDraftDictionaryId(Long draftDictionaryId);
 }

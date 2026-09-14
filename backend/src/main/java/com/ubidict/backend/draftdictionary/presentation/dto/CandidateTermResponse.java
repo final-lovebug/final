@@ -22,6 +22,7 @@ public record CandidateTermResponse(
         Long resultTermId,
         List<Long> occurredDocumentIds,
         List<String> contextSnippets,
+        List<String> variantForms,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {
     public static CandidateTermResponse from(CandidateTermResult r) {
@@ -41,6 +42,7 @@ public record CandidateTermResponse(
                 r.resultTermId(),
                 r.occurredDocumentIds(),
                 r.contextSnippets(),
+                r.variantForms(),
                 r.createdAt(),
                 r.updatedAt());
     }

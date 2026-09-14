@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionaryStatus;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
@@ -47,6 +48,23 @@ class DraftDictionaryControllerTest {
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);
+    }
+
+    @DisplayName("워크스페이스 기준으로 사전 초안 목록을 조회하면 200과 페이지 응답을 반환한다.")
+    @Test
+    void search() {
+        given(draftDictionaryService.search(any()))
+                .willReturn(new PageResult<>(List.of(draftDictionaryResult()), 0, 20, 1));
+
+        RestAssuredMockMvc.given()
+                .queryParam("workspaceId", 1)
+                .when()
+                .get("/api/draft-dictionaries")
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("content.size()", equalTo(1))
+                .body("content[0].draftDictionaryId", equalTo(100))
+                .body("totalElements", equalTo(1));
     }
 
     @DisplayName("없는 사전 초안을 조회하면 404와 도메인 오류 코드를 응답한다.")

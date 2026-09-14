@@ -12,8 +12,13 @@ export interface Workspace {
   id: WorkspaceId
   name: string
   createdAt: string
-  createdBy: MemberId
-  updatedAt: string
+  /** 실 API(`WorkspaceResponse`, docs/API.md 461행)는 이 필드를 안 내려준다 — 목업 전용. */
+  createdBy?: MemberId
+  /** 마찬가지로 실 API가 안 내려주는 값(목업 전용). */
+  updatedAt?: string
+  /** 요청자의 이 워크스페이스 내 권한. 실 연동에서만 채워진다(OWNER/ADMIN/REGULAR).
+   * 권한 기반 UI 분기(예: ADMIN 이상만 룰셋 수정)는 아직 없음 — T-INT-9 후속 과제. */
+  myPermission?: ParticipantPermission
 }
 
 // 소유자(Owner)/관리자(Admin)/사용자(Regular). docs/DOMAIN.md 정책: Owner와 Admin은 사실상 동급 권한.
@@ -31,14 +36,17 @@ export interface Participant {
 }
 
 export interface RuleSet {
-  id: RuleSetId
+  /** 실 API는 룰셋을 별도 엔티티로 응답하지 않는다 — `WorkspaceResponse`에 두 카운트만
+   * 얹혀 온다(docs/API.md "워크스페이스 룰셋 수정"). id/createdAt/createdBy/updatedAt은
+   * 목업 전용이라 옵셔널로 둔다. */
+  id?: RuleSetId
   workspaceId: WorkspaceId
   /** 승인에 필요한 최소 인원. 0~참여자 수(현재 정원 5) */
   requiredDocumentReviewerCount: number
   requiredDictionaryReviewerCount: number
-  createdAt: string
-  createdBy: MemberId
-  updatedAt: string
+  createdAt?: string
+  createdBy?: MemberId
+  updatedAt?: string
 }
 
 // docs/DOMAIN.md 표에는 workspaceId 필드가 없다(원문 그대로 유지). 실제로 워크스페이스에

@@ -39,7 +39,7 @@ export function SettingsMembersPage() {
                   <Pill tone="neutral">{member.permission}</Pill>
                 </td>
                 <td className="border-b border-border-faint px-4 py-3 text-text-secondary">
-                  {member.joinedAt}
+                  {new Date(member.joinedAt).toLocaleDateString('ko-KR')}
                 </td>
                 <td className="border-b border-border-faint px-4 py-3 text-right">
                   <span

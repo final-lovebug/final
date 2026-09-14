@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchDocumentVersions } from '../api/fetchDocumentVersions'
-import type { DocumentId } from '../../../shared/types/ids'
+import type { DocumentId, WorkspaceId } from '../../../shared/types/ids'
 
-export function useDocumentVersions(documentId: DocumentId) {
+export function useDocumentVersions(workspaceId: WorkspaceId, documentId: DocumentId) {
   return useQuery({
-    queryKey: ['document-versions', documentId],
-    queryFn: () => fetchDocumentVersions(documentId),
+    queryKey: ['document-versions', workspaceId, documentId],
+    queryFn: () => fetchDocumentVersions(workspaceId, documentId),
   })
 }

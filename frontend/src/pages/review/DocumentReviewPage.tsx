@@ -24,7 +24,7 @@ export function DocumentReviewPage() {
   }>()
   const navigate = useNavigate()
   const currentMember = useAuthStore((state) => state.currentMember)
-  const { data: document } = useDocument(documentId)
+  const { data: document } = useDocument(workspaceId, documentId)
   const { data: suggestions } = useSuggestions(documentId)
   const { data: history } = useSuggestionHistory(documentId)
   const { data: members } = useWorkspaceMembers(workspaceId)
