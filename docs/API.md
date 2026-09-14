@@ -1462,13 +1462,14 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
   "occurredDocumentIds": [10, 20],
   "occurrenceCount": 7,
   "contextSnippets": ["회원은 결제수단을 등록할 수 있다."],
-  "variantForms": []
+  "variantForms": [],
+  "type": "SYNONYM"
 }
 ```
 
-`form`만 필수다. `occurrenceCount`는 1 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다. `variantForms`는 선택이다(생략 시 빈 목록).
+`form`만 필수다. `occurrenceCount`는 1 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다. `variantForms`는 선택이다(생략 시 빈 목록). `type`은 사람이 고른 분류(`SYNONYM`·`HOMOGRAPH`·`VARIANT`)이며 **선택이다** — 추출이 만든 후보어에는 분류가 없으므로 비어 있을 수 있다.
 
-응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다. `variantForms`는 추출기가 같은 개념으로 묶어서 돌려준 표기 변형 전체(대표 표기인 `form` 포함)를 담는다 — 추출 파이프라인을 거치지 않고 수동으로 등록·수정한 항목은 보통 빈 배열이다(`D-65`).
+응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다. `variantForms`는 추출기가 같은 개념으로 묶어서 돌려준 표기 변형 전체(대표 표기인 `form` 포함)를 담는다 — 추출 파이프라인을 거치지 않고 수동으로 등록·수정한 항목은 보통 빈 배열이다(`D-65`). `type`은 등록·수정 시 사람이 고른 분류이고 추출 생성분에서는 `null`이다. `createdBy`는 등록자, `handledBy`는 판정을 내린 처리자로 서로 다르다.
 
 ```json
 {
@@ -1481,6 +1482,8 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
   "proposedEnglishName": "PaymentMethod",
   "occurrenceCount": 7,
   "status": "PENDING",
+  "type": "SYNONYM",
+  "createdBy": 7,
   "handledBy": null,
   "rejectReason": null,
   "mergeTargetTermId": null,
@@ -1504,7 +1507,7 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | `size` | `20` | — |
 | `sort` | `occurrenceCount,desc` | `{필드},{asc\|desc}` |
 
-`PATCH /api/candidate-terms/{candidateTermId}`는 `form`·`proposedDefinition`·`proposedEnglishName`을 **선택적으로** 받아 넘어온 필드만 바꾼다. 초안이 `EXAMINING`이면 후보어 상태와 관계없이 수정할 수 있다.
+`PATCH /api/candidate-terms/{candidateTermId}`는 `form`·`proposedDefinition`·`proposedEnglishName`·`type`을 **선택적으로** 받아 넘어온 필드만 바꾼다. 초안이 `EXAMINING`이면 후보어 상태와 관계없이 수정할 수 있다.
 
 `DELETE /api/candidate-terms/{candidateTermId}` → `204 No Content`. **소프트 삭제**이며 이후 조회에서 빠진다.
 

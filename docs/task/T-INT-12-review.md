@@ -79,7 +79,7 @@ review"를 서버가 아니라 프론트가 들고 있는 것), approve/change r
 - [x] `docs/API.md` ReviewRequest 절에 상세 응답 JSON 예시 + `targetId`/
       `reviewerCount` 필드 설명 추가(기존에 예시 자체가 없었음)
 - [x] `docs/plan/CONFLICTS.md`에 `D-63`으로 등재(이 파일의 "결정 사항" 절 요약)
-- [ ] `./gradlew check` 결과 확인 대기(백그라운드 실행 중)
+- [x] `./gradlew check` 통과 확인(2026-09-14, `BUILD SUCCESSFUL` — WLSH-171 세션에서 재실행)
 
 ### 프론트
 - [ ] `api/fetchDocumentReviewRequests.ts` (리뷰 요청 목록) — 위 백엔드 작업
