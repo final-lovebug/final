@@ -109,6 +109,8 @@ Mock은 외부 협력 객체의 결과를 통제해야 할 때만 쓴다 — 외
 
 도메인 모델·값 객체·같은 모듈의 작은 객체까지 mock으로 덮거나, 실제 검증 없이 `verify()` 호출 수에만 집중한 테스트는 지양한다.
 
+**메시지 브로커는 더 이상 mock 대상이 아니다.** LocalStack이 실제 SQS를 준다(`D-71`). `SqsTemplate` mock은 「큐로 나가는 본문을 사람이 눈으로 보는」 빠른 계약 테스트에만 남긴다 — 외부 계약이 되는 메시지는 그 모양 자체가 검증 대상이라 **계약 문서의 예시 JSON과 문자열 수준으로 맞춘다.**
+
 ## DB 테스트 독립 환경 설정
 
 각 테스트의 독립적인 환경은 **`DbCleaner`가 테이블을 비우는 방식**으로 만든다. **개별 테스트에 `@Transactional`을 붙이지 않는다.** `support/IntegrationTestSupport`(`@ActiveProfiles("test")` + `@Import({TestcontainersConfiguration.class, DbCleaner.class})` + `@SpringBootTest(webEnvironment = NONE)` + `@BeforeEach dbCleaner.clean()`)를 상속하면 매 테스트 전에 정리된다.
@@ -122,6 +124,16 @@ Mock은 외부 협력 객체의 결과를 통제해야 할 때만 쓴다 — 외
 `DbCleaner`는 엔티티 메타모델이 아니라 `information_schema`에서 실제 테이블을 읽어 `truncate`한다. Flyway 이력 테이블은 지우지 않는다 — 지우면 다음 컨텍스트에서 마이그레이션이 다시 돌아 스키마가 어긋난다.
 
 > **테스트 전용 엔티티를 만들지 않는다.** 스키마는 Flyway 마이그레이션이 만들고 실제 운영 스키마와 같은 형태에서 매핑을 검증한다. 예외는 `BaseEntityAuditingTest` 하나이며 그 테스트만 `flyway.enabled=false` + `ddl-auto=create-drop`을 쓴다.
+
+## 큐 테스트 독립 환경 설정
+
+외부 큐를 거치는 경로는 **LocalStack을 Testcontainers로 띄워 실제 메시지로** 검증한다(`D-71`). 인메모리 대역으로는 직렬화·큐 이름·계약 필드·at-least-once 재수신이 검증되지 않는데, 그것이 정확히 이 경로의 위험이다.
+
+- **컨테이너는 `TestcontainersConfiguration`에 둔다.** 별도 `@TestConfiguration`으로 떼면 「큐가 필요한 테스트」와 아닌 테스트의 Spring 컨텍스트가 갈리고, **컨텍스트가 갈리면 MySQL·Redis·LGTM까지 한 벌 더 뜬다.** 컨테이너 하나를 더 띄우는 비용이 훨씬 싸다.
+- **큐는 미리 만들지 않는다.** `spring.cloud.aws.sqs.queue-not-found-strategy: create`로 첫 접근에 만든다 — 초기화 스크립트와 리스너 컨테이너 기동의 순서 경합을 없앤다(`D-74`).
+- **컨테이너 재사용(`withReuse`)을 켜지 않는다.** 머신마다 opt-in이라 CI와 로컬의 동작이 갈리고, 무엇보다 **큐가 실행 사이에 살아남아 지난 실행의 메시지가 다음 실행의 첫 테스트를 때린다.**
+- **`PurgeQueue`를 쓰지 않는다.** 실 AWS는 60초에 한 번만 허용해 같은 코드가 AWS에서 돌지 않는다. 비워야 한다면 짧은 폴링으로 받아 지운다.
+- 기본은 인프로세스 대역이고 **실제 큐를 보는 테스트만 `@TestPropertySource`로 켠다.** 전 테스트가 큐를 롱폴하면 빌드가 느려지고 결과가 타이밍에 휘둘린다.
 
 ## 계층별 테스트
 
@@ -138,6 +150,7 @@ RestAssuredMockMvc.given().contentType(ContentType.JSON).body(request)
 ```
 
 - Service는 mock 처리하고 Controller의 HTTP 계약에 집중한다. 복잡한 비즈니스 성공/실패 조합은 Service 테스트에서 검증한다.
+- **인증 주체가 없는 엔드포인트(`/api/internal/**`)는 principal을 주입하지 않는 것 자체가 검증이다.** `@WithLoginMember` 없이 호출해 동작해야 하고, 그 경로가 실제로 열려 있는지는 `SecurityConfigTest`가 본다 — **permitAll 범위가 넓어지지 않았다는 반대편 케이스도 함께 둔다.**
 
 ### Service 테스트
 
@@ -157,7 +170,8 @@ Integration 테스트는 **여러 도메인과 여러 레이어가 실제로 물
 - **한 도메인에 속하는 시나리오는 그 도메인 패키지에 둔다.** 대조·추출의 비동기 완료처럼 주인이 분명한 것이 여기 해당한다.
 - **주인이 없는 시나리오는 `com.ubidict.backend.scenario` 패키지에 둔다.** 워크스페이스 → 문서 → 추출 → 사전 초안 → 리뷰 → 사전집 발행처럼 여섯 도메인을 관통하는 흐름은 어느 도메인의 것도 아니다.
 - **서비스 진입점만으로 시나리오를 엮는다.** 리포지토리에 직접 seeding하면 그 지점의 정책 검증과 이벤트 발행을 건너뛰어, 배선이 끊겨 있어도 초록이 된다.
-- `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` 경로를 기다릴 때는 폴링으로 확인한다. 대기 상한을 두고, 넘으면 실패시킨다.
+- **비동기 경로를 기다릴 때는 Awaitility로 상한을 걸고 기다린다.** `Thread.sleep` 폴링 루프를 새로 만들지 않는다 — 손으로 쓴 루프는 타임아웃 시 마지막 상태를 조용히 반환해 무엇을 기다리다 실패했는지가 남지 않는다. **대기 상한은 한 상수에 둔다**(`support/AsyncWaits`) — 복제해 두면 한 번에 조정할 수 없다(`D-72`).
+- **외부 워커가 필요한 경로는 테스트 전용 가짜 워커가 대신한다**(`D-71`). 실제 큐를 읽고 정해진 시나리오(성공·실패·중복·무응답)로 콜백 경로를 부른다. 콜백의 HTTP 계약은 Controller 테스트가, permitAll 범위는 `SecurityConfigTest`가 따로 보므로 여기서 HTTP를 타지 않아도 된다.
 
 ## **테스트 데이터 정리**
 
