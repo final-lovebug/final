@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/httpClient'
+import { fetchMemberNames } from '../../../shared/api/memberNames'
 import type { CandidateTermListItem } from '../model/fixtures'
 import type { WorkspaceId } from '../../../shared/types/ids'
 import {
@@ -7,12 +8,6 @@ import {
   type CandidateTermApiResponse,
   type PageResponse,
 } from './candidateTermApi'
-
-interface MemberSummaryApiItem {
-  memberId: number
-  displayName: string
-  email: string
-}
 
 // 실제 백엔드 연동(docs/API.md "후보어 등록·수정·삭제·목록").
 //
@@ -35,21 +30,11 @@ export async function fetchCandidates(
   )
   if (response.content.length === 0) return []
 
-  const nameByMemberId = await fetchOwnerNames(response.content)
+  const nameByMemberId = await fetchMemberNames(response.content.map((c) => c.createdBy))
   return response.content.map((candidate) =>
     toListItem(
       candidate,
       candidate.createdBy === null ? '—' : (nameByMemberId.get(candidate.createdBy) ?? '—'),
     ),
   )
-}
-
-async function fetchOwnerNames(
-  candidates: CandidateTermApiResponse[],
-): Promise<Map<number, string>> {
-  const ids = [...new Set(candidates.map((c) => c.createdBy).filter((id) => id !== null))]
-  if (ids.length === 0) return new Map()
-
-  const summaries = await httpClient.get<MemberSummaryApiItem[]>(`/api/members?ids=${ids.join(',')}`)
-  return new Map(summaries.map((summary) => [summary.memberId, summary.displayName]))
 }
