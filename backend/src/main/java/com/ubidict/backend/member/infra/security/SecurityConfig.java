@@ -23,6 +23,11 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * 인증을 요구한다(9/9 확정). Swagger UI·actuator는 로컬 개발 편의를 위해 열어둔 실무 판단이며,
  * 도메인 정책 문서에 근거를 둔 결정은 아니다 — 배포 환경 노출 여부는 별도로 검토한다.
  *
+ * <p>{@code /api/internal/**}은 AI 워커(FastAPI)가 작업 결과를 돌려주는 서버-투-서버 경로다. 회원
+ * principal이 없으므로 인증을 요구할 수 없고, 대신 <b>작업마다 발행되는 1회용 상관 식별자를 본문에서 받아
+ * 작업 행의 값과 대조</b>한다(D-70). 이것만으로는 {@code NFR-AI-002}가 충족되지 않는다 — 배포 시
+ * 보안 그룹·인그레스로 워커 출발지만 이 경로에 닿게 제한해야 한다.
+ *
  * <p>{@code /oauth2/**}(로그인 시작)와 {@code /login/oauth2/**}(Google 콜백)도 인증 전
  * 단계라 permitAll이다. 로그인 성공/실패는 세션이 아니라
  * {@link GoogleOAuth2LoginSuccessHandler}/{@link GoogleOAuth2LoginFailureHandler}가 프론트엔드
@@ -66,6 +71,8 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml")
                         .permitAll()
                         .requestMatchers("/actuator/**")
+                        .permitAll()
+                        .requestMatchers("/api/internal/**")
                         .permitAll()
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")

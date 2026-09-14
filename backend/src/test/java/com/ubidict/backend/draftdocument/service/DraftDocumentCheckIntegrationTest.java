@@ -16,18 +16,22 @@ import com.ubidict.backend.draftdocument.infra.CheckJobRepository;
 import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import com.ubidict.backend.draftdocument.service.model.CheckJobResult;
 import com.ubidict.backend.draftdocument.service.model.CreateCheckJobCommand;
+import com.ubidict.backend.support.AsyncWaits;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Workspace;
 import com.ubidict.backend.workspace.fixture.ParticipantFixture;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
 import com.ubidict.backend.workspace.infra.ParticipantRepository;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
-import java.time.Duration;
-import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+/**
+ * 워커가 없는 환경의 기본 경로. 인프로세스 대역이 빈 결과로 작업을 끝낸다(D-74).
+ *
+ * <p>실제 큐를 거치는 왕복은 {@code DraftDocumentCheckWorkerRoundTripTest}가 본다.
+ */
 class DraftDocumentCheckIntegrationTest extends IntegrationTestSupport {
 
     private static final Long MEMBER_ID = 7L;
@@ -58,15 +62,19 @@ class DraftDocumentCheckIntegrationTest extends IntegrationTestSupport {
 
     @DisplayName("대조 요청 트랜잭션이 커밋되면 비동기로 초안을 만들고 작업을 완료한다.")
     @Test
-    void request_completesAfterCommit() throws InterruptedException {
+    void request_completesAfterCommit() {
         Long documentId = saveCheckTarget();
 
         CheckJobResult requested = checkService.request(new CreateCheckJobCommand(documentId, MEMBER_ID));
-        CheckJob completed = waitForTerminal(requested.checkJobId());
 
-        assertThat(completed.getStatus()).isEqualTo(CheckJobStatus.SUCCEEDED);
-        assertThat(completed.getDraftDocumentId()).isNotNull();
-        assertThat(draftDocumentRepository.findByIdAndDeletedAtIsNull(completed.getDraftDocumentId()))
+        AsyncWaits.awaitInProcess().untilAsserted(() -> {
+            CheckJob completed = job(requested.checkJobId());
+            assertThat(completed.getStatus()).isEqualTo(CheckJobStatus.SUCCEEDED);
+            assertThat(completed.getDraftDocumentId()).isNotNull();
+        });
+
+        assertThat(draftDocumentRepository.findByIdAndDeletedAtIsNull(
+                        job(requested.checkJobId()).getDraftDocumentId()))
                 .isPresent();
     }
 
@@ -94,16 +102,7 @@ class DraftDocumentCheckIntegrationTest extends IntegrationTestSupport {
         return document.getId();
     }
 
-    private CheckJob waitForTerminal(Long checkJobId) throws InterruptedException {
-        Instant deadline = Instant.now().plus(Duration.ofSeconds(5));
-        while (Instant.now().isBefore(deadline)) {
-            CheckJob checkJob =
-                    checkJobRepository.findByIdAndDeletedAtIsNull(checkJobId).orElseThrow();
-            if (!checkJob.isInProgress()) {
-                return checkJob;
-            }
-            Thread.sleep(50);
-        }
+    private CheckJob job(Long checkJobId) {
         return checkJobRepository.findByIdAndDeletedAtIsNull(checkJobId).orElseThrow();
     }
 }

@@ -67,6 +67,12 @@ class SecurityConfigTest {
         RestAssuredMockMvc.given().when().get("/api/auth/ping").then().statusCode(HttpStatus.OK.value());
     }
 
+    @DisplayName("/api/internal/** 는 토큰 없이도 호출할 수 있다.")
+    @Test
+    void permitAll_internal() {
+        RestAssuredMockMvc.given().when().get("/api/internal/ping").then().statusCode(HttpStatus.OK.value());
+    }
+
     @DisplayName("토큰 없이 보호된 API를 호출하면 401 AUTH_TOKEN_MISSING을 응답한다.")
     @Test
     void protectedEndpoint_withoutToken() {
@@ -214,6 +220,12 @@ class SecurityConfigTest {
 
         @GetMapping("/api/protected/ping")
         String protectedPing() {
+            return "pong";
+        }
+
+        /** AI 워커 콜백 자리. 인증 주체 없이 필터 체인을 통과해야 한다(D-69). */
+        @GetMapping("/api/internal/ping")
+        String internalPing() {
             return "pong";
         }
 

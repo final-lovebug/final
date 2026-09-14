@@ -20,7 +20,9 @@
 | `D-47`~`D-54` | **Notification 도메인 세션(2026-09-13)이 확정한 결정** | 전역 | 이 문서 3-2절 |
 | `D-55`~`D-61` | **RevisionLog 도메인 세션(2026-09-13)이 확정한 결정** | 전역 | 이 문서 3-3절 |
 | `D-62`~`D-65` | **FE↔BE 통합(트랙 A) 세션(2026-09-14)이 확정한 결정** | 전역 | 이 문서 3-4절 |
+| `D-66`~`D-78` | **AI 워커 전환 세션(2026-09-14)이 확정한 결정** | 전역 | 이 문서 3-5절 |
 | `R-1`~`R-24` | **큰 흐름이 뒤집은 기존 결정** | 전역 | 이 문서 4절. 문서 수정이 구현보다 앞선다 |
+| `R-25`~`R-30` | **AI 워커 전환이 뒤집은 결정** | 전역 | 이 문서 4-4절 |
 | `F-1`~`F-6` | 뒤집힘이 만든 새 과제 | 전역 | 이 문서 5절 |
 | `X-*` | 문서 ↔ 문서 충돌 | 전역 | 이 문서 6절 |
 | `Y-*` | 문서 ↔ 코드 충돌 | 전역 | 이 문서 7절 |
@@ -30,7 +32,7 @@
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다.
 
-**새 결정 ID는 `D-66`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
+**새 결정 ID는 `D-79`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
 
 ### `D-1`~`D-18` 색인 — 이 문서 밖에 정의된 결정
 
@@ -227,7 +229,40 @@
 | **D-65** | **`CandidateTerm`/`ExtractedTerm`에 `variantForms`를 추가해 추출기의 그룹핑 정보를 보존한다(Direction A).** ubidict-py `ExtractResponse.candidates[]`의 `GroupCandidate.forms`는 같은 개념의 여러 표기를 한 그룹으로 묶어 돌려주지만, 백엔드 `CandidateTerm`(한 행 = 한 표기)·`ExtractedTerm`(포트 레코드, `form: String` 단수)은 그룹핑 개념이 없어 `DraftDictionaryExtractionExecutionService.complete()`에서 대표 표기 하나만 남고 나머지는 유실되는 구조였다. 대안(B: 영구 평탄화 후 사후 `synonym-merge`로만 대응) 대신 **A: `variantForms: List<String>`을 두 타입에 추가해 그룹 전체를 끝까지 보존**하기로 확정 — 대표 표기 변경은 기존 `edit(form, ...)`로 충분하며 `variantForms` 자동 동기화 같은 추가 로직은 넣지 않는다. 기존 호출부 21곳은 하위호환 오버로드(레코드는 위임 보조 생성자, 도메인은 오버로드 팩토리)로 무수정 유지. 프론트에서 그룹으로 묶어 보여주는 화면은 T-INT-11 프론트 파트의 후속 과제 — 이번엔 데이터 유실을 막는 백엔드 스키마·API 확장까지만 | T-INT-11(백엔드) |
 
 ---
-## 4. 큰 흐름이 뒤집은 기존 결정 (`R-1`~`R-24`)
+
+---
+
+## 3-5. AI 워커 전환 세션이 확정한 결정 (`D-66`~`D-78`)
+
+2026-09-14. `D-35`가 「계약과 워커 스텁까지만」으로 미뤄 둔 자리를 **실제 외부 워커로 채운다.** 추출·대조가 같은 JVM에서 스텁을 부르고 스스로 완료하던 마지막 가짜 경로가 사라지고, `REQ-AI-001`(Spring ↔ FastAPI 계약)이 처음으로 산출물을 갖는다.
+
+**이번 범위는 백엔드 코드와 계약 문서까지다.** FastAPI 워커 구현은 이 저장소 밖이다 — 워커가 뜨기 전에는 `dispatch.mode=sqs`인 환경에서 작업이 `PENDING`·`RUNNING`에 머문다.
+
+> **전환이 드러낸 기존 결함 하나를 함께 고쳤다.** 두 실행 리스너는 `@TransactionalEventListener`만 쓰는데 `app.messaging.mode=sqs`(=prod)에서는 `SqsEventPublisher`가 `ApplicationEvent`를 발행하지 않는다. 즉 **운영에서는 두 리스너가 한 번도 호출되지 않아 모든 작업이 영구 `PENDING`에 갇혀 있었다.** `D-66`가 LLM 경로를 `app.messaging.mode`와 분리하면서 이 결함이 소멸한다.
+
+| ID | 확정 내용 | 해소 |
+| --- | --- | --- |
+| **D-66** | **추출·대조의 실행 주체를 인프로세스 리스너에서 외부 FastAPI 워커로 옮긴다.** 접수는 그대로 작업 행을 `PENDING`으로 넣고 `202`로 끝나지만, 커밋 뒤 리스너가 하는 일이 **실행이 아니라 발행**으로 바뀐다. `TermExtractorPort`·`TermCheckerPort`와 두 스텁 어댑터, `app.ai.extractor.mode`·`app.ai.checker.mode`를 **제거한다** — 감출 대상이 프로세스 경계 밖으로 나가 인터페이스가 남을 자리가 없다. **상태 조회는 폴링 그대로다**(`D-34`) — 바뀐 것은 누가 상태를 전이시키는가뿐이다 | `D-35`의 「계약 + 워커 스텁까지만」 종료. `R-26`·`R-27` 발생 |
+| **D-67** | **LLM 요청은 도메인 이벤트 큐와 분리된 전용 큐를 쓴다**(`app.messaging.sqs.llm-request-queue`). 근거 셋 — ① 소비자가 우리 코드가 아니라 `EventEnvelope` 규약(`eventType`이 Java 클래스 단순명)을 외부에 강요할 수 없고, 클래스를 리팩터링하는 순간 계약이 깨진다 ② 도메인 이벤트는 짧고 잦은 반면 LLM 요청은 크고 드물어 가시성 타임아웃·DLQ 정책이 정반대다 ③ 한 큐를 쓰면 FastAPI가 남의 메시지를 계속 받아 흘려보내야 한다 | `application.yml`에 주석으로 잠들어 있던 키를 깨운다(`Y-32`). `R-28` 발생 |
+| **D-68** | **완료·실패 통보는 응답 큐가 아니라 동기 HTTP 콜백이다.** `llm-reply-queue` 키를 되살리지 않고 **지운다.** 결과를 쓰는 쪽은 트랜잭션 하나로 끝나는 서비스라 컨슈머·중복 방어·역직렬화를 한 벌 더 만들 이유가 없고, 워커가 2xx를 눈으로 확인해 재시도를 결정할 수 있다. 대가는 **백엔드가 떠 있지 않으면 결과가 유실된다**는 것이고, 워커의 재시도와 `D-77`의 회수가 막는다 | `NFR-AI-004` |
+| **D-69** | **요청 메시지는 식별자만 싣고 워커가 DB를 직접 읽는다.** 문서 본문 상한이 10,000자라 여러 건을 담으면 SQS 표준 한도 256KB를 넘고, S3 claim-check를 쓰려면 `NFR-INF-004`가 걷어낸 S3가 되살아난다. 덧붙여 발행 트랜잭션이 롤백돼 유령 메시지가 남아도 콜백이 404로 끝날 뿐 아무것도 오염시키지 않는다. **대가는 스키마 결합이다** — `document`·`document_version`·`dictionary_term`을 두 서비스가 함께 읽으므로, 워커 전용 읽기 계정과 계약 문서의 테이블 목록으로 완화한다 | `REQ-AI-001` |
+| **D-70** | **콜백 인증은 발행마다 만드는 UUIDv4(`requestId`)의 왕복 대조다.** 작업 행에 저장해 두고 콜백이 같은 값을 돌려주지 못하면 403이다. 작업 하나에만 쓰이는 1회용 토큰이라 전역 공유 시크릿보다 새어 나갔을 때의 피해가 작고, 발급·회전 운영이 필요 없다(`NFR-AI-003`이 요구하는 것이 그것이다). 비교는 `MessageDigest.isEqual`로 한다. 같은 값이 `docs/LOG.md`가 요구하는 correlation id를 겸한다 | `NFR-AI-002`. `X-22`. `R-29` 발생 |
+| **D-71** | **요청 메시지의 `mode`(`STUB`·`REAL`)가 워커의 LLM 호출 여부를 정한다.** `STUB`이면 워커는 모델을 부르지 않고 임의 시간을 기다린 뒤 목 데이터를 돌려준다 — 비용 없이 전 구간 왕복을 확인하기 위한 것이다. **백엔드는 이 값으로 분기하지 않는다** — 실어 보내기만 한다 | `NFR-INF-005` |
+| **D-72** | **콜백은 멱등하고, 종단 상태에 도착한 지각 콜백은 무시하며 그 경우에도 2xx로 답한다.** 같은 성공 콜백이 두 번 와도 초안은 하나이고, `SUCCEEDED`인 작업에 실패 콜백이 늦게 와도 성공을 뒤집지 않는다. **4xx로 답하면 워커가 영원히 재시도한다** — 가드가 없으면 두 번째 성공 콜백이 「진행 중인 초안이 있다」는 409로 튕겨 정확히 그 일이 일어난다 | `D-53`·`NFR-MSG-003` |
+| **D-73** | **콜백 응답 코드가 워커의 재시도 여부를 정한다.** 4xx(없는 작업 404·상관 식별자 불일치 403·본문 검증 400·결과 거절 409)는 **재시도 금지**, 5xx와 타임아웃만 재시도한다. 계약 문서가 이 표를 갖고 컨트롤러 테스트가 상태 코드를 못 박는다 — 표만 있고 테스트가 없으면 코드가 조용히 어긋난다 | `NFR-AI-004` |
+| **D-74** | **프로파일 축은 셋이다** — `local`은 인프로세스 대역, `dev`는 LocalStack, `prod`는 실 SQS. 선택은 `app.ai.dispatch.mode`(`in-process`·`sqs`)이며 **`app.messaging.mode`와 독립**이다. 도메인 이벤트 버스의 2-어댑터 선택(`D-24`·`D-52`)은 그대로 둔다 — 범위를 넓히면 Notification·RevisionLog의 수신 경로까지 한 번에 흔들린다. 인프로세스 대역은 빈 결과를 돌려준다(전환 이전 스텁과 같다) — 그럴듯한 목 데이터를 지어내면 로컬에서 통과한 것이 실제 워커에서 검증에 걸린다 | `R-25` 발생 |
+| **D-75** | **테스트에서 FastAPI의 자리는 `@SqsListener` 가짜 워커가 대신하고, LocalStack을 Testcontainers로 띄운다.** 인메모리 대역을 두지 않는 이유는 **대역이 검증하지 못하는 것이 정확히 이번 변경의 위험**이기 때문이다 — 직렬화, 큐 이름, 계약 필드, at-least-once 재수신. 컨테이너는 `TestcontainersConfiguration`에 넣는다. 별도 `@TestConfiguration`으로 떼면 Spring 컨텍스트가 갈리고, 컨텍스트가 갈리면 MySQL·Redis·LGTM까지 한 벌 더 뜬다 | `TEST.md` |
+| **D-76** | **비동기 대기는 Awaitility로 통일하고 상한을 한 상수에 둔다.** 손으로 쓴 5초 데드라인 폴링이 세 곳에 복제돼 있었고, 대기 구간이 「같은 JVM의 한 홉」에서 「커밋 → 큐 발행 → 롱폴 수신 → 워커 → 콜백 → 커밋」으로 길어졌다. 기존 `waitForTerminal`은 타임아웃 시 마지막 상태를 조용히 반환해 실패 원인이 흐려졌다. **새 의존성이 아니다** — `spring-boot-starter-test`가 이미 `awaitility`를 끌어온다 | `Y-33` |
+| **D-77** | **콜백이 끝내 오지 않은 작업은 `@Scheduled` 스위퍼가 회수한다.** 정책 완화로 때우지 않는다. 이것이 없으면 고아 작업 하나가 **워크스페이스 전체의 추출**(또는 그 문서의 대조)을 영구히 막고, 리포지토리에 상태로 긁는 수단이 없어 운영자가 SQL 없이는 손댈 수도 없다. 기준은 `updatedAt`이며 `PENDING`과 `RUNNING`을 같은 시계로 잰다. 실패 전이가 멱등이라 **다중 인스턴스가 동시에 쓸어도 안전하다** — 락을 걸지 않는다. `app.ai.timeout.job`은 **가시성 타임아웃 × maxReceiveCount 보다 커야 한다** | `NFR-MSG-005` |
+| **D-78** | **테스트의 큐는 미리 만들지 않고 `queue-not-found-strategy: create`로 첫 접근에 만든다.** 초기화 스크립트와 리스너 컨테이너 기동의 순서 경합을 없앤다. **`prod`는 기본값(`fail`)을 유지한다** — 큐 이름을 틀린 채 조용히 새 큐가 생기는 사고를 막는다 | `NFR-MSG-004` |
+
+> **`app.messaging.mode`는 이번 범위가 아니다.** 도메인 이벤트 버스는 로컬·테스트에서 계속 인메모리이고, LocalStack은 **LLM 요청 큐 전용**이다.
+
+---
+
+---
+
+## 4. 뒤집힌 기존 결정 (`R-1`~`R-30`)
 
 모두 기존 문서에 「확정」으로 적혀 있던 것이다. 루트 `CLAUDE.md`의 "결정이 바뀌면 코드보다 문서를 먼저 갱신한다"에 따라 **`T-DOC-1`(9절)이 모든 구현보다 앞선다.**
 
@@ -274,6 +309,19 @@
 
 ---
 
+### 4-4. AI 워커 전환이 뒤집은 결정 (`R-25`~`R-30`)
+
+| ID | 뒤집힌 결정 | 출처 | 대체 |
+| --- | --- | --- | --- |
+| **R-25** | `D-24` 「메시징: **로컬·테스트는 인메모리 어댑터**, AWS 배포는 SQS」 | 이 문서 3절 | **LLM 요청 큐에 한해** `dev`는 LocalStack, `prod`는 실 SQS다(`D-74`). 도메인 이벤트 버스의 `app.messaging.mode` 2-어댑터 선택은 그대로 유효하다 |
+| **R-26** | `D-35` 「LLM 호출은 `TermExtractorPort`·`TermCheckerPort` 뒤에 있고, **service는 이 포트를 주입받지 않는다 — 포트는 이벤트 핸들러만 안다**」 | 이 문서 3-1절 | **포트와 스텁을 통째로 제거한다**(`D-66`). 「service가 LLM을 동기 호출하지 않는다」는 **규칙 자체는 더 강해진다** — 이제 물리적으로 불가능하다 |
+| **R-27** | `D-35` 「실행은 `@TransactionalEventListener(AFTER_COMMIT)` + `@Async`가 맡는다」 | 이 문서 3-1절 | **리스너는 남지만 하는 일이 실행이 아니라 발행이다**(`D-66`). 커밋 뒤에 보내야 워커의 콜백이 아직 보이지 않는 작업 행을 치지 않는다. 요청 이벤트는 `EventPublisher`가 아니라 인프로세스 발행기를 타야 한다 — 버스로 보내면 SQS 모드에서 리스너가 호출되지 않는다 |
+| **R-28** | `D-52` 「봉투의 본문은 해석하지 않은 JSON으로 싣고 타입 이름만 알린다. **역직렬화 대상은 구독 도메인이 정한다**」 | 이 문서 3-2절 | **LLM 요청 큐에는 적용하지 않는다**(`D-67`). 구독자가 우리 코드가 아니므로 봉투 대신 `contractVersion`을 가진 명시적 계약 DTO를 싣는다. 도메인 이벤트 큐의 봉투 규약은 그대로다 |
+| **R-29** | `docs/API.md` «요청자 식별» 「**요청 파라미터나 요청 본문으로 요청자를 받는 엔드포인트는 없다**」 + 모든 `/api/**`가 인증 대상 | `docs/API.md` / `SecurityConfig` | **콜백은 인증 주체가 없는 유일한 업무 API다**(`D-69`·`D-70`). 다만 **요청자를 본문으로 받지도 않는다** — 행위의 주체는 작업 행의 `requestedBy`이므로 「요청자를 클라이언트가 참칭하지 못한다」는 원칙의 취지는 유지된다 |
+| **R-30** | `NFR-MSG-002` 비고 「로컬 인메모리 경로는 `AFTER_COMMIT`이 원자성을 대신하므로 **MVP1 로컬에서는 유예**」 | `docs/REQUIREMENTS.md` | `dev`부터 실제 큐라 「커밋은 됐는데 발행이 실패」가 로컬에서도 일어난다. 다만 **Outbox를 지금 만들지 않는다** — 발행 실패를 ERROR로 남기고 작업을 실패로 끝내 재요청 가능하게 하는 것까지가 MVP1이고, 자동 복구는 MVP2다 |
+
+---
+
 ## 5. 뒤집힘이 만든 새 과제 (`F-1`~`F-6`)
 
 | ID | 과제 | 확정 |
@@ -312,6 +360,8 @@
 | **X-19** | `D-*` 결정 ID가 3개 문서 전역 공유(`D-1`~`D-18`)여서 신규 문서가 같은 번호를 쓰면 충돌한다 | 3개 계획 문서 2-1절 | `D-19`부터 이어 붙인다. 새 결정은 `D-33`부터 | 해소(1절) |
 | **X-20** | **`DraftDictionary.dictionaryId`가 필수(`O`)인데 첫 회차에는 가리킬 사전집이 없다.** `DOMAIN.md` «사전집 생성 주기»는 첫 사전집이 초안 → 리뷰 → 발행으로 태어난다고 규정하므로, 그 초안에는 `dictionaryId`가 존재할 수 없다 | `DOMAIN.md` `DraftDictionary` 표 / `DOMAIN.md` «사전집 생성 주기» | **`G-1`의 직접 귀결이라 nullable로 정정했다**(`T-DOC-1` 실행 중 발견). 발행은 `workspaceId`로 「이 워크스페이스의 다음 버전」을 만들며, `DictionaryService.appendNextVersion`이 이미 첫 버전과 다음 버전을 한 경로로 다룬다 | 해소 |
 | **X-21** | **어댑터 배치가 두 문서에서 반대다.** `ARCHITECTURE.md` «크로스 도메인 조회 — 포트와 어댑터»는 「어댑터도 **소비 도메인**이 구현한다. `{소비도메인}/infra/adapter/`에 두고 제공 도메인의 `infra`만 참조한다」이고, `DICTIONARY_PLAN.md` 9절 «어댑터 배치»는 「어댑터는 `dictionary/infra/adapter/`에 두고 **스텁은 소비 도메인이 갖는다**」이다. **코드가 양쪽을 섞어 따랐다** — `DOC-1`의 `document/infra/adapter/DictionaryQueryAdapter`는 소비 측, `DIC-4`의 어댑터 2개와 `WS-4`의 `WorkspacePolicyAdapter`는 제공 측 | `ARCHITECTURE.md` «크로스 도메인 조회» / `DICTIONARY_PLAN.md` 9절 / `infra/adapter/` 6개 | 절 제목이 「조회」인 것이 답이다. **조회는 소비 도메인, 발행 위임은 제공 도메인**으로 가른다 | 해소(`D-33`) |
+| **X-22** | **`NFR-AI-002`의 「내부 서비스 토큰(또는 네트워크 격리)」와 `SecurityConfig`의 「`/api/**`는 모두 인증」·`API.md` «요청자 식별»이 부딪힌다.** 워커가 결과를 돌려줄 콜백에는 회원 principal이 없어 어느 쪽도 그대로 적용할 수 없다 | `REQUIREMENTS.md` `NFR-AI-002` / `SecurityConfig` / `docs/API.md` «요청자 식별» | **작업별 1회용 상관 식별자 + 네트워크 격리**로 해소했다(`D-70`). 경로를 `/api/internal/**` 하나로 모아 매처와 인그레스 규칙이 같은 줄을 가리키게 한다 | 해소(`D-70`) |
+| **X-23** | **`REQ-EXT-008`·`REQ-MSG-001`이 「완료」인데 그 완료를 만든 실행 경로가 통째로 교체된다** | `REQUIREMENTS.md` | **상태를 되돌리지 않는다.** 두 요구사항의 내용은 「작업 ID로 진행 상태를 폴링 조회」이고 그 계약은 하나도 바뀌지 않았다 — 바뀐 것은 상태를 누가 전이시키는가다. `NFR-MSG-003`이 구현 수단을 Redis SETNX에서 DB 유니크로 통째로 바꾸고도 「완료」를 유지하며 비고에 근거를 적은 선례를 따른다 | 해소 |
 
 ---
 
@@ -350,6 +400,8 @@
 | **Y-29** | **승계 용어의 정의가 사라지고 발행이 터진다.** `DraftDictionaryWriter.create`가 `TermSnapshot(termId, preferredForm, englishName, **definition**)`을 읽고도 `CandidateTerm.createExisting(draftDictionaryId, sourceTermId, form, english, createdBy)`에 **definition을 넘길 자리가 없어 버린다.** 그 결과 ① 교정 화면에서 이전 사전집의 정의를 볼 수 없고 ② `EXISTING`/`KEPT` 후보의 `proposedDefinition`이 항상 `null`이라 `readFinalTerms`가 그대로 실어 보내면 `Term.create`가 「정의는 비어 있을 수 없다」로 거절한다(`Term.definition`은 `@Column(nullable = false)`). **`G-1` 통합 모델의 「사전집이 있는 경우」 회차가 통째로 막힌다** | `DraftDictionaryWriter` / `CandidateTerm.createExisting` / `Term.create` | `createExisting`에 `definition`을 더하고 `DraftDictionaryWriter`가 `term.definition()`을 넘긴다. **판정 시점에 정의가 빈 항목을 걸러내는 것은 `DI-3`의 몫**이다 — 사용자가 정의 없이 등재 승인하면 같은 지점에서 터진다 | 선행 PR(즉시) + `DI-3` |
 | **Y-30** | **문서 편집마다 `draft_dictionary` 전체를 읽는다.** `document/infra/adapter/DraftDictionaryQueryAdapter.isSourceOfOngoingDraft`가 `findAll().stream()`으로 전체를 메모리에 올려 거른다(`DOC-5`). 스텁이 걸려 있는 동안은 실행되지 않았으나 **선행 PR이 `app.crossdomain.draft-dictionary.mode`를 `real`로 올리면서 live가 됐다** | `DraftDictionaryQueryAdapter` / `DOC-5` | `sourceDocumentIds`가 `@ElementCollection`이므로 `join`을 쓰는 `@Query`로 바꾼다. 활성화한 쪽이 선행 PR이므로 거기서 함께 고친다 | 선행 PR(즉시) |
 | **Y-31** | **초안에서 리뷰 요청을 만드는 경로가 없다.** `ReviewRequestService.create`·`RevisionService.submitDocument`·`submitDictionary`의 호출부가 `backend/src/main` 전체에서 **0곳**이다. `review-req-phase-4`가 INTERNALIZE 3건을 제거했지만 `REVIEW_REQUEST_PLAN.md` 7절이 대체로 지목한 `POST /api/draft-documents/{id}/review-request`·`POST /api/draft-dictionaries/{id}/review-request`를 구현하지 않았다. `draftdictionary`의 같은 경로는 초안 상태만 바꾸는 반쪽이고(`docs/API.md`가 「실제 `ReviewRequest` 생성은 ReviewRequest 도메인의 이벤트 소비자가 담당」이라 적었으나 **그 소비자가 없다**), DraftDocument 쪽은 엔드포인트 자체가 없다. **사전집 v1도 문서 갱신도 API로 완주할 수 없다** | `ReviewRequestService`·`RevisionService` / `REVIEW_REQUEST_PLAN.md` 7절 515~517행 / `docs/API.md` 1105·1458행 | `reviewrequest`가 두 경로를 소유하고 리뷰 준비 판정은 초안 도메인에 위임한다 | **`T-INT-5`**(`D-44`) |
+| **Y-32** | **`application.yml`의 LLM 큐 주석이 스스로 낡았다.** 「`DD-5`(문서 대조)·`DI-5`(용어 추출) 워커가 들어올 때 주석을 푼다」고 적혀 있는데 **그 둘은 이미 머지됐다.** 큐는 AWS에 프로비저닝돼 있으나 읽는 코드가 없었다 | `application.yml` / `application-prod.yml` | `llm-request-queue`만 깨우고 `llm-reply-queue`는 지운다 — 완료 통보가 큐가 아니라 HTTP 콜백이기 때문이다(`D-68`) | 해소(`D-67`·`D-68`) |
+| **Y-33** | **`NotificationEventWiringTest` javadoc의 「Awaitility 의존성을 더하지 않고 짧게 폴링한다」가 사실과 다르다.** `spring-boot-starter-test`가 이미 `org.awaitility:awaitility`를 끌어온다 | `NotificationEventWiringTest` javadoc / `testRuntimeClasspath` | 주석만 고치면 된다. **Notification 도메인 파일이므로 이번 전환에서 건드리지 않고** 해당 도메인 작업에 넘긴다 | 기록 |
 
 ---
 
@@ -394,10 +446,12 @@
 
 ## 10. 남은 결정 대기
 
-**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건은 `D-33`~`D-36`으로, 도메인 Phase 3~4가 드러낸 것은 `D-38`~`D-43`으로 확정했다. 2026-09-13 마무리 통합이 드러낸 3건도 `D-44`~`D-46`으로, Notification 도메인 세션이 확정한 8건은 `D-47`~`D-54`로, RevisionLog 도메인 세션이 확정한 7건은 `D-55`~`D-61`로, 2026-09-14 FE↔BE 통합(트랙 A) 세션이 드러낸 4건은 `D-62`~`D-65`로 확정했다.
+**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건은 `D-33`~`D-36`으로, 도메인 Phase 3~4가 드러낸 것은 `D-38`~`D-43`으로 확정했다. 2026-09-13 마무리 통합이 드러낸 3건도 `D-44`~`D-46`으로, Notification 도메인 세션이 확정한 8건은 `D-47`~`D-54`로, RevisionLog 도메인 세션이 확정한 7건은 `D-55`~`D-61`로, 2026-09-14 FE↔BE 통합(트랙 A) 세션이 드러낸 4건은 `D-62`~`D-65`로 확정했다. AI 워커 전환 세션이 확정한 13건은 `D-66`~`D-78`이다.
 
 `상태` 칸이 `제안`인 항목(`X-04`·`X-05`·`X-08`~`X-14`·`X-17`, `Y-22`)과 `기록`인 항목(`Y-24`~`Y-27`)은 **결정이 필요한 것이 아니라 담당 태스크에서 형태를 정하는 것**이다. 설계 방향은 이미 정해져 있다.
 
-**남은 예외는 둘이다.** **`D-35`의 실제 LLM 연동**은 새 의존성·API 키·프롬프트 설계가 필요하므로 루트 `CLAUDE.md`의 「새 라이브러리·의존성 추가는 사전에 제안하고 승인받는다」에 따라 그 시점에 별도로 합의한다. **`X-08`(`ErrorResponse.traceId`)**은 마무리 통합 세션에서 범위 밖으로 두기로 했으므로 `NFR-CMN-003`이 계속 미충족이며 담당 태스크를 다시 정해야 한다.
+~~**남은 예외는 둘이다.** **`D-35`의 실제 LLM 연동**은…~~ **절반 해소.** LLM 연동의 **백엔드 쪽 경계**는 AI 워커 전환 세션이 `D-66`~`D-78`로 확정했다(2026-09-14) — 의존성(LocalStack Testcontainers)과 인프라 변경(compose LocalStack), 콜백 인증 방식을 모두 사전 승인받았다. **모델 호출과 프롬프트 설계는 여전히 이 저장소 밖이며** FastAPI 워커를 만드는 시점에 합의한다.
 
-새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-65`부터 붙인다.
+**`X-08`(`ErrorResponse.traceId`)**은 마무리 통합 세션에서 범위 밖으로 두기로 했으므로 `NFR-CMN-003`이 계속 미충족이며 담당 태스크를 다시 정해야 한다. **`NFR-INF-008`이 이번에 실제 3단 경로(Spring → SQS → FastAPI)를 갖게 되면서 우선순위가 올라갔다.**
+
+새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-79`부터 붙인다.

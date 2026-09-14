@@ -32,6 +32,7 @@ public enum DraftDictionaryErrorCode implements ErrorCode {
     DRAFT_DICTIONARY_EXTRACTION_INVALID_STATUS(HttpStatus.CONFLICT, "용어 추출 작업 상태를 변경할 수 없습니다."),
     DRAFT_DICTIONARY_NO_EXTRACTABLE_DOCUMENT(HttpStatus.CONFLICT, "용어 추출 대상 문서가 없습니다."),
     DRAFT_DICTIONARY_EXTRACTION_INVALID_RESULT(HttpStatus.CONFLICT, "용어 추출 결과가 올바르지 않습니다."),
+    DRAFT_DICTIONARY_EXTRACTION_CALLBACK_FORBIDDEN(HttpStatus.FORBIDDEN, "용어 추출 작업의 요청 식별자가 일치하지 않습니다."),
     DRAFT_DICTIONARY_CANDIDATE_TERM_UNDECIDED_EXISTS(HttpStatus.CONFLICT, "미판정 후보어가 존재합니다."),
     DRAFT_DICTIONARY_NO_CHANGED_ITEM(HttpStatus.CONFLICT, "이전 버전과 달라진 항목이 없습니다."),
     DRAFT_DICTIONARY_INVALID_DECISION(HttpStatus.BAD_REQUEST, "지원하지 않는 후보어 판정입니다.");

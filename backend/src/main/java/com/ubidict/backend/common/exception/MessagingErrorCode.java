@@ -17,7 +17,8 @@ import org.springframework.http.HttpStatus;
 public enum MessagingErrorCode implements ErrorCode {
     MESSAGING_EVENT_SERIALIZATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이벤트를 메시지로 만들지 못했습니다."),
     MESSAGING_EVENT_DESERIALIZATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "메시지를 이벤트로 되돌리지 못했습니다."),
-    MESSAGING_EVENT_HANDLER_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "이벤트를 처리할 수 없습니다.");
+    MESSAGING_EVENT_HANDLER_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "이벤트를 처리할 수 없습니다."),
+    MESSAGING_LLM_REQUEST_PUBLISH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AI 작업 요청을 발행하지 못했습니다.");
 
     private final HttpStatus status;
     private final String message;
