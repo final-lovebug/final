@@ -47,7 +47,7 @@
 | [T-INT-10](T-INT-10-document.md) | document 실연동(5/10, 제안 클러스터 보류) | A | T-INT-18(이름만) | **진행중**(2026-09-14) | |
 | [T-INT-11](T-INT-11-dictionary.md) | dictionary 실연동 | A | T-INT-20(완료) | **코드 작성 완료**(후보어 포함, QA 대기, 2026-09-14) | WLSH-171 |
 | [T-INT-12](T-INT-12-review.md) | review(리뷰 요청) 실연동 | A | 없음 | **코드 작성 완료**(QA 대기, 2026-09-14) | WLSH-171 |
-| [T-INT-13](T-INT-13-notification.md) | notification 실연동 | A | 없음 | **보류**(2026-09-14, 대응 API 없음 — 파일 참고) | |
+| [T-INT-13](T-INT-13-notification.md) | notification 실연동 | A | 없음 | **목록·읽음처리 코드 완료**(QA 대기) / 설정 화면은 보류(`D-54`) | WLSH-171 |
 | [T-INT-14](T-INT-14-member.md) | member 잔여 실연동 | A | T-INT-18(완료) | **완료**(2026-09-14) | |
 | [T-INT-15](T-INT-15-auth-guard.md) | 인증 가드(`RequireAuth`) 점검 | A | 없음 | **완료**(2026-09-14, 주석 정정만) | |
 | [T-INT-16](T-INT-16-env-config.md) | 프론트 환경설정 정리 | A | 없음 | **완료**(2026-09-14) | |

@@ -1,6 +1,6 @@
 # T-INT-13 — notification 실연동
 
-상태: **보류(이번 트랙 A 진행에서 건너뜀)** | 담당자: (미정)
+상태: **목록·읽음처리 완료(T-INT-13a, 2026-09-14 WLSH-171) / 설정 화면은 여전히 보류** | 담당자: (WLSH-171 세션)
 근거: `docs/plan/INTEGRATION_PLAN.md` 2절 Track A · 2026-09-14 사용자 결정(아래 참고)
 의존: 없음(다른 도메인 태스크와 독립). `T-INT-6`(NotificationController 인증 주체
 전환)과 겹치지 않지만 같이 확인하면 좋다.
@@ -30,3 +30,48 @@
       끝나 인증 주체 방식으로 바뀐 뒤 진행하는 게 맞다**
 - [ ] `model/types.ts` — 실제 API 응답에 맞춰 조정
 - [ ] 화면 확인: 알림 패널에서 실 데이터 표시 QA (설정 화면은 대상 아님)
+
+
+---
+
+## 2026-09-14 T-INT-13a 진행 (WLSH-171)
+
+### 위 「보류 사유」의 사실 정정
+
+이 파일은 알림 목록·읽음 처리를 부르는 **"api 파일이 하나도 없다(목업조차 없다)"**고
+적었지만 **사실이 아니었다.** `fetchNotifications.ts`·`fetchUnreadCount.ts`·
+`markNotificationRead.ts`·`markAllNotificationsRead.ts` 4개가 목업으로 이미 있었고,
+각 파일 주석이 "실 연동 시 이 함수 내부만 호출로 바꾸면 된다"고 적어 둔 상태였다.
+즉 신규 범위가 아니라 다른 트랙 A 태스크와 똑같은 **목업→실연동 교체**였다.
+
+선행으로 걸어 둔 `T-INT-6`(인증 주체 전환)도 **이미 코드상 완료**였다 —
+`NotificationController`의 엔드포인트 4개가 전부 `@AuthenticationPrincipal`을 쓴다.
+`docs/API.md` Notification 절에도 `memberId` 쿼리 파라미터 언급이 남아 있지 않다.
+
+### 대조 결과
+
+백엔드 `NotificationType`·`NotificationTargetType` enum과 프론트 타입이 정확히 일치했다.
+차이는 하나뿐 — 프론트 `Notification`에 `channels: NotificationChannel[]`이 있는데
+응답에 없다(`D-54`로 채널 개념이 제거됐다). 어떤 화면도 이 필드를 읽지 않아 제거했다.
+
+### 체크리스트 — 완료분
+
+- [x] `api/fetchNotifications.ts` — `GET /api/workspaces/{id}/notifications`.
+      `unreadOnly`·페이지네이션 그대로, 정렬은 `createdAt,desc` 고정
+- [x] `api/fetchUnreadCount.ts` — `GET .../unread-count` (응답 `{unreadCount}`)
+- [x] `api/markNotificationRead.ts` — `PATCH .../{id}/read`. 멱등
+- [x] `api/markAllNotificationsRead.ts` — `PATCH .../read-all` (응답 `{updated}`)
+- [x] `api/notificationApi.ts` 신설 — 공통 응답 타입·매핑
+- [x] `model/types.ts` — `Notification.channels` 제거
+- [x] `model/fixtures.ts` — `NOTIFICATION_FIXTURES` 제거(설정 화면 목업은 유지)
+- [x] 훅에 `enabled: workspaceId !== ''` 가드 추가 — 실 서버를 치게 되어
+      `/api/workspaces//notifications` 호출을 막는다
+- [x] `npx tsc -b` 통과, `npx oxlint src` 통과(경고 4건은 전부 기존 것)
+- [ ] 화면 확인: 알림 패널에서 실 데이터 표시 QA — 로컬 백엔드 기동 필요
+
+### 여전히 보류인 것
+
+**알림 설정 화면**(`fetchNotificationSettings`·`updateNotificationSettings`,
+`SettingsNotificationsPage`)은 목업 그대로다. `D-54`로 `NotificationChannel`·
+`NotificationSetting`이 백엔드에서 제거돼 **되살릴 API가 없다.** 화면을 없앨지 목업으로
+둘지는 백엔드가 `D-54`를 뒤집어 채널 개념을 되살릴 때 재논의한다.
