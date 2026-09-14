@@ -1,9 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchReviewThreadComments } from '../api/fetchReviewThreadComments'
+import {
+  fetchReviewThreadComments,
+  type FetchReviewThreadCommentsOptions,
+} from '../api/fetchReviewThreadComments'
 
-export function useReviewThreadComments(reviewId: string) {
+export function useReviewThreadComments(
+  reviewRequestId: string,
+  options: FetchReviewThreadCommentsOptions = {},
+) {
   return useQuery({
-    queryKey: ['review-thread-comments', reviewId],
-    queryFn: () => fetchReviewThreadComments(reviewId),
+    queryKey: ['review-thread-comments', reviewRequestId, options],
+    queryFn: () => fetchReviewThreadComments(reviewRequestId, options),
+    enabled: reviewRequestId !== '',
   })
 }

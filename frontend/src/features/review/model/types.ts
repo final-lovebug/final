@@ -26,31 +26,35 @@ import type {
 
 export type ReviewRequestType = 'DOCUMENT' | 'DICTIONARY'
 
-// 리뷰대기 / 리뷰중 / 변경요청 / 승인 / 반영완료 / 반려 / 취소
+// 리뷰대기 / 리뷰중 / 변경요청 / 승인 / 반영완료 / 취소
+// 백엔드 ReviewRequestStatus와 1:1이다 — "반려(REJECTED)"는 백엔드에 없다(변경 요청으로
+// 되돌리거나 취소한다).
 export type ReviewRequestStatus =
-  | 'PENDING'
+  | 'PENDING_REVIEW'
   | 'IN_REVIEW'
   | 'CHANGES_REQUESTED'
   | 'APPROVED'
-  | 'MERGED'
-  | 'REJECTED'
-  | 'CANCELLED'
+  | 'REVISED'
+  | 'CANCELED'
 
 export interface ReviewRequest {
   id: ReviewRequestId
   workspaceId: WorkspaceId
   type: ReviewRequestType
-  /** 유형에 따라 RevisionDocumentId | RevisionDictionaryId */
-  revisionId: string
   title: string
   requesterId: MemberId
-  reviewers: Reviewer[]
+  /**
+   * 대상 문서/사전집 id. 첫 사전집처럼 대상이 아직 없으면 비어 있다.
+   * 응답이 개정안을 조인해 채워준다(`D-63`).
+   */
+  targetId?: string
+  /** 리뷰어 **수**만 온다. 목록이 필요하면 `GET /api/review-requests/{id}/reviewers`를 따로 부른다. */
+  reviewerCount: number
   status: ReviewRequestStatus
   approvedAt?: string
   revisedAt?: string
   description?: string
   createdAt: string
-  createdBy: MemberId
   updatedAt: string
 }
 
@@ -89,27 +93,28 @@ export interface Reviewer {
   reviewRequestId: ReviewRequestId
   /** 워크스페이스 참여자여야 함 */
   memberId: MemberId
-  required: boolean
   assignedAt: string
-  createdAt: string
   createdBy: MemberId
-  updatedAt: string
 }
 
-export type ReviewVerdict = 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT' // 승인 / 변경요청 / 반대
+/**
+ * 승인 / 변경요청. 백엔드 `ReviewVerdict`와 1:1이다 — "반대(REJECT)"는 없다.
+ *
+ * 정족수 판정은 지정된 리뷰어 수가 아니라 워크스페이스 룰셋의 `requiredReviewerCount`를
+ * 쓴다(`G-4`) — 지정되지 않은 참여자도 검토할 수 있다.
+ */
+export type ReviewVerdict = 'APPROVED' | 'CHANGES_REQUESTED'
 
 export interface Review {
   id: ReviewId
   reviewRequestId: ReviewRequestId
-  reviewerId: ReviewerId
+  /** 검토를 제출한 사람. 지정 리뷰어가 아닐 수도 있다. */
+  memberId: MemberId
   /** 어느 재교정 회차를 봤는지 */
   targetRound: number
   verdict: ReviewVerdict
-  comments?: Comment[]
   submittedAt: string
   createdAt: string
-  createdBy: MemberId
-  updatedAt: string
 }
 
 export interface Comment {
@@ -125,7 +130,16 @@ export interface Comment {
   /** 답글 */
   parentId?: CommentId
   resolved: boolean
+  /** 답글 트리. 응답이 중첩해서 내려준다. */
+  children?: Comment[]
   createdAt: string
-  createdBy: MemberId
   updatedAt: string
+}
+
+/** 정족수 진행 상황(`GET /api/review-requests/{id}/review-progress`). */
+export interface ReviewProgress {
+  requiredReviewerCount: number
+  approvedCount: number
+  changesRequestedCount: number
+  reviseEligible: boolean
 }

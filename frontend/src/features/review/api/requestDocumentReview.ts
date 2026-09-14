@@ -1,69 +1,49 @@
-import { delay } from '../../../shared/lib/delay'
-import {
-  DOCUMENT_REVIEW_REQUEST_FIXTURES,
-  DOCUMENT_REVISION_FIXTURES,
-} from '../model/reviewRequestFixtures'
-import type { ReviewRequest, Reviewer } from '../model/types'
+import { httpClient } from '../../../shared/api/httpClient'
+import type { ReviewRequest } from '../model/types'
+import { toReviewRequest, type PageResponse, type ReviewRequestApiResponse } from './reviewApi'
 
 export interface RequestDocumentReviewInput {
-  workspaceId: string
   documentId: string
   title: string
-  requesterId: string
-  reviewerMemberIds: string[]
+  description?: string
+  /** 지정할 리뷰어. 비어 있어도 리뷰는 진행된다(정족수는 룰셋 기준). */
+  reviewerMemberIds?: string[]
 }
 
-// "초안 완료 → 리뷰 요청 → 개정안" 전이를 흉내내는 목업 mutation. 제안이 전부 처리됐는지
-// 검증하는 건 호출하는 쪽(DocumentReviewPage, useSuggestions 결과 기준)에서 이미 버튼을
-// 막아뒀으므로 여기서 다시 하지 않는다 — 실제 백엔드라면 서버에서도 검증해야 한다
-// (docs/DOMAIN.md "해당 문서가 리뷰 요청 중이면 초안을 생성할 수 없다"와 짝을 이루는 규칙).
+interface DraftDocumentApiResponse {
+  draftDocumentId: number
+  documentId: number
+  status: string
+}
+
+/**
+ * 문서 리뷰 요청 생성(`POST /api/draft-documents/{draftDocumentId}/review-request`).
+ *
+ * **documentId로는 부를 수 없다** — 리뷰 대상은 문서가 아니라 그 문서의 초안이다. 화면은
+ * documentId만 알고 있어 `GET /api/draft-documents?documentId=`로 초안을 먼저 찾는다.
+ *
+ * 요청자는 인증 주체에서 해석되므로 보내지 않는다. 리뷰어는 생성 요청 본문의
+ * `reviewerMemberIds`로 함께 지정된다 — 나중에 더하거나 빼는 것만
+ * `POST/DELETE /api/review-requests/{id}/reviewers`를 쓴다.
+ */
 export async function requestDocumentReview(
   input: RequestDocumentReviewInput,
 ): Promise<ReviewRequest> {
-  await delay(300)
-
-  const reviewRequestId = `reviewreq-${crypto.randomUUID()}`
-  const revisionId = `revision-${crypto.randomUUID()}`
-  const now = new Date().toISOString()
-
-  const reviewers: Reviewer[] = input.reviewerMemberIds.map((memberId) => ({
-    id: `reviewer-${crypto.randomUUID()}`,
-    reviewRequestId,
-    memberId,
-    required: true,
-    assignedAt: now,
-    createdAt: now,
-    createdBy: input.requesterId,
-    updatedAt: now,
-  }))
-
-  const reviewRequest: ReviewRequest = {
-    id: reviewRequestId,
-    workspaceId: input.workspaceId,
-    type: 'DOCUMENT',
-    revisionId,
-    title: input.title,
-    requesterId: input.requesterId,
-    reviewers,
-    status: 'IN_REVIEW',
-    createdAt: now,
-    createdBy: input.requesterId,
-    updatedAt: now,
+  const drafts = await httpClient.get<PageResponse<DraftDocumentApiResponse>>(
+    `/api/draft-documents?documentId=${input.documentId}&page=0&size=1&sort=createdAt,desc`,
+  )
+  const draft = drafts.content[0]
+  if (!draft) {
+    throw new Error('이 문서에는 리뷰를 요청할 초안이 없습니다.')
   }
 
-  DOCUMENT_REVIEW_REQUEST_FIXTURES.push(reviewRequest)
-  DOCUMENT_REVISION_FIXTURES.push({
-    id: revisionId,
-    reviewRequestId,
-    documentId: input.documentId,
-    baseVersionNo: 0,
-    draftDocumentId: `draft-${input.documentId}`,
-    proposedBody: '',
-    reexamineRound: 0,
-    createdAt: now,
-    createdBy: input.requesterId,
-    updatedAt: now,
-  })
-
-  return reviewRequest
+  const created = await httpClient.post<ReviewRequestApiResponse>(
+    `/api/draft-documents/${draft.draftDocumentId}/review-request`,
+    {
+      title: input.title,
+      description: input.description,
+      reviewerMemberIds: (input.reviewerMemberIds ?? []).map(Number),
+    },
+  )
+  return toReviewRequest(created)
 }
