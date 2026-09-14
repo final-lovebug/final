@@ -109,6 +109,7 @@
 | T-INT-2 크로스 도메인 어댑터 `real` 전환 | 조회 축은 **선행 PR**에서 끝난다. 발행 축 2개만 `DOC-6`·`DIC-3` 뒤 마무리 태스크 |
 | T-INT-3 `SecurityConfig` + 인증 주체 + 프로파일 분리 | 인증 도메인(별건). **`SecurityConfig`는 이미 있다**(`member/infra/security`) — 남은 것은 프로파일 분리와 `memberId` 파라미터 제거 |
 | **T-INT-5** 초안 → 리뷰 요청 생성 진입점 | **`RR-4b`**, **`DD-3`**, **`DI-3`** — 모두 머지됐다. **`DIC-7`·E2E의 선행**이다(`D-44`·`Y-31`) |
+| **T-INT-6** AI 워커(FastAPI) 전환 | **`DD-5`·`DI-5`** — 둘 다 머지됐다. 추출·대조의 실행을 외부 워커로 옮기고 완료를 HTTP 콜백으로 받는다(`D-62`~`D-74`). **`common/infra/ai/**`·`build.gradle`·`compose.yaml`·`support/**`를 건드리므로 통합 태스크 예외를 쓴다** |
 
 > **`DI-4`의 의존을 `RR-2c`로 정확히 적는다.** `DRAFT_DICTIONARY_PLAN.md` 12절은 `RR-2`로 적었으나 그것은 Phase 표기이고 태스크가 아니다. 「사전집에 초안 또는 개정안이 존재하면 추가 초안 생성 불가」 정책이 `RevisionDictionary.dictionaryId`로 진행 중인 개정안을 찾으므로 **사전 개정안을 만드는 `RR-2c`**가 실제 선행이다.
 
@@ -199,13 +200,16 @@ chore/WLSH-145-contracts   크로스 도메인 계약        ← 단독 선행
 | --- | --- | --- |
 | `docs/DOMAIN.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/UBIQUITOUS_LANGUAGE.md`, `docs/TEST.md` | **`T-DOC-1`만** | `R-1`~`R-24`·`D-19`~`D-32`가 요구하는 수정을 **그 태스크 하나가 한 커밋으로** 한다. `CONFLICTS.md` 9절이 파일별 목록을 갖는다. 다른 태스크는 이 파일들을 읽기만 한다. **`T-DOC-1`이 이미 머지된 뒤에 이 파일들을 고쳐야 하면 그 변경만 담은 커밋을 따로 만든다**(7절) — 선행 PR의 3번 커밋이 그 예다 |
 | `common/presentation/PageResponse`, `common/service/PageResult` | **`T-CMN-1`** | 규격은 `docs/API.md` «페이징·정렬 규격»을 그대로 따른다. 만든 즉시 develop에 올린다. `DOC-7`·`DIC-6`·`DD-2`·`DI-2`·`RR-2d`는 이것을 **쓴다** |
+| `common/infra/ai/**`, `common/infra/schedule/**` | **`T-INT-6`** | `D-63`·`D-73`. AI 워커 발행 포트와 어댑터, 주기 작업 활성화. **기존 `common` 파일을 고치지 않고 새 패키지를 더한다** — `NT-4`의 `sqs` 패키지와 같은 논거다. 선택 축은 `app.ai.dispatch.mode`이며 `app.messaging.mode`와 독립이다 |
 | `common/infra/event/sqs/**` | **Notification (`NT-4`)** | `D-52`. SQS 발행 어댑터가 `EventPublisher` 포트를 구현한다. **기존 `common` 파일을 고치지 않고 새 패키지를 더한다** — `InMemoryEventPublisher`는 그대로 두고 `@ConditionalOnProperty`로 배타 선택한다 |
 | `common/domain/TextRange` | **DraftDocument (`DD-2`)** | `@Embeddable` record. 필드 `startOffset`/`endOffset`, 컬럼 `start_offset`/`end_offset`, 생성자에서 `startOffset <= endOffset`·음수 아님 검증. 만든 즉시 develop에 올린다. `RR-3b`는 **직접 만들지 않고 이것을 쓴다** |
 | `workspace/implement/WorkspaceAccessValidator` | **Workspace** | **5개 도메인이 직접 주입한다**(`D-19`). 시그니처를 바꾸면 전부 깨진다 — 변경은 통합 태스크로 넘기고 PR에 영향 범위를 적는다 |
 | `workspace/domain/Permission` | **Workspace** | 다른 도메인이 `Permission.ADMIN`을 인자로 넘긴다. 상수를 지우거나 이름을 바꾸지 않는다 |
 | `docs/API.md` | **도메인별 자기 절만** | 각 도메인은 파일 **끝에 자기 `# **{도메인} API**` 절을 추가**한다. Workspace 절의 골격(도입 문단 → 요약 표 → 엔드포인트 절 → 에러 표)을 따른다. **공통 규칙·페이징·버저닝·에러 응답 형식 절은 건드리지 않는다** — 그 절들은 `T-DOC-1`이 고친다 |
-| `backend/src/main/resources/application.yml`, `backend/src/test/resources/application.yml` | **선행 PR이 키를 전부 선언한다** | `app.messaging.mode`·`app.crossdomain.*`·`app.ai.*`를 미리 깔아 두고, **이후 각 PR은 자기 한 줄의 `stub`을 `real`로 뒤집기만 한다.** 새 키가 필요하면 그 PR이 두 파일에 함께 넣는다 — **테스트 쪽 파일이 main을 병합이 아니라 대체하므로 한쪽만 고치면 컨텍스트 로딩이 깨진다**(그 파일 상단 주석이 근거를 갖고 있다). `app.crossdomain.review-request.*`·`app.messaging.sqs.*`·`spring.cloud.aws.region.*`의 주인은 **Notification**이다 |
+| `backend/src/main/resources/application.yml`, `backend/src/test/resources/application.yml` | **선행 PR이 키를 전부 선언한다** | `app.messaging.mode`·`app.crossdomain.*`·`app.ai.*`를 미리 깔아 두고, **이후 각 PR은 자기 한 줄의 `stub`을 `real`로 뒤집기만 한다.** 새 키가 필요하면 그 PR이 두 파일에 함께 넣는다 — **테스트 쪽 파일이 main을 병합이 아니라 대체하므로 한쪽만 고치면 컨텍스트 로딩이 깨진다**(그 파일 상단 주석이 근거를 갖고 있다). `app.crossdomain.review-request.*`·`app.messaging.sqs.*`·`spring.cloud.aws.region.*`의 주인은 **Notification**이다. **`app.ai.*`와 `app.messaging.sqs.llm-request-queue`의 주인은 `T-INT-6`이다**(`D-62`·`D-70`) — `app.ai.extractor.mode`·`app.ai.checker.mode`는 포트·스텁과 함께 제거됐다. 「테스트 쪽 파일이 main을 대체한다」는 서술은 `D-46`으로 이미 낡았다 — 지금은 `application-test.yml`이 차이만 덮으므로 **새 키는 `application.yml` 한 곳에 선언한다** |
 | Flyway 마이그레이션 | 대역으로 분리 | member 1–99 / **workspace 100–199** / **document 200–299** / **dictionary 300–399** / DraftDocument 400–499 / DraftDictionary 500–599 / ReviewRequest 600–699 / **Notification 700–799**(`D-48`) / **RevisionLog 800–899**(`D-55`) / 공통·사후 정리 900–999. 도메인 내부는 10 단위로 증가시킨다. **개발 브랜치 DB를 항상 리셋하므로 머지 순서와 번호 순서가 어긋나도 무방하다**(`T-INT-1` 폐기) |
+
+> `T-INT-6`은 도메인 대역을 그대로 쓴다 — `V420`(check_job)·`V540`(extraction_job). 통합 태스크지만 두 작업 테이블에 각각 컬럼과 인덱스를 더하는 것이라 공통 대역(900–999)으로 뺄 이유가 없다.
 
 **기존 마이그레이션 파일은 고치지 않는다.** `V1`(member)·`V2`(workspace)·`V200`·`V201`(document)·`V300`(dictionary)은 이미 머지됐고, 파일명이나 내용을 바꾸면 Flyway 체크섬이 어긋난다. `V2`가 대역 밖인 것은 `T-INT-1`이 `out-of-order`로 덮는다.
 
@@ -213,7 +217,7 @@ chore/WLSH-145-contracts   크로스 도메인 계약        ← 단독 선행
 
 `common/**`(위 3건 제외), `common/domain/BaseEntity`, `backend/src/test/java/.../support/**`, `application.properties`, `build.gradle`, 그리고 **다른 도메인의 패키지 전체**.
 
-> **통합 태스크(`T-*`)는 이 목록의 예외다.** 마무리 통합에서 `support/**`에 로그인 회원을 주입하는 테스트 애노테이션을 더하고(`T-INT-3`), `src/test/resources/application.yml`을 걷어낸다(`D-46`). 도메인 PR은 여전히 손대지 않는다.
+> **통합 태스크(`T-*`)는 이 목록의 예외다.** 마무리 통합에서 `support/**`에 로그인 회원을 주입하는 테스트 애노테이션을 더하고(`T-INT-3`), `src/test/resources/application.yml`을 걷어낸다(`D-46`). 도메인 PR은 여전히 손대지 않는다. **`T-INT-6`도 같은 예외로** `support/**`에 비동기 대기 상수와 가짜 AI 워커를 더하고, `build.gradle`에 LocalStack Testcontainers를, `compose.yaml`에 LocalStack 서비스를 추가한다(`D-71`) — 새 의존성과 인프라 변경은 루트 `CLAUDE.md`에 따라 사전 승인받았다.
 
 필요하면 통합 태스크(`T-*`)로 넘기고 PR에 이유를 적는다.
 
