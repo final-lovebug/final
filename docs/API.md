@@ -362,6 +362,44 @@ DELETE /api/members/me
 - 로컬 상태를 `WITHDRAWN`으로 변경하고 소프트 삭제한다. Google 쪽 소셜 연동 해제(Unlink)는 호출하지 않는다 — 필요하면 회원이 Google 계정에서 직접 해제해야 한다(`docs/DOMAIN.md` 인증·회원가입 정책).
 - 성공 시 `204 No Content`.
 
+### **다른 회원 조회**
+
+```
+GET /api/members/{memberId}
+GET /api/members?ids=1,2,3
+```
+
+로그인한 회원이면 누구나 다른 회원의 이름·이메일을 조회할 수 있다 — 특별한 스코프
+제한을 두지 않는다(`memberId`는 이미 다른 인가된 엔드포인트를 통해서만 얻을 수
+있으므로, `docs/plan/CONFLICTS.md` `D-62`). 배치 조회는 콤마로 구분한 id 목록을
+받고, 존재하지 않는 id는 결과에서 조용히 빠진다(에러가 아니다).
+
+#### Response Body
+
+단건:
+```json
+{ "memberId": 2, "displayName": "김개발", "email": "kim.dev@potenup.io" }
+```
+
+배치(`GET /api/members?ids=1,2`):
+```json
+[
+  { "memberId": 1, "displayName": "민뱅", "email": "idabc1234@gmail.com" },
+  { "memberId": 2, "displayName": "김개발", "email": "kim.dev@potenup.io" }
+]
+```
+
+`status`·`role`은 담지 않는다 — 타인의 사이트 권한·계정 상태까지 공개할 이유가
+없다. 탈퇴한 회원은 익명화된 값(`탈퇴한 회원`, `withdrawn-{id}@deleted.local`)이
+그대로 내려간다(`Member.withdraw()`가 이미 해당 필드를 그렇게 바꿔 두므로 별도
+처리가 필요 없다).
+
+#### 에러
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 단건 조회에서 존재하지 않는 `memberId` | 404 | `MEMBER_NOT_FOUND` |
+
 ### **회원 생성(테스트/관리자용)**
 
 ```

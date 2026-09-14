@@ -1,6 +1,6 @@
 # T-INT-18 — 회원 이름/이메일 조회 수단 부재 (백엔드, 범위 확장 2026-09-14)
 
-상태: 대기 | 담당자: (미정)
+상태: **완료(2026-09-14)** | 담당자: (세션 진행)
 근거: `T-INT-14` 진행 중 발견(2026-09-14) — `docs/task/T-INT-14-member.md` "보류 사유" 참고.
       `T-INT-10` 진행 중 같은 gap을 한 번 더 확인(아래 "범위 확장" 참고)
 의존: 없음. **`T-INT-14`(프론트, 전체 보류)와 `T-INT-10`(프론트, 일부 컬럼만 영향)의 선행**
@@ -54,32 +54,41 @@
 배치는 위 항목의 배열. **`status`·`role`은 넣지 않는다** — 다른 회원의 사이트 권한·
 계정 상태까지 공개할 이유가 없다(참여자 목록·작성자 표시엔 이름/이메일이면 충분).
 
-### 아직 착수 시 정해야 할 것 (임의로 확정하지 않는다 — 루트 `CLAUDE.md`)
+### 착수 시 확인한 것들 (2026-09-14 구현 완료)
 
-- **접근 범위**: 아무 로그인 사용자나 임의의 `memberId`를 조회할 수 있게 할지,
-  아니면 "같은 워크스페이스에 참여 중인 회원만" 조회 가능하게 제한할지. 후자가
-  더 안전하지만 구현 시 워크스페이스 컨텍스트를 함께 검증해야 한다(어느 워크스페이스
-  기준인지도 파라미터로 받아야 할 수 있음).
-- `email`/`displayName`은 `MemberFieldEncryptor`로 암호화 저장돼 있어 복호화가
-  필요하다 — 배치 조회 시 N건 복호화 비용 확인(참여자 목록 기준 최대 5명이라 크지
-  않을 것으로 예상하지만, 문서 목록처럼 더 많은 회원이 섞일 수 있는 곳도 있다).
-- 탈퇴 회원(`WITHDRAWN`, 익명화된 email/displayName)을 조회하면 어떻게 보여줄지
-  (예: "탈퇴한 회원"으로 표시) — `Member.withdraw()`가 이미 이런 값으로 바꿔 두므로
-  자연스럽게 처리될 가능성이 높지만 확인 필요.
-- `docs/plan/CONFLICTS.md`에 새 결정 ID(`D-63`~, 착수 시점 최신 번호 확인)로 이
-  결정을 등재한다(루트 `CLAUDE.md` "결정이 바뀌면 코드보다 문서를 먼저 갱신").
+- **접근 범위**: 사용자 결정 — **로그인한 회원이면 누구나 조회 가능**(스코프 제한
+  없음). `memberId` 자체가 이미 인가된 다른 엔드포인트를 통해서만 얻어지므로
+  추가 검증의 실효가 적고, 검증하려면 모든 호출부가 워크스페이스 컨텍스트를
+  넘겨야 해 API가 복잡해진다는 이유.
+- **뜻밖의 발견 — 내부 포트가 이미 있었다.** `member/service/MemberDirectory.java`
+  (+`MemberDirectoryService`, `MemberSummary`)가 정확히 필요한
+  `getSummary(Long)`/`getSummaries(Collection<Long>)`를 이미 구현해 뒀지만
+  **소비자가 0곳**이었다(다른 도메인이 아직 아무도 안 씀). 그래서 이번 작업은
+  새 조회 로직을 만든 게 아니라 **그 포트 위에 REST 엔드포인트만 얹은 것**이다
+  — `MemberController`가 `MemberDirectory`를 주입받아 `GET /api/members/{id}`·
+  `GET /api/members?ids=`를 구현.
+- 암호화 복호화(`MemberFieldEncryptor`)는 `MemberReader.read`/`readAll`이 이미
+  처리하던 경로 그대로라 새로 손댈 게 없었다.
+- 탈퇴 회원 조회 시 익명화된 값(`탈퇴한 회원`, `withdrawn-{id}@deleted.local`)이
+  그대로 내려간다 — `Member.withdraw()`가 이미 그렇게 바꿔 두므로 별도 처리 불필요.
+- `docs/plan/CONFLICTS.md`에 `D-62`로 등재 완료.
 
 ## 체크리스트
 
-- [ ] 위 "아직 착수 시 정해야 할 것" 확인(필요하면 사용자에게 질문)
-- [ ] `GET /api/members/{memberId}` 구현 + 테스트
-- [ ] `GET /api/members?ids=` 구현 + 테스트
-- [ ] `docs/API.md` "Member API" 절에 두 엔드포인트 추가
-- [ ] `docs/plan/CONFLICTS.md`에 `D-6x`로 결정 등재
-- [ ] `docs/task/T-INT-14-member.md`·`T-INT-10-document.md`의 "T-INT-18 완료 후" 절
-      참고해 해제 작업 진행(아래 "완료 후 다른 태스크 진행 방법" 참고)
-- [ ] `./gradlew spotlessApply && ./gradlew check` 통과
-- [ ] 커밋 브랜치 `feat/WLSH-{티켓}-t-int-18`, PR 생성
+- [x] 접근 범위 확인(사용자에게 질문 완료)
+- [x] `GET /api/members/{memberId}` 구현 + 테스트(`MemberControllerTest.getSummary`,
+      `getSummary_notFound`)
+- [x] `GET /api/members?ids=` 구현 + 테스트(`getSummaries`, `getSummaries_partialMiss`
+      — 존재하지 않는 id는 결과에서 조용히 빠짐)
+- [x] `docs/API.md` "Member API" 절에 "다른 회원 조회" 추가
+- [x] `docs/plan/CONFLICTS.md`에 `D-62`로 등재
+- [x] `./gradlew spotlessApply` 완료, `./gradlew test --tests
+      "com.ubidict.backend.member.*"` 통과. **전체 `./gradlew check`는 백그라운드로
+      실행 중** — 완료되면 결과 반영
+- [ ] `docs/task/T-INT-14-member.md`의 의존 해제(재개 가능 상태로 전환) — 다음에
+      T-INT-14 진행 시 처리
+- [ ] 커밋 브랜치 `feat/WLSH-{티켓}-t-int-18`, PR — **사용자 지시 시 진행**(이번
+      세션은 기존 `fix/WLSH-164-fe-be-intgreation` 브랜치에 이어서 커밋 예정)
 
 ## 완료 후 다른 태스크는 어떻게 진행되는가
 

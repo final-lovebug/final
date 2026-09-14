@@ -52,7 +52,7 @@
 | [T-INT-15](T-INT-15-auth-guard.md) | 인증 가드(`RequireAuth`) 점검 | A | 없음 | **완료**(2026-09-14, 주석 정정만) | |
 | [T-INT-16](T-INT-16-env-config.md) | 프론트 환경설정 정리 | A | 없음 | **완료**(2026-09-14) | |
 | [T-INT-17](T-INT-17-extraction-ui.md) | 추출/대조 결과 화면 | B | T-INT-8 | 대기 | |
-| [T-INT-18](T-INT-18-participant-member-info.md) | 회원 배치/단건 조회 API 신설(백엔드, 설계 확정) | B | 없음 | 대기 | |
+| [T-INT-18](T-INT-18-participant-member-info.md) | 회원 배치/단건 조회 API 신설(백엔드) | B | 없음 | **완료**(2026-09-14) | |
 | [T-INT-20](T-INT-20-draft-dictionary-lookup.md) | 워크스페이스의 진행 중 사전 초안 조회(백엔드) | B | 없음 | 대기 | |
 
 **트랙 A**(프론트 목업 제거, T-INT-9~16)는 서로 완전히 독립이라 몇 명이 동시에 붙어도
