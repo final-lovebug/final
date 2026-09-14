@@ -99,6 +99,6 @@ class DraftReviewRequestControllerTest {
     private ReviewRequestResult result(ReviewRequestType type) {
         OffsetDateTime now = OffsetDateTime.now();
         return new ReviewRequestResult(
-                1L, 2L, type, "리뷰", null, MEMBER_ID, ReviewRequestStatus.PENDING_REVIEW, null, null, now, now);
+                1L, 2L, type, "리뷰", null, MEMBER_ID, ReviewRequestStatus.PENDING_REVIEW, null, null, now, now, null, 0);
     }
 }

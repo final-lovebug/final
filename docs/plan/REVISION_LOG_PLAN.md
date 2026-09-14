@@ -1,6 +1,6 @@
 # RevisionLog 구현 계획
 
-2026-09-13 작성. 다른 7개 계획 문서와 같은 13절 목차를 쓴다. **이 문서는 큰 흐름 확정(2026-09-10) 이후에 쓰였으므로 `R-*`에 뒤집힌 서술이 없다.**
+2026-09-13 작성. 다른 7개 계획 문서와 같은 13절 목차를 쓰고, **프런트 연동 간극을 담은 14절만 더 있다**(2026-09-14, `RL-6`). **이 문서는 큰 흐름 확정(2026-09-10) 이후에 쓰였으므로 `R-*`에 뒤집힌 서술이 없다.**
 
 결정 원장은 `docs/plan/CONFLICTS.md`이고 이 도메인의 결정은 `D-55`~`D-61`이다. 실행 순서 규약은 `docs/plan/EXECUTION_ORDER.md`를 따른다.
 
@@ -21,7 +21,7 @@ RevisionLog은 **새 버전이 확정되는 순간 이전 버전과 대조해 �
 - **임의의 두 버전 비교**(r3 ↔ r7). 개정 이력은 **연속한 두 버전**만 설명한다. 프런트 화면도 지금은 최신 한 쌍만 그린다. `REQ-DIC-007`은 그래서 부분 충족이다
 - **문서 본문 텍스트 diff**(`D-61`). 취소선이 들어간 `v2 → v3` 인라인 비교는 문장 분할·오프셋 규격(`REQ-DOC-005`, 대기)이 선행돼야 한다
 - **`공식 전환` 등급**. 백엔드 `Dictionary`에 초안/공식 구분이 없다(`D-59`). 결정 대기다
-- **프런트엔드 연동.** `fetchDictionaryRevisionTimeline`·`fetchDocumentVersions`는 여전히 목데이터다. 응답 형태만 그 화면에 맞춰 둔다
+- **프런트엔드 연동.** `fetchDictionaryRevisionTimeline`·`fetchDocumentVersions`는 여전히 목데이터다. 응답 형태만 그 화면에 맞춰 둔다. **`RL-1`~`RL-5` 범위 밖이라는 뜻이고 미결이라는 뜻은 아니다** — 2026-09-14에 `RL-6`(WLSH-165)으로 배정했고 필드 단위 간극은 14절에 적었다
 - **발행 이벤트.** 이 도메인은 순수 소비자다. 「사전집 r7이 발행되었습니다」 알림은 Notification이 `DictionaryRevisedEvent`를 추가 구독하는 `NT-*` 몫이다
 - **LocalStack.** Notification과 같은 판단 — 브로커를 띄운 왕복 검증은 하지 않는다
 
@@ -269,7 +269,7 @@ revisionlog
 
 | 포트 | 메서드 | 프로퍼티 |
 | --- | --- | --- |
-| `DictionaryTermQueryPort` | `findDictionaryIdByVersion(Long, int)` · `readTerms(Long)` | `app.crossdomain.dictionary.mode` (기존 재사용) |
+| `DictionaryTermQueryPort` | `findDictionaryIdByVersion(Long, int)` · `readTerms(Long)` · `readVersion(Long, int)` | `app.crossdomain.dictionary.mode` (기존 재사용) |
 | `DocumentQueryPort` | `readVersions(Long)` · `countAlignedBelow(Long, int)` | `app.crossdomain.document.mode` (기존 재사용) |
 | `ReviewRequestQueryPort` | `findDocumentRevision(Long)` | `app.crossdomain.review-request.mode` (기존 재사용) |
 | `DraftDocumentQueryPort` | `readAppliedSuggestions(Long)` | `app.crossdomain.draft-document.mode` (기존 재사용) |
@@ -280,9 +280,11 @@ revisionlog
 
 ```java
 record TermSnapshot(String preferredForm, String englishName, String definition) {}
+record DictionaryVersionSnapshot(Long dictionaryId, Long publishedBy, OffsetDateTime publishedAt) {}
 record DocumentVersionSnapshot(int versionNo, Integer dictionaryVersionNo, boolean edited,
                                OffsetDateTime publishedAt, Long publishedBy) {}
-record DocumentRevisionSnapshot(Long documentId, Long draftDocumentId, int resultVersionNo, Long performedBy) {}
+record DocumentRevisionSnapshot(Long workspaceId, Long documentId, Long draftDocumentId, int resultVersionNo,
+                                Long performedBy) {}
 record AppliedSuggestion(String originTerm, String suggestionTerm) {}
 ```
 
@@ -365,6 +367,7 @@ record AppliedSuggestion(String originTerm, String suggestionTerm) {}
 | `RL-3` | WLSH-161 | 문서 축 — 포트·어댑터 2개 + 3경로 조립 + v1 백필 | `RL-2` |
 | `RL-4` | WLSH-162 | 조회 API 2개 | `RL-3` |
 | `RL-5` | WLSH-163 | SQS 수신 어댑터 | `RL-3` |
+| `RL-6` | WLSH-165 | **프런트 연동** — 두 이력 화면의 타입·목데이터를 개정 이력 응답에 맞춘다(14절) | `RL-4` |
 
 브랜치는 `feat/WLSH-{티켓}-revision-log-phase-{번호}`. **티켓이 태스크당 하나이므로 브랜치도 태스크당 하나다** — `.githooks/prepare-commit-msg`가 브랜치명의 키를 메시지에 넣으므로 한 브랜치에 다른 티켓 번호를 적으면 키가 겹친다. **Phase 0 문서 커밋은 `RL-1` 브랜치의 첫 커밋으로 얹는다.**
 
@@ -375,8 +378,9 @@ record AppliedSuggestion(String originTerm, String suggestionTerm) {}
 - **`RL-3`** — 직접 편집은 항목 없는 `DIRECT_EDIT` 1건, 리뷰 반영은 **적용된 치환만** 담은 `REVIEW_REVISE` 1건을 만들고, **v1 `UPLOAD` 행이 백필되며**, `type == DICTIONARY`인 반영 이벤트는 문서 축을 만들지 않는다
 - **`RL-4`** — 두 엔드포인트가 동작하고, `targetType`으로 축이 갈리며, 비참여 워크스페이스가 `404`다
 - **`RL-5`** — `app.messaging.mode`로 두 수신 어댑터가 배타 선택되고, 둘이 **같은 핸들러**에 위임하며, 구독하지 않는 이벤트를 예외 없이 넘긴다
+- **`RL-6`** — `DocumentHistoryPage`·`DictionaryHistoryPage`가 목데이터 대신 `GET .../revision-logs`를 읽고, `origin`이 화면에 드러나며, 문서 「처리 내역」 표가 **두 소스를 합친 것**임이 코드에 드러난다(14절)
 
-`RL-4`와 `RL-5`는 서로 의존하지 않아 병렬 가능하다.
+`RL-4`와 `RL-5`는 서로 의존하지 않아 병렬 가능하다. **`RL-6`은 `RL-4`의 응답 형태가 확정된 뒤에만 의미가 있다** — `RL-5`와는 무관하다.
 
 ---
 
@@ -400,3 +404,48 @@ record AppliedSuggestion(String originTerm, String suggestionTerm) {}
 ### DOMAIN.md 수정
 
 `RL-1`에서 반영한다 — `RevisionLog`·`RevisionLogEntry` 표 2개 신설, 「정책 · 제약」에 «개정 이력» 항목 추가, 관계 표 4행 추가.
+
+---
+
+## 14. 프런트 연동 간극 (`RL-6` · WLSH-165)
+
+2026-09-14에 추가했다. `RL-4`가 응답을 확정한 뒤 **화면과 응답이 실제로 어긋나는 지점**을 확인한 결과이며, `RL-6` 세션이 이 절만 읽고 시작할 수 있게 필드 단위로 적는다.
+
+### 요구사항 근거는 이미 있다
+
+간극은 「요구사항이 없어서」 생긴 것이 아니다. `REQ-RL-002`가 **경로(업로드·직접 편집·리뷰 반영)** 기록을, `REQ-RL-003`이 「프런트 `DictionaryHistoryPage`·`DocumentHistoryPage`의 좌측 타임라인이 이것으로 채워진다」를, `REQ-UPD-005`가 「절반은 `REQ-RL-002`가 담당한다」를 이미 적고 있다. **화면과 목데이터가 백엔드보다 먼저 만들어졌기 때문에 필드 이름과 구성이 갈린 것**이다.
+
+### 문서 축 — `DocumentHistoryPage`
+
+| 백엔드 응답 | 프런트 현재 | 할 일 |
+| --- | --- | --- |
+| `origin` (`UPLOAD`·`DIRECT_EDIT`·`REVIEW_REVISE`) | **없다.** `DocumentVersion` 타입에 필드가 없다 | 타입에 더하고 배지로 그린다 |
+| `summary` (발행 시점 자동 생성 한 줄) | `version.body`를 그 자리에 렌더한다 | `summary`로 바꾼다 — `body`는 본문 스냅샷이고 요약이 아니다 |
+| `entries` (적용된 치환만) | `useSuggestionHistory` — **별개 목데이터** | 아래 「처리 내역」 항목을 본다 |
+| `baseDictionaryVersionNo` | `dictionaryVersionNo` | 이름만 맞추면 된다. **유일하게 이미 맞는 값**이다 |
+
+`DOCUMENT_VERSION_FIXTURES`는 경로를 **`body`에 산문으로 녹여 두었다**(`"최초 업로드"` · `"2절 비즈니스 규칙 문단 추가"` · `"치환 제안 12건 중 적용 9 · 무시 2 · 직접입력 1"`). 그래서 지금 프런트는 「리뷰 반영으로 생긴 버전」을 프로그램적으로 가려낼 수 없다.
+
+### 「처리 내역」 표는 한 소스로 채워지지 않는다
+
+`DocumentHistoryPage`의 우측 표는 `적용`·`무시`·`직접 입력` 3종을 보여주는데 **개정 이력은 적용된 치환만 담는다** — `KEEP_ORIGINAL`은 본문을 바꾸지 않았으므로 항목이 되지 않는다(`D-61`·`RL-3` DoD). 무시·직접입력 이력은 `DraftDocument`가 갖는다(`REQ-UPD-005` 비고).
+
+**이 표는 개정 이력 + 문서 초안 제안 두 소스를 합쳐야 한다.** 한쪽만 붙이면 무시된 제안이 화면에서 사라진다 — 「리뷰어는 이 기록으로 무엇이 왜 바뀌었는지 확인합니다」라는 그 화면의 부제가 깨진다.
+
+### 사전집 축 — `DictionaryHistoryPage`
+
+| 백엔드 응답 | 프런트 현재 | 할 일 |
+| --- | --- | --- |
+| `grade` (enum 4종) | `DictionaryRevisionGrade` 한글 5종 | 매핑표를 둔다. **`공식 전환`은 백엔드에 없다**(`D-59`, 결정 대기) |
+| (없음) | `tone` (`success`·`neutral`·`danger`·`accent`) | **프런트가 `grade`에서 파생한다.** 백엔드는 저장하지 않는다(`D-49`와 같은 판단) |
+| `summary` | `summary` | 이미 맞는다 |
+| `publishedBy` (회원 id) | `author` (표시 이름) | 회원 조회가 필요하다 — 목록 응답에 이름이 없다 |
+| `entries` | `latestDiff` (r6→r7 한 쌍만) | 상세 조회로 바꾼다 |
+
+`publishedBy` → 표시 이름 변환은 이 도메인이 풀지 않는다 — 개정 이력 응답에 회원 이름을 싣기 시작하면 `member`를 되짚는 조회가 목록 쿼리에 붙는다. **프런트가 회원 목록을 따로 들고 매핑하는 쪽을 먼저 검토한다.**
+
+### 범위 밖으로 남는 것
+
+- **임의의 두 버전 비교.** `latestDiff`가 최신 한 쌍만 가진 것은 백엔드도 같다 — 개정 이력은 연속한 두 버전만 설명한다(1절, `REQ-DIC-007` 부분 충족)
+- **`공식 전환` 등급.** `Dictionary`에 초안·공식 구분이 생기기 전에는 만들 수 없다(`D-59`)
+- **`WLSH-164`와의 경계.** 트랙 A가 공통 `httpClient`·인증 배선을 맡는다. `RL-6`은 **그 위에 이력 화면 둘만** 올린다 — 배선을 두 번 만들지 않도록 `WLSH-164`가 먼저 머지돼야 한다

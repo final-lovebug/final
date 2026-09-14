@@ -16,27 +16,38 @@ import type {
 export type DictionaryStatus = 'ACTIVE' | 'ARCHIVED' // 활성중 / 보관중
 
 export interface Dictionary {
+  /** 실 API(`GET /api/workspaces/{id}/dictionary`, docs/API.md 857행)는 사전집을 별도
+   * id·이름을 가진 리소스로 응답하지 않는다(워크스페이스당 활성 1개 + 보관 N개일 뿐,
+   * "이름"이라는 개념 자체가 없다 — API.md 818행). 실연동에서는 `workspaceId` 기반으로
+   * 합성한다. */
   id: DictionaryId
   workspaceId: WorkspaceId
   name: string
   currentVersionNo: number
   status: DictionaryStatus
-  createdAt: string
-  createdBy: MemberId
-  updatedAt: string
+  /** 실 API는 `publishedAt`/`publishedBy`만 준다 — 아래 두 필드로 따로 받는다. */
+  publishedAt?: string
+  publishedBy?: MemberId
+  createdAt?: string
+  createdBy?: MemberId
+  updatedAt?: string
 }
 
 export interface Term {
   id: TermId
-  dictionaryId: DictionaryId
+  /** 실 API 목록 응답의 항목(`TermSummary`)엔 이 필드가 없다(용어가 어느 사전집인지는
+   * 조회 경로로 이미 알고 있어 안 실어 보낸다) — 목업 전용, 실연동 시 채우지 않는다. */
+  dictionaryId?: DictionaryId
   /** 사전집 내 유일. 제안어로 제시되는 값 */
   preferredForm: string
   /** 코드·DB 네이밍 기준 */
   englishName?: string
-  definition: string
-  createdAt: string
-  createdBy: MemberId
-  updatedAt: string
+  /** 실 API 목록 응답은 이 필드를 의도적으로 뺀다(`D-41` — definition 본문을 안 싣는다,
+   * 단건 조회 엔드포인트도 없음). 실연동에서는 항상 비어 있다 — 화면은 "—"로 표시한다. */
+  definition?: string
+  createdAt?: string
+  createdBy?: MemberId
+  updatedAt?: string
 }
 
 export interface DictionaryVersion {

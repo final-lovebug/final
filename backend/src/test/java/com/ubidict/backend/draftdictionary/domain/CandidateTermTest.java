@@ -42,4 +42,25 @@ class CandidateTermTest {
         // then
         assertThat(candidate.getProposedDefinition()).isEqualTo("updated");
     }
+
+    @DisplayName("추출기가 묶어 준 표기 변형을 그대로 보존한다.")
+    @Test
+    void create_withVariantForms() {
+        // when
+        CandidateTerm candidate =
+                CandidateTerm.create(1L, "고객", null, null, List.of(), 1, List.of(), List.of("고객", "커스터머", "클라이언트"), 2L);
+
+        // then
+        assertThat(candidate.getVariantForms()).containsExactly("고객", "커스터머", "클라이언트");
+    }
+
+    @DisplayName("표기 변형을 넘기지 않으면 빈 목록으로 시작한다.")
+    @Test
+    void create_withoutVariantForms() {
+        // when
+        CandidateTerm candidate = CandidateTerm.create(1L, "term", null, null, List.of(), 1, List.of());
+
+        // then
+        assertThat(candidate.getVariantForms()).isEmpty();
+    }
 }

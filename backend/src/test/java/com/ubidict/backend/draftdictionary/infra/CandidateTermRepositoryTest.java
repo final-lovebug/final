@@ -129,6 +129,30 @@ class CandidateTermRepositoryTest extends RepositoryTestSupport {
         assertThat(found.getUpdatedAt()).isAfterOrEqualTo(found.getCreatedAt());
     }
 
+    @DisplayName("표기 변형(variantForms) 컬렉션을 그대로 영속화한다.")
+    @Test
+    void save_variantForms() {
+        Long draftDictionaryId = saveDraftDictionary();
+        CandidateTerm saved = candidateTermRepository.save(CandidateTerm.create(
+                draftDictionaryId,
+                "고객",
+                "정의",
+                null,
+                List.of(10L),
+                1,
+                List.of("문맥"),
+                List.of("고객", "커스터머", "클라이언트"),
+                2L));
+        em.flush();
+        em.clear();
+
+        CandidateTerm found = candidateTermRepository
+                .findByIdAndDeletedAtIsNull(saved.getId())
+                .orElseThrow();
+
+        assertThat(found.getVariantForms()).containsExactlyInAnyOrder("고객", "커스터머", "클라이언트");
+    }
+
     private Long saveDraftDictionary() {
         DraftDictionary draft = draftDictionaryRepository.save(DraftDictionary.create(1L, null, List.of(10L), 2L));
         return draft.getId();

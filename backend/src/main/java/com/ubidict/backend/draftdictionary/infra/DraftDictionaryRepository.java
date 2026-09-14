@@ -3,6 +3,8 @@ package com.ubidict.backend.draftdictionary.infra;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionaryStatus;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -30,4 +32,9 @@ public interface DraftDictionaryRepository extends JpaRepository<DraftDictionary
     Optional<DraftDictionary> findByIdAndDeletedAtIsNull(Long id);
 
     Optional<DraftDictionary> findByDictionaryIdAndDeletedAtIsNull(Long dictionaryId);
+
+    Page<DraftDictionary> findAllByWorkspaceIdAndDeletedAtIsNull(Long workspaceId, Pageable pageable);
+
+    Page<DraftDictionary> findAllByWorkspaceIdAndStatusAndDeletedAtIsNull(
+            Long workspaceId, DraftDictionaryStatus status, Pageable pageable);
 }

@@ -77,11 +77,12 @@ export function DocumentListPage() {
                   <td className="border-b border-border-faint px-4 py-3 text-text-secondary">
                     {doc.currentVersionNo > 0 ? `r${doc.currentVersionNo}` : '—'}
                   </td>
+                  {/* 실 API는 작성자/수정자 이름을 안 내려준다(T-INT-18) — "—"로 대체 */}
                   <td className="border-b border-border-faint px-4 py-3 text-text-secondary">
-                    {doc.ownerName}
+                    {doc.ownerName ?? '—'}
                   </td>
                   <td className="border-b border-border-faint px-4 py-3 text-text-secondary">
-                    {doc.updaterName}
+                    {doc.updaterName ?? '—'}
                   </td>
                   <td className="border-b border-border-faint px-4 py-3 text-text-secondary">
                     {new Date(doc.updatedAt).toLocaleString('ko-KR')}

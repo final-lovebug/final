@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RevisionLogRepository extends JpaRepository<RevisionLog, Long> {
 
+    boolean existsByWorkspaceIdAndTargetTypeAndTargetIdAndVersionNo(
+            Long workspaceId, RevisionLogTargetType targetType, Long targetId, int versionNo);
+
     Page<RevisionLog> findAllByWorkspaceIdAndTargetTypeAndTargetId(
             Long workspaceId, RevisionLogTargetType targetType, Long targetId, Pageable pageable);
 }

@@ -15,13 +15,14 @@ import { DOCUMENT_REVIEW_REQUEST_ID } from '../../features/review/model/reviewRe
 // 생성된 리뷰(예: doc-retention)는 하이라이트 없이 문서 본문(content)만 보여준다 — 실제
 // 하이라이트는 백엔드의 대조 결과 위치(anchor)가 있어야 재현 가능해서 지금은 생략했다.
 export function DocumentReviewThreadPage() {
-  const { documentId = '', reviewId = '' } = useParams<{
+  const { workspaceId = '', documentId = '', reviewId = '' } = useParams<{
+    workspaceId: string
     documentId: string
     reviewId: string
   }>()
   const { data: comments } = useReviewThreadComments(reviewId)
   const addComment = useAddReviewThreadComment(reviewId)
-  const { data: document } = useDocument(documentId)
+  const { data: document } = useDocument(workspaceId, documentId)
   const currentMember = useAuthStore((state) => state.currentMember)
   const [commentDraft, setCommentDraft] = useState('')
   const isSeededDemoReview = reviewId === DOCUMENT_REVIEW_REQUEST_ID

@@ -10,7 +10,8 @@ public record AddCandidateTermRequest(
         String proposedEnglishName,
         List<Long> occurredDocumentIds,
         @PositiveOrZero int occurrenceCount,
-        List<String> contextSnippets) {
+        List<String> contextSnippets,
+        List<String> variantForms) {
     public AddCandidateTermCommand toCommand(Long id, Long member) {
         return new AddCandidateTermCommand(
                 id,
@@ -20,6 +21,7 @@ public record AddCandidateTermRequest(
                 occurredDocumentIds,
                 occurrenceCount,
                 contextSnippets,
+                variantForms,
                 member);
     }
 }
