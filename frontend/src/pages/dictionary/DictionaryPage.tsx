@@ -1,22 +1,80 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Button, Card, Pill } from '../../shared/ui'
+import {
+  Banner,
+  Button,
+  Card,
+  ColFlex,
+  DataTable,
+  Pill,
+  Td,
+  Th,
+  Tr,
+  TwoCol,
+} from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
-import { useDictionary } from '../../features/dictionary/hooks/useDictionary'
-import { TERM_IN_FOCUS_ID } from '../../features/dictionary/model/fixtures'
-import { CURRENT_DICTIONARY_REVISION_ID } from '../../features/review/model/fixtures'
 import { cx } from '../../shared/lib/cx'
 import { downloadCsv } from '../../shared/lib/downloadCsv'
+import { useDictionary } from '../../features/dictionary/hooks/useDictionary'
+import { useDictionaryVersions } from '../../features/dictionary/hooks/useDictionaryVersions'
+import { useDictionaryRevision } from '../../features/review/hooks/useDictionaryRevision'
+import { CURRENT_DICTIONARY_REVISION_ID } from '../../features/review/model/fixtures'
 
+// ui/main.js renderDictionaryScreen() 이식.
+//
+// **(2026-09-14 디자인 정합)** 프로토타입의 버전 드롭다운(r7 ▾ → r6·r5·r4·all)과
+// 「승인 대기 중인 변경 N건」 배너를 실제 데이터로 살렸다. 전자는 버전 목록 API로,
+// 후자는 진행 중인 사전 개정안의 후보어 행을 세어서 만든다 — 둘 다 하드코딩이었다.
 export function DictionaryPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
-  const { data, isLoading, isError } = useDictionary(workspaceId)
+  const { data: versions } = useDictionaryVersions(workspaceId)
+  const [selectedVersionNo, setSelectedVersionNo] = useState<number | undefined>(undefined)
+  const { data, isLoading, isError } = useDictionary(workspaceId, selectedVersionNo)
+
+  // 진행 중인 개정안이 없으면 에러다 — 배너를 감추기만 하고 화면은 그대로 둔다.
+  const { data: pendingRevision } = useDictionaryRevision(
+    workspaceId,
+    CURRENT_DICTIONARY_REVISION_ID,
+  )
+
+  const [versionMenuOpen, setVersionMenuOpen] = useState(false)
+  const versionMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!versionMenuOpen) return
+    function handleClickOutside(event: MouseEvent) {
+      if (versionMenuRef.current && !versionMenuRef.current.contains(event.target as Node)) {
+        setVersionMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [versionMenuOpen])
 
   if (isLoading) return <p className="text-sm text-text-tertiary">불러오는 중…</p>
   if (isError || !data) {
-    return <p className="text-sm text-danger">사전집을 불러오지 못했습니다.</p>
+    return (
+      <div>
+        <p className="text-sm text-text-tertiary">
+          아직 이 워크스페이스에는 사전집이 없습니다. 사전집은 문서에서 용어를 추출해 리뷰를
+          통과시키면 만들어집니다.
+        </p>
+        <Link to={routes.termExtraction(workspaceId)}>
+          <Button variant="primary" className="mt-4">
+            용어 추출 실행
+          </Button>
+        </Link>
+      </div>
+    )
   }
 
   const { dictionary, terms } = data
+  const isArchived = dictionary.status === 'ARCHIVED'
+
+  const addedCount = pendingRevision?.rows.filter((row) => row.change === '추가').length ?? 0
+  const changedCount =
+    pendingRevision?.rows.filter((row) => row.change === '정의 수정').length ?? 0
+  const pendingCount = addedCount + changedCount
 
   function handleExport() {
     const rows = [
@@ -28,77 +86,119 @@ export function DictionaryPage() {
         term.updatedAt ?? '',
       ]),
     ]
-    downloadCsv(`${dictionary.name}_r${dictionary.currentVersionNo}.csv`, rows)
+    downloadCsv(`사전집_r${dictionary.currentVersionNo}.csv`, rows)
   }
 
   return (
     <div>
-      <div className="mb-1 flex items-center gap-3">
-        <Button variant="outline" size="sm">
+      <div ref={versionMenuRef} className="relative mb-[6px] flex items-center gap-3">
+        <Button variant="outline" size="sm" onClick={() => setVersionMenuOpen((open) => !open)}>
           r{dictionary.currentVersionNo} ▾
         </Button>
-        <Pill tone="success">공식</Pill>
+        <Pill tone={isArchived ? 'neutral' : 'success'}>{isArchived ? '보관' : '공식'}</Pill>
+
+        {versionMenuOpen && (
+          <div className="absolute left-0 top-[38px] z-10 w-[180px] overflow-hidden rounded-[10px] border border-border bg-surface text-[12.5px] shadow-pop">
+            {versions?.map((version) => (
+              <button
+                key={version.versionNo}
+                type="button"
+                onClick={() => {
+                  setSelectedVersionNo(
+                    version.status === 'ACTIVE' ? undefined : version.versionNo,
+                  )
+                  setVersionMenuOpen(false)
+                }}
+                className={cx(
+                  'block w-full cursor-pointer border-b border-border-soft px-[13px] py-[9px] text-left last:border-b-0 hover:bg-bg',
+                  version.versionNo === dictionary.currentVersionNo
+                    ? 'bg-accent-bg font-bold text-accent-strong'
+                    : 'text-text-tertiary',
+                )}
+              >
+                r{version.versionNo}
+              </button>
+            ))}
+            <Link
+              to={routes.dictionaryHistory(workspaceId)}
+              className="block border-t border-border-strong px-[13px] py-[9px] font-semibold text-accent-strong hover:bg-bg"
+            >
+              all
+            </Link>
+          </div>
+        )}
       </div>
-      <p className="mb-3 text-[11.5px] text-text-quaternary">
-        공식 리비전 · 대조 결과가 문서 검사에 그대로 적용됩니다
+
+      <p className="mb-[14px] text-[11.5px] text-text-quaternary">
+        {isArchived
+          ? '보관 리비전 · 현재 문서 검사에는 활성 리비전이 쓰입니다'
+          : '공식 리비전 · 대조 결과가 문서 검사에 그대로 적용됩니다'}
       </p>
 
-      <Card className="mb-2 flex items-center justify-between bg-accent-bg-strong p-3 text-[12.5px]">
-        <span>사전집 개정안에서 승인 대기 중인 변경 8건 — 용어 추가 5 · 정의 수정 3</span>
-        <Link
-          to={routes.dictionaryRevision(workspaceId, CURRENT_DICTIONARY_REVISION_ID)}
-          className="font-semibold text-accent-strong"
-        >
-          개정안 보기 →
-        </Link>
-      </Card>
-      <p className="mb-[18px] text-[11.5px] text-text-quaternary">
-        승인이 완료되면 리비전이 자동으로 발행됩니다.
-      </p>
+      {pendingCount > 0 && (
+        <>
+          <Banner className="mb-2 flex items-center justify-between gap-3">
+            <span>
+              사전집 개정안에서 승인 대기 중인 변경 {pendingCount}건 — 용어 추가 {addedCount} ·
+              정의 수정 {changedCount}
+            </span>
+            <Link
+              to={routes.dictionaryRevision(workspaceId, CURRENT_DICTIONARY_REVISION_ID)}
+              className="shrink-0 text-xs font-semibold text-accent-strong"
+            >
+              개정안 보기 →
+            </Link>
+          </Banner>
+          <p className="mb-[18px] text-[11.5px] text-text-quaternary">
+            승인이 완료되면 리비전이 자동으로 발행됩니다.
+          </p>
+        </>
+      )}
 
-      <div className="flex items-start gap-5">
-        <Card className="flex-1 overflow-hidden">
-          <table className="w-full border-collapse text-[12.5px]">
-            <thead>
-              <tr>
-                {['통일 용어', '정의', '최종 수정'].map((heading) => (
-                  <th
-                    key={heading}
-                    className="whitespace-nowrap border-b border-border-soft px-4 py-[11px] text-left text-[11px] font-semibold text-text-quaternary"
-                  >
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {terms.map((term) => (
-                <tr
-                  key={term.id}
-                  className={cx(term.id === TERM_IN_FOCUS_ID && 'bg-accent-bg-strong')}
-                >
-                  <td className="border-b border-border-faint px-4 py-3 font-bold text-text">
-                    {term.preferredForm}
-                    {term.englishName && (
-                      <span className="ml-1 font-normal text-text-tertiary">
-                        ({term.englishName})
-                      </span>
-                    )}
-                  </td>
-                  {/* 실 API 목록 응답엔 definition이 없다(D-41) — T-INT-11(2026-09-14)에서
-                      사용자 결정: "—"로 표시. updatedAt도 목록에 없어 같은 방식으로 처리. */}
-                  <td className="border-b border-border-faint px-4 py-3 text-text-secondary">
-                    {term.definition ?? '—'}
-                  </td>
-                  <td className="border-b border-border-faint px-4 py-3 text-text-quaternary">
-                    {term.updatedAt ? new Date(term.updatedAt).toLocaleDateString('ko-KR') : '—'}
-                  </td>
+      <TwoCol>
+        <ColFlex>
+          <Card className="overflow-hidden">
+            <DataTable>
+              <thead>
+                <tr>
+                  <Th>통일 용어</Th>
+                  <Th>정의</Th>
+                  <Th>최종 수정</Th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-        <Card className="w-[280px] shrink-0 bg-surface-muted p-4 opacity-60">
+              </thead>
+              <tbody>
+                {terms.length === 0 && (
+                  <Tr>
+                    <Td colSpan={3} className="text-text-tertiary">
+                      이 리비전에는 용어가 없습니다.
+                    </Td>
+                  </Tr>
+                )}
+                {terms.map((term) => (
+                  <Tr key={term.id}>
+                    <Td className="font-bold text-text">
+                      {term.preferredForm}
+                      {term.englishName && (
+                        <span className="ml-1 font-normal text-text-tertiary">
+                          ({term.englishName})
+                        </span>
+                      )}
+                    </Td>
+                    {/* 실 API 목록 응답엔 definition·updatedAt이 없다(D-41) — "—"로 표시한다. */}
+                    <Td>{term.definition ?? '—'}</Td>
+                    <Td className="text-text-quaternary">
+                      {term.updatedAt
+                        ? new Date(term.updatedAt).toLocaleDateString('ko-KR')
+                        : '—'}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </DataTable>
+          </Card>
+        </ColFlex>
+
+        <Card className="w-[280px] shrink-0 border-border-soft bg-surface-muted p-4 opacity-60">
           <div className="mb-[6px] flex items-center gap-[6px]">
             <span className="text-[12.5px] font-bold">역인덱스 · 변경 이력</span>
             <Pill tone="neutral">MVP2</Pill>
@@ -108,13 +208,11 @@ export function DictionaryPage() {
             리비전 이력에서 확인할 수 있습니다.
           </p>
         </Card>
-      </div>
+      </TwoCol>
 
       <div className="mt-4 flex gap-[10px]">
         <Link to={routes.dictionaryDraft(workspaceId)}>
-          <Button variant="outline" title="사전집 초안으로 이동">
-            직접 후보 등록
-          </Button>
+          <Button variant="outline">직접 후보 등록</Button>
         </Link>
         <Button variant="outline" onClick={handleExport}>
           내보내기

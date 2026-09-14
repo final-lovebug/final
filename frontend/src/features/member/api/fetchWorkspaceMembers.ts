@@ -42,6 +42,7 @@ export async function fetchWorkspaceMembers(
     const name = summary?.displayName ?? '—'
     return {
       id: String(participant.memberId),
+      participantId: String(participant.participantId),
       workspaceId,
       initial: name.charAt(0),
       name,

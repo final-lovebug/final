@@ -47,19 +47,28 @@ export interface DocumentVersion {
   originRevisionId?: RevisionDocumentId
   /** 발행 시점 기준 사전집 버전 */
   dictionaryVersionNo?: number
+  /** true면 사람이 직접 고친 버전, false면 업로드본이거나 교정 반영본이다(docs/API.md). */
+  edited?: boolean
+  /** 발행자 이름. `publishedBy`(회원 id)를 배치 조회로 해석한 값이다. */
+  publishedByName?: string
   createdAt?: string
   createdBy?: MemberId
   updatedAt?: string
 }
 
-export type DraftDocumentStatus = 'IN_PROGRESS' | 'DONE' // 교정 중 / 교정완료
+/** 실 API(`DraftDocumentStatus`) 그대로 — 교정중 / 교정완료 / 리뷰요청됨 / 반영됨. */
+export type DraftDocumentStatus =
+  | 'EXAMINING'
+  | 'EXAMINED'
+  | 'REVIEW_REQUESTED'
+  | 'REVISED'
 
 export interface DraftDocument {
   id: DraftDocumentId
   documentId: DocumentId
   /** 어느 버전에서 갈라졌는지 */
   baseVersionNo: number
-  /** 교정 반영이 누적되는 본문 */
+  /** 교정 반영이 누적되는 본문. 제안어의 anchor가 가리키는 기준 본문이 이것이다. */
   draftBody: string
   status: DraftDocumentStatus
   /** 교정할 사람 */
@@ -69,7 +78,9 @@ export interface DraftDocument {
   updatedAt: string
 }
 
-// 처리 전 / 기존 용어 유지 / 제안 용어 적용
+// 처리 전 / 기존 용어 유지 / 제안 용어 적용.
+// **실 API의 이름은 `PENDING`·`KEPT_ORIGIN`·`APPLIED_SUGGESTION`이다** — 화면 코드가 이미
+// 아래 이름을 쓰고 있어 api 계층(`draftDocumentApi.ts`)에서 양방향으로 변환한다.
 export type SuggestionTermStatus = 'PENDING' | 'KEEP_ORIGINAL' | 'APPLY_SUGGESTION'
 
 export interface SuggestionTerm {
@@ -88,6 +99,24 @@ export interface SuggestionTerm {
   createdAt: string
   createdBy: MemberId
   updatedAt: string
+}
+
+/**
+ * "처리 내역" 화면 전용 뷰. 판정이 끝난 제안어를 사람이 읽는 한 줄로 줄인 것이라
+ * 도메인 표에는 없다 — `SuggestionTerm`에서 파생한다(`api/fetchSuggestionHistory.ts`).
+ *
+ * `action: 'manual'`(직접 입력)은 **실 API에서 나오지 않는다.** 백엔드의 제안어 상태 축은
+ * `PENDING`·`KEPT_ORIGIN`·`APPLIED_SUGGESTION` 셋뿐이고 "제안 대신 다른 말로 바꿔 썼다"를
+ * 표현하는 자리가 없다(초안 본문 직접 수정 `PATCH /api/draft-documents/{id}`은 제안어
+ * 판정과 별개다). 목업 시절 화면이 그 경우를 그리고 있어 타입과 렌더링은 남겨 두지만
+ * 지금 데이터로는 항상 'applied' 또는 'ignored'다.
+ */
+export interface SuggestionHistoryItem {
+  original: string
+  result: string
+  action: 'applied' | 'ignored' | 'manual'
+  reason?: string
+  manualValue?: string
 }
 
 /**

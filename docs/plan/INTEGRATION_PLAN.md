@@ -65,6 +65,12 @@ SQS 메시지 봉투 스키마는 **ubidict-py의 기존 초안을 그대로 채
 
 ## 1. SQS 작업 큐 계약 (T-INT-7의 산출물로 확정)
 
+> ⚠️ **이 절은 낡았다(2026-09-14).** 같은 날 진행된 AI 워커 전환 세션이 계약을 다시 잡았다 —
+> **요청 메시지는 식별자만 싣고 워커가 DB를 직접 읽으며**(`D-69`), **응답 큐 대신 동기 HTTP
+> 콜백을 쓴다**(`D-68`). 따라서 아래의 봉투 구조·`ubidict-py` 스키마 채택·변환 매핑표는
+> 더 이상 유효하지 않다. **정본은 `docs/AI_CONTRACT.md`이고 결정은 `CONFLICTS.md`
+> `D-66`~`D-78`이다.** 아래는 그 전환의 출발점이 된 기록으로만 남긴다.
+
 ### 1-1. 봉투(Envelope)
 
 큐: `lovebug-llm-request`(요청)/`lovebug-llm-reply`(응답)/`lovebug-llm-dlq`(DLQ,
@@ -148,12 +154,10 @@ API가 아예 없는 항목이 나오면(T-INT-13·T-INT-14가 그 사례) 억�
 
 | 태스크 | 범위 |
 |---|---|
-| **T-INT-7** 큐 계약 문서화 | 위 1절을 `docs/plan/CONFLICTS.md`에 새 결정 ID로 등재(착수 시점 다음 번호 확인 — `D-64`부터 비어 있음). `application.yml`/`application-prod.yml`(+양쪽 test yml)의 주석 처리된 `llm-request-queue`/`llm-reply-queue` 키를 활성화 |
-| **T-INT-8a** 추출 real 어댑터 | `SqsTermExtractorAdapter`(요청 발행) + `ExtractionReplyListener`(`@SqsListener`, 응답 수신 → `DraftDictionaryExtractionExecutionService.complete/fail` 직접 호출). **포트를 "발행만" 하는 형태로 바꾼다** — 응답이 비동기로 딴 곳에서 오므로 `TermExtractorPort.extract(...)`의 동기 반환값을 없앤다 |
-| **T-INT-8b** 대조 real 어댑터 | 동일 패턴, `SqsTermCheckerAdapter` + `CheckReplyListener` |
-| **T-INT-8c** 프로퍼티 전환 | `app.ai.extractor.mode`/`app.ai.checker.mode`에 `real` 옵션 추가(`@ConditionalOnProperty(havingValue="real")`), 기본값은 계속 `stub` |
+| ~~**T-INT-7** 큐 계약 문서화~~ | **완료(대체됨, 2026-09-14)** — AI 워커 전환 세션(`WLSH-166`)이 계약을 `D-66`~`D-78` + `docs/AI_CONTRACT.md`로 확정했다. **`llm-reply-queue`는 활성화하지 않고 지웠다**(`D-68` — 완료 통보가 큐가 아니라 HTTP 콜백이다). 아래 1절은 그 전환 이전의 설계라 더 이상 정본이 아니다 |
+| ~~**T-INT-8a/8b/8c** real 어댑터~~ | **완료(대체됨, 2026-09-14)** — `TermExtractorPort`·`TermCheckerPort`와 스텁을 **제거하고**(`D-66`·`R-26`) 공용 발행 포트 `LlmJobRequestSender`(인프로세스·SQS 두 어댑터) + 두 디스패치 리스너 + `/api/internal/llm/**` 콜백 컨트롤러 + 타임아웃 스위퍼로 구현했다. 선택 축은 `app.ai.dispatch.mode`·`app.ai.mode`다. 대조표는 `docs/task/T-INT-8-sqs-adapter.md` |
 | **T-INT-6** (잡일, 아무 때나) | `NotificationController` 4개 엔드포인트 `@RequestParam Long memberId` → `@AuthenticationPrincipal`(T-INT-3 잔여 마무리) |
-| **T-INT-17** 추출/대조 결과 화면 | `TermExtractionPage`가 실제로 `POST .../extractions`를 호출하고 `jobId`로 폴링(`GET .../extractions/{jobId}`)하는 화면으로 교체. `DocumentReviewPage`의 대조 결과 표시도 동일 패턴. **T-INT-8a/8b가 먼저 끝나야 의미 있는 데이터가 나온다** — 그 전엔 붙여도 항상 빈 결과 |
+| **T-INT-17** 추출/대조 결과 화면 | **코드 작성 완료(2026-09-14, QA 대기)** — 두 화면이 실제로 작업을 접수하고 폴링한다(2초 간격·5분 상한, `D-79`). `DocumentReviewPage`는 초안 본문 + 제안어 `anchor` 기반 하이라이트로 다시 짰고(`D-80`), 그 과정에서 **`T-INT-10`이 보류했던 대조 제안 클러스터 4개도 함께 실연동**했다. 워커가 없으면 여전히 빈 결과지만 그 케이스의 화면 문구를 따로 뒀다 |
 
 ---
 
@@ -164,6 +168,10 @@ T-INT-9~16 (Track A)              서로 독립, 병렬 가능
 T-INT-6                           독립, 아무 때나
 T-INT-7 → T-INT-8a·8b → T-INT-8c → T-INT-17
 ```
+
+**2026-09-14 기준 이 그래프는 전부 소화됐다.** 트랙 B의 앞 세 칸은 AI 워커 전환 세션이
+다른 모양으로 채웠고, 마지막 `T-INT-17`을 그 위에서 마쳤다. 남은 것은 수동 QA와 이
+저장소 밖의 FastAPI 워커 구현이다.
 
 Track A와 Track B는 건드리는 파일이 겹치지 않아(프론트 vs 백엔드) 동시 진행 가능하지만,
 우선순위상 Track A를 먼저 마친다.

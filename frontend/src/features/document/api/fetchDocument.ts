@@ -52,6 +52,7 @@ function mapDocument(response: DocumentApiResponse, ownerName: string): Document
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,
     label: response.labels[0] ? { id: response.labels[0], name: response.labels[0] } : undefined,
+    labels: response.labels,
     badge: response.edited ? 'danger' : response.aligned ? undefined : 'warn',
   }
 }

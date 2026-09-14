@@ -57,6 +57,7 @@ export async function fetchDocuments(workspaceId: WorkspaceId): Promise<Document
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     label: doc.labels[0] ? { id: doc.labels[0], name: doc.labels[0] } : undefined,
+    labels: doc.labels,
     badge: doc.edited ? 'danger' : doc.aligned ? undefined : 'warn',
   }))
 }

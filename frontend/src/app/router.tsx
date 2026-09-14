@@ -87,11 +87,6 @@ export const router = createBrowserRouter([
             handle: { title: '문서 버전 이력' },
           },
           {
-            path: 'documents/:documentId/extract',
-            element: <TermExtractionPage />,
-            handle: { title: '사전집 초안' },
-          },
-          {
             path: 'documents/:documentId/review',
             element: <DocumentReviewPage />,
             handle: { title: '문서 검토' },
@@ -109,6 +104,11 @@ export const router = createBrowserRouter([
           {
             path: 'dictionary/draft',
             element: <DictionaryDraftPage />,
+            handle: { title: '사전집 초안' },
+          },
+          {
+            path: 'dictionary/extract',
+            element: <TermExtractionPage />,
             handle: { title: '사전집 초안' },
           },
           {

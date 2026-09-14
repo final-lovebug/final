@@ -1,6 +1,8 @@
 # T-INT-10 — document 실연동
 
-상태: 진행중(2026-09-14, 5/10 완료 — 아래 참고) | 담당자: (세션 진행)
+상태: **완료(2026-09-14, QA 대기)** | 담당자: WLSH-171 + `T-INT-17` 세션
+> 보류였던 대조 제안 클러스터 4개까지 `T-INT-17`에서 해소됐다. 남은 것은 수동 QA와
+> 라벨 생성(백엔드 API 없음, 목업 유지 결정)·본문 직접 편집 화면(후속 확인)뿐이다.
 근거: `docs/plan/INTEGRATION_PLAN.md` 2절 Track A
 의존: 없음(다른 도메인 태스크와 독립). 이름 표시만 `T-INT-18`(범위 확장됨) 영향
 
@@ -39,12 +41,15 @@
 - [x] `api/fetchLabels.ts` — 완료(`GET /api/workspaces/{workspaceId}/labels`, `documentCount`는
       응답에 없어 0 고정)
 
-### 대조 제안 클러스터(4개) — 보류(2026-09-14, 아래 참고)
+### 대조 제안 클러스터(4개) — **해소(2026-09-14, `T-INT-17`에서 실연동)**
 
-- [ ] ~~`api/fetchDraftDocuments.ts`~~ / ~~`api/fetchSuggestions.ts`~~ /
-      ~~`api/fetchSuggestionHistory.ts`~~ / ~~`api/resolveSuggestion.ts`~~
+- [x] `api/fetchDraftDocuments.ts` / `api/fetchSuggestions.ts` /
+      `api/fetchSuggestionHistory.ts` / `api/resolveSuggestion.ts` — 넷 다 실연동했다.
+      공용 DTO·매핑은 `api/draftDocumentApi.ts`에 모았고, 본문 렌더링은
+      `model/suggestionSegments.ts`가 anchor 기준으로 쪼갠다. 자세한 내용은
+      [`T-INT-17-extraction-ui.md`](T-INT-17-extraction-ui.md) 참고
 
-**보류 사유**: 이 4개는 API만 바꾼다고 끝나지 않는다.
+**아래는 보류 당시의 사유이며, 셋 다 `T-INT-17`에서 해소됐다**: 이 4개는 API만 바꾼다고 끝나지 않는다.
 1. **id 체인이 한 겹 더 있다** — `fetchSuggestions(documentId)`류는 실제로는
    `draftDocumentId`가 있어야 호출 가능한 엔드포인트들이다. 다행히 이건 진짜 막힌
    건 아니다 — `GET /api/draft-documents?documentId={id}`로 조회 가능(T-INT-11/T-INT-14
@@ -63,16 +68,23 @@
 **따라서 이 4개는 API 연동보다 `DocumentReviewPage.tsx`의 본문·anchor 렌더링을 먼저
 데이터 기반으로 다시 짜는 게 선행돼야 값어치가 있다** — 별도 세션 권장.
 
+> **해소 경위(2026-09-14)**: `T-INT-17`이 그 "먼저 해야 할 일"을 실제로 했다. 본문을
+> 초안 본문(`draftBody`)으로 바꾸고 하이라이트를 `anchor`로 그리면서 ①의 id 체인은
+> `draftDocumentApi.fetchLatestDraftDocument`로, ②는 `suggestionSegments.ts`로,
+> ③은 판별 유니온 + 사유 입력란(`D-81`)으로 해결됐다. `SUGGESTION_PARAGRAPHS`와
+> `model/suggestionFixtures.ts`는 삭제했다.
+
 ## 나머지
 
 - [x] `model/types.ts` — `Document`/`DocumentVersion`의 실 API 미제공 필드 옵셔널화,
       `aligned`/`edited`/`dictionaryVersionNo` 추가
-- [x] `model/labelFixtures.ts`·`model/suggestionFixtures.ts`·`model/versionFixtures.ts`·
-      `model/fixtures.ts` — 그대로 둠(제안 클러스터가 아직 참조 중)
+- [x] `model/labelFixtures.ts`·`model/versionFixtures.ts`·`model/fixtures.ts` — 그대로 둠.
+      **`model/suggestionFixtures.ts`는 삭제했다**(`T-INT-17`에서 마지막 참조가 사라졌다 —
+      `SuggestionHistoryItem` 타입만 `model/types.ts`로 옮겼다)
 - [x] `npx tsc -b`·`npm run lint` 통과
 - [ ] 본문 직접 편집(`PATCH .../documents/{id}/content`, `G-9`) 화면 — 이번 범위에
       확인된 화면 없음(후속 확인)
 - [ ] 화면 확인: 문서 목록·상세·업로드·버전이력·라벨에서 실 데이터 표시 QA — **로컬
-      백엔드 기동 후 사용자가 직접 확인 필요**. 초안 목록·대조 제안은 보류라 대상 아님
+      백엔드 기동 후 사용자가 직접 확인 필요**. **초안 목록·대조 제안도 이제 대상이다**
 - [ ] 커밋 브랜치 `feat/WLSH-{티켓}-fe-document-real-api`, PR 생성 — **사용자 지시 시
       진행**
