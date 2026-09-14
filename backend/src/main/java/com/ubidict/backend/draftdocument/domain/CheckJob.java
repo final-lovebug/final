@@ -10,6 +10,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,6 +37,14 @@ public class CheckJob extends BaseEntity {
 
     private Long draftDocumentId;
 
+    /**
+     * 워커에게 발행할 때 만든 UUIDv4. 콜백이 같은 값을 돌려주는지로 호출자를 확인한다(D-66).
+     *
+     * <p>작업 하나에만 쓰이는 1회용 토큰이라, 새어 나가도 그 작업 외에는 영향이 없다.
+     */
+    @Column(length = 36)
+    private String requestId;
+
     @Column(length = 1000)
     private String failureReason;
 
@@ -55,12 +65,35 @@ public class CheckJob extends BaseEntity {
         return new CheckJob(documentId, requestedBy);
     }
 
-    public void start() {
-        if (status == CheckJobStatus.RUNNING) {
+    /**
+     * 워커에게 작업을 넘겼다고 표시한다. 상관 식별자를 기록하면서 {@code PENDING -> RUNNING}으로 옮긴다.
+     *
+     * <p>같은 {@code requestId}로 다시 부르면 아무 일도 하지 않는다 — 발행이 재시도돼도 안전해야 한다.
+     */
+    public void markDispatching(String requestId) {
+        if (requestId == null || requestId.isBlank()) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_CHECK_INVALID_REQUEST);
+        }
+        if (status == CheckJobStatus.RUNNING && requestId.equals(this.requestId)) {
             return;
         }
         validateStatus(CheckJobStatus.PENDING);
-        status = CheckJobStatus.RUNNING;
+        this.requestId = requestId;
+        this.status = CheckJobStatus.RUNNING;
+    }
+
+    /**
+     * 콜백이 들고 온 상관 식별자가 이 작업의 것인지 본다.
+     *
+     * <p>길이에 따라 조기 반환하지 않는 {@link MessageDigest#isEqual}을 쓴다 — UUID는 추측 공간이 넓어 실익이 크지 않지만, 비교 시간에서
+     * 정보가 새지 않게 하는 비용이 사실상 0이다.
+     */
+    public boolean matchesRequestId(String candidate) {
+        if (this.requestId == null || candidate == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                this.requestId.getBytes(StandardCharsets.UTF_8), candidate.getBytes(StandardCharsets.UTF_8));
     }
 
     public void succeed(Long draftDocumentId) {
