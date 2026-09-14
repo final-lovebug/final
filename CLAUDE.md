@@ -25,12 +25,28 @@
 - `docs/EXCEPTION.md` — 예외 처리 코드 작성 규칙
 - `docs/TEST.md` — 테스트 코드 작성 규칙
 - `docs/API.md` — API 요청/응답 규격, 공통 규칙
+- `docs/AI_CONTRACT.md` — **Spring Boot ↔ FastAPI 워커 계약**(요청 메시지·콜백 스키마, 워커가 읽는 테이블, 재시도 규약). AI 워커를 붙이거나 계약을 바꿀 때 읽는다
 
 기획·도메인 문서는 구현 전에 읽고, 결정이 바뀌면 코드보다 먼저 갱신한다.
 
 - `docs/REQUIREMENTS.md` — 요구사항 목록(MVP 구분, 우선순위, 진행 상태)
 - `docs/DOMAIN.md` — 엔티티 속성 표, 관계, 정책·제약
 - `docs/UBIQUITOUS_LANGUAGE.md` — 도메인별 유비쿼터스 언어 사전
+
+도메인 구현 계획은 `docs/plan/`에 있다. 해당 도메인을 구현할 때 읽는다. **7개 도메인이 같은 13절 목차를 쓴다.**
+
+- `docs/plan/CONFLICTS.md` — **결정·충돌 인벤토리. 어느 도메인을 구현하든 함께 읽는다.** 확정된 결정(`G-*`·`D-*`), **뒤집힌 결정(`R-*`)**, 문서·코드 충돌 목록이 여기 모여 있다. 계획 문서의 서술과 `R-*`가 어긋나면 `R-*`를 따른다
+- `docs/plan/EXECUTION_ORDER.md` — **여러 세션으로 나눠 구현할 때 먼저 읽는다.** 태스크 ID 접두사, 도메인 간 태스크 순서, 공유 파일 주인, 커밋 단위, 동시 실행 제약
+- `docs/plan/WORKSPACE_PLAN.md` — 워크스페이스(Workspace) 구현 계획
+- `docs/plan/DOCUMENT_PLAN.md` — 문서(Document) 구현 계획
+- `docs/plan/DICTIONARY_PLAN.md` — 사전집(Dictionary) 구현 계획
+- `docs/plan/DRAFT_DOCUMENT_PLAN.md` — 문서 초안(DraftDocument) 구현 계획
+- `docs/plan/DRAFT_DICTIONARY_PLAN.md` — 사전 초안(DraftDictionary) 구현 계획
+- `docs/plan/REVIEW_REQUEST_PLAN.md` — 리뷰 요청(ReviewRequest) 구현 계획
+- `docs/plan/NOTIFICATION_PLAN.md` — 알림(Notification) 구현 계획. **2026-09-13 신설**이라 낡은 서술이 없다
+- `docs/plan/REVISION_LOG_PLAN.md` — 개정 이력(RevisionLog) 구현 계획. **2026-09-13 신설.** 사전집·문서가 확정될 때마다 무엇이 달라졌는지를 발행 시점에 얼려 둔다
+
+> 앞의 3개는 **이미 구현된 도메인**이라 as-built 스냅샷과 변경 델타를 함께 담는다. 그다음 3개는 미구현이며 **2026-09-10 큰 흐름 확정 이전에 작성되어 낡은 서술이 남아 있다** — `CONFLICTS.md`의 `R-8`~`R-14`·`R-19`가 그 목록이다. 마지막 Notification은 **6개 도메인이 계약으로만 두던 이벤트의 첫 소비자**다(`D-47`).
 
 하위 프로젝트에서 작업할 때는 해당 프로젝트의 문서를 함께 읽는다.
 
@@ -50,7 +66,7 @@
 ### 금지
 
 - `git commit`, `git push`, `git reset --hard`, 브랜치 삭제 등 **git 상태를 바꾸는 명령을 사용자 지시 없이 실행하지 않는다.**
-- `application.properties`, 인프라 설정, 시크릿, `.env` 파일을 임의로 변경하지 않는다.
+- `application.yml`(또는 `.properties`), 인프라 설정, 시크릿, `.env` 파일을 임의로 변경하지 않는다.
 - 운영 DB·AWS 리소스에 영향을 주는 명령 실행 금지.
 
 ---
@@ -72,15 +88,12 @@
 
 ## 미구성 항목
 
-2026-09-08 기준으로 아직 채워지지 않은 부분이다. 관련 작업을 할 때 함께 정리한다.
+2026-09-13 기준으로 아직 채워지지 않은 부분이다. 관련 작업을 할 때 함께 정리한다.
 
-- **Flyway 마이그레이션 없음.** `db/migration`이 비어 있어 테스트가 `spring.flyway.enabled=false` + `ddl-auto=create-drop`으로 우회 중이다. 첫 마이그레이션을 추가할 때 이 테스트 설정도 함께 정리한다.
-  - 루트 `compose.yaml`은 `ddl-auto`를 설정하지 않는다. `flyway.fail-on-missing-locations` 기본값이 `false`이고 `ddl-auto` 기본값이 `none`이라 **기동은 성공하고 첫 쿼리에서 `Table doesn't exist`로 실패**한다. "초록불인데 안 돌아가는" 상태이므로 스키마 부재를 기동 실패로 오해하지 않는다.
-- **`SecurityConfig` 없음.** Spring Security 기본 설정이 적용되면 Swagger UI를 포함한 모든 요청이 인증에 막힌다. (`/actuator/health`는 예외로 통과한다.)
-  - 그래서 루트 `compose.yaml`의 backend healthcheck는 HTTP가 아니라 bash 내장 `/dev/tcp`로 리스닝만 확인한다(`eclipse-temurin:25-jre`에는 `curl`·`wget`이 없다). `SecurityConfig`를 추가하면 `/actuator/health`로 교체한다.
-- **관측 배포 경로 미확정 — CloudWatch 유력.** 로컬 `grafana/otel-lgtm`은 OTLP 수신기이고, CloudWatch도 OTLP를 직접 받으므로(트레이스는 X-Ray `/v1/traces`, 메트릭은 CloudWatch OTLP) **엔드포인트 URL만 바뀐다.** 전환 시 세 가지를 지킨다.
-  - AWS OTLP 엔드포인트는 SigV4를 요구하고 Spring의 OTLP exporter는 서명을 못 한다 → **ADOT Collector 사이드카**를 경유한다. 앱은 그대로 `localhost:4318`로 보낸다.
-  - **트레이스 샘플링을 낮춘다.** 로컬의 `MANAGEMENT_TRACING_SAMPLING_PROBABILITY=1.0`을 그대로 두면 권장치(5%) 대비 최대 20배 인제스트 비용이 된다.
-  - **로그는 OTLP로 보내지 않는다.** stdout + `awslogs`/FireLens가 표준이다(`docs/LOG.md`). 애초에 `spring-boot-starter-opentelemetry`에 Logback → OTel 브리지가 없어 OTLP 로그 전송이 동작하지 않는다.
-  - CloudWatch는 커스텀 메트릭 개수로 과금한다. Micrometer 태그 카디널리티와 `management.otlp.metrics.export.step`(기본 1분)을 함께 본다.
-- **메시징 배포 대상 미확정.** Kafka 의존성은 제거했고, 로컬은 Spring `ApplicationEvent` 인메모리 어댑터로 동작한다. 배포 환경에서 쓸 메시지 큐가 정해지면 해당 어댑터와 로컬 대체 컨테이너를 함께 추가한다. 이벤트 발행 규약은 `docs/ARCHITECTURE.md`를 따른다.
+- ~~**Flyway 마이그레이션 없음.**~~ **해소** — `V1__create_workspace_and_participant.sql`을 추가했다. Repository 테스트는 `RepositoryTestSupport`를 통해 Flyway가 만든 스키마를 쓴다. `BaseEntityAuditingTest`만 테스트 전용 엔티티를 쓰므로 `flyway.enabled=false` + `ddl-auto=create-drop`을 유지한다.
+- ~~**`SecurityConfig` 없음.**~~ **해소** — `member/infra/security/SecurityConfig`와 `JwtAuthenticationFilter`·`JwtAuthenticationEntryPoint`·`JwtAccessDeniedHandler`·`SecurityConfigTest`가 들어왔다(Google OAuth2 로그인 연동, `WLSH-75`·`WLSH-122`).
+- ~~**인증 정합이 아직 남아 있다.**~~ **해소** — `T-INT-3`이 둘을 함께 정리했다. ① **프로파일을 `local`·`dev`·`prod`·`test` 넷으로 분리**했고 `src/test/resources/application.yml`의 수동 복제를 걷어냈다(`NFR-INF-002`·`D-46`). ② **컨트롤러 18개가 받던 `memberId` 요청 파라미터 74곳을 제거**하고 `@AuthenticationPrincipal`로 인증 주체에서 해석한다(`NFR-USR-001`). 컨트롤러 테스트의 `@AutoConfigureMockMvc(addFilters = false)`는 유지하되 `@WithLoginMember`로 principal을 주입한다 — 인증·인가 흐름 자체는 `SecurityConfigTest`가 단독으로 검증한다.
+- **AI 워커(FastAPI) 구현이 이 저장소에 없다.** 백엔드의 책임은 계약·발행·콜백 수신·타임아웃 회수까지이며(`docs/AI_CONTRACT.md`), **워커가 뜨기 전에는 `app.ai.dispatch.mode=sqs`인 환경에서 추출·대조 작업이 제한 시간 뒤 실패로 회수된다.** 로컬에서 흐름을 보려면 기본값(`in-process`)을 쓰면 대역이 빈 결과로 즉시 끝낸다.
+- **콜백 보호가 1회용 토큰과 네트워크 격리에 의존한다.** `/api/internal/**`은 인증 필터를 통과하며, 방어는 작업마다 발행되는 `requestId` 대조뿐이다(`D-70`). **배포 전에 보안 그룹·인그레스로 이 경로를 워커 출발지로 제한해야 하고, 그것이 없으면 `NFR-AI-002`가 미충족이다.**
+- **`ErrorResponse`에 `traceId`가 없다.** `NFR-CMN-003`과 `docs/LOG.md`의 「에러 응답에는 trace id를 포함한다」가 아직 미충족이다(`docs/plan/CONFLICTS.md` `X-08`). 마무리 통합에서 범위 밖으로 뒀으므로 담당 태스크를 다시 정해야 한다.
+- ~~**메시징 배포 대상 미확정.**~~ **해소** — Kafka는 제거했고 **로컬·테스트는 Spring `ApplicationEvent` 인메모리 어댑터, AWS 배포는 SQS**로 확정했다(`docs/plan/CONFLICTS.md` `D-24`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 `EventPublisher` 포트는 그대로 쓴다. 추출·대조 같은 오래 걸리는 작업은 **DB 작업 테이블**(대기·실행중·성공·실패)로 관리하고 상태 조회는 폴링이다. ~~SQS 어댑터와 로컬 대체 컨테이너는 배포 준비 시점에 추가한다.~~ **추가했다(2026-09-14, `T-INT-6`)** — `compose.yaml`과 `TestcontainersConfiguration`에 LocalStack이 들어왔다. **큐는 둘이다** — 도메인 이벤트 큐와 **AI 워커 요청 큐**(`D-67`). 추출·대조는 이제 인메모리 스텁이 아니라 **외부 FastAPI 워커**가 실행하고 완료를 동기 HTTP 콜백으로 알린다(`D-66`). 선택 축도 갈렸다 — LLM 경로는 `app.ai.dispatch.mode`이고 `app.messaging.mode`와 독립이다. 이벤트 발행 규약은 `docs/ARCHITECTURE.md`를 따른다.

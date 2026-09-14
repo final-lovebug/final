@@ -1,0 +1,6 @@
+rootProject.name = 'final'
+
+// backend/ 는 자체 settings.gradle 을 가진 독립 빌드다.
+// (Dockerfile 이 backend 컨텍스트만으로 빌드하므로 그 구조를 유지해야 한다.)
+// 여기서는 composite build 로 포함해 IDE 가 저장소 루트를 열어도 인식하게 한다.
+includeBuild 'backend'

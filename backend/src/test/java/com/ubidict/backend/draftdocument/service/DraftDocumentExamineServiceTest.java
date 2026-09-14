@@ -1,0 +1,174 @@
+package com.ubidict.backend.draftdocument.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.ubidict.backend.common.domain.TextRange;
+import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.document.domain.Document;
+import com.ubidict.backend.document.fixture.DocumentFixture;
+import com.ubidict.backend.document.fixture.DocumentVersionFixture;
+import com.ubidict.backend.document.infra.DocumentRepository;
+import com.ubidict.backend.document.infra.DocumentVersionRepository;
+import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
+import com.ubidict.backend.draftdocument.domain.SuggestionTerm;
+import com.ubidict.backend.draftdocument.domain.SuggestionTermStatus;
+import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import com.ubidict.backend.draftdocument.fixture.DraftDocumentFixture;
+import com.ubidict.backend.draftdocument.fixture.SuggestionTermFixture;
+import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
+import com.ubidict.backend.draftdocument.infra.SuggestionTermRepository;
+import com.ubidict.backend.draftdocument.service.model.CompleteExamineCommand;
+import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
+import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
+import com.ubidict.backend.support.IntegrationTestSupport;
+import com.ubidict.backend.workspace.domain.Workspace;
+import com.ubidict.backend.workspace.fixture.ParticipantFixture;
+import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
+import com.ubidict.backend.workspace.infra.ParticipantRepository;
+import com.ubidict.backend.workspace.infra.WorkspaceRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
+class DraftDocumentExamineServiceTest extends IntegrationTestSupport {
+
+    private static final Long MEMBER_ID = 7L;
+    private Long documentId;
+
+    @Autowired
+    private DraftDocumentService draftDocumentService;
+
+    @Autowired
+    private DraftDocumentRepository draftDocumentRepository;
+
+    @Autowired
+    private SuggestionTermRepository suggestionTermRepository;
+
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ParticipantRepository participantRepository;
+
+    @Autowired
+    private DocumentRepository documentRepository;
+
+    @Autowired
+    private DocumentVersionRepository documentVersionRepository;
+
+    @BeforeEach
+    void setUpDocument() {
+        Workspace workspace = workspaceRepository.save(
+                WorkspaceFixture.workspace().createdBy(MEMBER_ID).build());
+        participantRepository.save(ParticipantFixture.participant()
+                .workspaceId(workspace.getId())
+                .memberId(MEMBER_ID)
+                .build());
+        Document document = documentRepository.save(DocumentFixture.document()
+                .workspaceId(workspace.getId())
+                .createdBy(MEMBER_ID)
+                .build());
+        documentVersionRepository.save(DocumentVersionFixture.documentVersion()
+                .documentId(document.getId())
+                .createdBy(MEMBER_ID)
+                .build());
+        documentId = document.getId();
+    }
+
+    @DisplayName("교정을 완료하면 수용한 제안어가 본문에 반영된다.")
+    @Test
+    void completeExamine() {
+        // given
+        Long draftDocumentId = createDraftDocument("회원은 결제방법을 선택한다.");
+        saveSuggestionTerm(
+                draftDocumentId, new TextRange(0, 3), "회원은", "사용자는", SuggestionTermStatus.APPLIED_SUGGESTION);
+        saveSuggestionTerm(
+                draftDocumentId, new TextRange(4, 8), "결제방법", "결제수단", SuggestionTermStatus.APPLIED_SUGGESTION);
+
+        // when
+        DraftDocumentResult result =
+                draftDocumentService.completeExamine(new CompleteExamineCommand(draftDocumentId, MEMBER_ID));
+
+        // then
+        assertThat(result.status()).isEqualTo(DraftDocumentStatus.EXAMINED);
+        assertThat(result.draftBody()).isEqualTo("사용자는 결제수단을 선택한다.");
+    }
+
+    @DisplayName("처리하지 않은 제안어가 남아 있으면 교정을 완료할 수 없다.")
+    @Test
+    void completeExamine_pendingExists() {
+        // given
+        Long draftDocumentId = createDraftDocument("회원");
+        saveSuggestionTerm(draftDocumentId, new TextRange(0, 2), "회원", "사용자", SuggestionTermStatus.PENDING);
+
+        // when & then
+        assertThatThrownBy(() ->
+                        draftDocumentService.completeExamine(new CompleteExamineCommand(draftDocumentId, MEMBER_ID)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_SUGGESTION_TERM_UNHANDLED_EXISTS));
+    }
+
+    @DisplayName("이미 교정완료된 초안은 다시 완료할 수 없다.")
+    @Test
+    void completeExamine_alreadyExamined() {
+        // given
+        Long draftDocumentId = createDraftDocument("회원");
+        draftDocumentService.completeExamine(new CompleteExamineCommand(draftDocumentId, MEMBER_ID));
+
+        // when & then
+        assertThatThrownBy(() ->
+                        draftDocumentService.completeExamine(new CompleteExamineCommand(draftDocumentId, MEMBER_ID)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_ALREADY_EXAMINED));
+    }
+
+    @DisplayName("교정 진행률과 현재 수용 결과를 반영한 미리보기를 조회한다.")
+    @Test
+    void readExamineProgress() {
+        // given
+        Long draftDocumentId = createDraftDocument("회원은 결제방법을 선택한다.");
+        saveSuggestionTerm(
+                draftDocumentId, new TextRange(0, 3), "회원은", "사용자는", SuggestionTermStatus.APPLIED_SUGGESTION);
+        saveSuggestionTerm(draftDocumentId, new TextRange(4, 8), "결제방법", "결제수단", SuggestionTermStatus.KEPT_ORIGIN);
+        saveSuggestionTerm(draftDocumentId, new TextRange(9, 10), "을", "를", SuggestionTermStatus.PENDING);
+
+        // when
+        ExamineProgressResult result = draftDocumentService.readExamineProgress(draftDocumentId, MEMBER_ID);
+
+        // then
+        assertThat(result.total()).isEqualTo(3);
+        assertThat(result.pending()).isEqualTo(1);
+        assertThat(result.keptOrigin()).isEqualTo(1);
+        assertThat(result.appliedSuggestion()).isEqualTo(1);
+        assertThat(result.previewBody()).isEqualTo("사용자는 결제방법을 선택한다.");
+    }
+
+    /** 초안 생성 진입점은 비동기 대조 작업뿐이므로(D-45) 교정 흐름만 보는 테스트는 초안을 직접 만든다. */
+    private Long createDraftDocument(String draftBody) {
+        return draftDocumentRepository
+                .save(DraftDocumentFixture.draftDocument()
+                        .documentId(documentId)
+                        .draftBody(draftBody)
+                        .requestedBy(MEMBER_ID)
+                        .build())
+                .getId();
+    }
+
+    private void saveSuggestionTerm(
+            Long draftDocumentId,
+            TextRange anchor,
+            String originTerm,
+            String suggestionTerm,
+            SuggestionTermStatus status) {
+        SuggestionTerm term = SuggestionTermFixture.suggestionTerm()
+                .draftDocumentId(draftDocumentId)
+                .anchor(anchor)
+                .originTerm(originTerm)
+                .suggestionTerm(suggestionTerm)
+                .status(status)
+                .build();
+        suggestionTermRepository.save(term);
+    }
+}
