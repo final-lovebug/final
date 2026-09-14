@@ -45,12 +45,12 @@ export function DocumentReviewPage() {
       .filter((m) => m.id !== currentMember.id)
       .map((m) => m.id)
 
+    // 요청자는 인증 주체에서 해석되므로 보내지 않는다. 대상 초안(draftDocumentId)은
+    // api가 documentId로 찾아준다.
     requestReview.mutate(
       {
-        workspaceId,
         documentId,
         title: `${document.title} 개정 반영`,
-        requesterId: currentMember.id,
         reviewerMemberIds,
       },
       {

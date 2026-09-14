@@ -2,6 +2,7 @@ package com.ubidict.backend.draftdictionary.presentation.dto;
 
 import com.ubidict.backend.draftdictionary.domain.CandidateTermOrigin;
 import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
+import com.ubidict.backend.draftdictionary.domain.CandidateTermType;
 import com.ubidict.backend.draftdictionary.service.model.CandidateTermResult;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -16,6 +17,8 @@ public record CandidateTermResponse(
         String proposedEnglishName,
         Integer occurrenceCount,
         CandidateTermStatus status,
+        CandidateTermType type,
+        Long createdBy,
         Long handledBy,
         String rejectReason,
         Long mergeTargetTermId,
@@ -36,6 +39,8 @@ public record CandidateTermResponse(
                 r.proposedEnglishName(),
                 r.occurrenceCount(),
                 r.status(),
+                r.type(),
+                r.createdBy(),
                 r.handledBy(),
                 r.rejectReason(),
                 r.mergeTargetTermId(),

@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.ubidict.backend.draftdictionary.domain.CandidateTermOrigin;
 import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
+import com.ubidict.backend.draftdictionary.domain.CandidateTermType;
 import com.ubidict.backend.draftdictionary.service.CandidateTermService;
 import com.ubidict.backend.draftdictionary.service.model.BulkDecisionResult;
 import com.ubidict.backend.draftdictionary.service.model.CandidateTermResult;
@@ -175,6 +176,8 @@ class CandidateTermControllerTest {
                 null,
                 1,
                 status,
+                CandidateTermType.SYNONYM,
+                MEMBER_ID,
                 MEMBER_ID,
                 rejectReason,
                 mergeTargetTermId,

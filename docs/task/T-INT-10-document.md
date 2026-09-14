@@ -10,16 +10,20 @@
 
 ## 체크리스트 — api 파일별 (`httpClient`로 교체 + `docs/API.md` Document 절과 대조)
 
-- [x] `api/fetchDocuments.ts` (목록) — 완료. `ownerName`/`updaterName`은 실 API에
+- [x] `api/fetchDocuments.ts` (목록) — 완료. **2026-09-14 WLSH-171 보강 완료**: `uploaderId`를
+      `GET /api/members?ids=` 배치 조회로 이름 해석(공용 `shared/api/memberNames.ts` 신설).
+      **`updaterName`은 여전히 "—"** — 응답에 최종 수정자 필드가 없고, 버전의 `publishedBy`를
+      쓰면 목록에서 N+1이라 후속 과제로 남김. 원래 메모: `ownerName`/`updaterName`은 실 API에
       없어(T-INT-18) "—" 표시로 대체, `labels[]`는 첫 번째만 `label`로, `badge`는
       `aligned`/`edited`에서 유도. **T-INT-18 완료 후 보강**: `uploaderId`를
       `GET /api/members?ids=`(배치 조회)에 모아서 한 번에 넘기고 이름으로 교체 —
-      파일 구조는 그대로 두고 매핑 부분만 고치면 됨(막혀 있던 게 아니라 후속 보강)
+      파일 구조는 그대로 두고 매핑 부분만 고치면 됨(막혀 있던 게 아니라 후속 보강) — **완료**
 - [x] `api/fetchDocument.ts` (상세) — 완료. **시그니처가 `(workspaceId, documentId)`로
       바뀜**(실 엔드포인트가 workspace-scoped라 documentId만으론 부족) — `useDocument`
       훅과 3개 호출부(`DocumentDetailPage`·`DocumentReviewPage`·`DocumentReviewThreadPage`)
-      모두 수정. **T-INT-18 완료 후 보강**: `uploaderId` → `GET /api/members/{id}`
-      (단건 조회)로 이름 교체
+      모두 수정. **T-INT-18 완료 후 보강 — 2026-09-14 WLSH-171 완료**: `uploaderId`를
+      `fetchMemberNames`로 해석해 `ownerName`을 채운다(단건도 배치 조회 함수를 그대로 쓴다).
+      `updaterName`은 목록과 같은 이유로 "—" 유지
 - [x] `api/fetchDocumentVersions.ts` (버전 이력) — 완료. 마찬가지로
       `(workspaceId, documentId)`로 시그니처 변경. 목록 응답엔 본문이 없어(단건 조회
       전용) `body`를 옵셔널로 바꾸고 화면은 "—" 표시

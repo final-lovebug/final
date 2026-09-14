@@ -6,5 +6,7 @@ export function useNotifications(workspaceId: WorkspaceId, params: FetchNotifica
   return useQuery({
     queryKey: ['notifications', workspaceId, params],
     queryFn: () => fetchNotifications(workspaceId, params),
+    // 워크스페이스가 정해지기 전에 /api/workspaces//notifications 를 치지 않게 막는다.
+    enabled: workspaceId !== '',
   })
 }

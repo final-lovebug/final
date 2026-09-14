@@ -1,116 +1,214 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Avatar, Button, Card } from '../../shared/ui'
+import { useNavigate, useParams } from 'react-router-dom'
+import { Avatar, Button, Card, Pill } from '../../shared/ui'
+import { routes } from '../../shared/config/routes'
+import { toRelativeTime } from '../../shared/lib/relativeTime'
 import { useReviewThreadComments } from '../../features/review/hooks/useReviewThreadComments'
-import { useAddReviewThreadComment } from '../../features/review/hooks/useAddReviewThreadComment'
+import { useSubmitReview, useReviewProgress } from '../../features/review/hooks/useSubmitReview'
+import {
+  usePerformReexamine,
+  usePerformRevise,
+} from '../../features/review/hooks/useReviewLifecycle'
+import { useReviewRequest } from '../../features/review/hooks/useReviewRequest'
+import { useDocumentRevision } from '../../features/review/hooks/useDocumentRevision'
+import { ReviewerPanel } from '../../features/review/components/ReviewerPanel'
 import { useDocument } from '../../features/document/hooks/useDocument'
+import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
 import { useAuthStore } from '../../shared/stores/authStore'
-import { DOCUMENT_REVIEW_REQUEST_ID } from '../../features/review/model/reviewRequestFixtures'
+import type { DraftComment } from '../../features/review/api/submitReview'
+import type { AvatarTone } from '../../shared/ui'
 
-// ui/main.js renderReviewThreadScreen() 이식. 댓글 목록 조회·등록 모두 실제로 동작한다.
-// Approve/Change request 액션은 백엔드가 없어 아직 붙이지 않았다.
-//
-// 본문 표시는 두 갈래다: 미리 만들어둔 doc-plan 리뷰(DOCUMENT_REVIEW_REQUEST_ID)는 원본
-// ui/main.js의 term-flag 하이라이트를 그대로 보여주고, `DocumentReviewPage`에서 새로
-// 생성된 리뷰(예: doc-retention)는 하이라이트 없이 문서 본문(content)만 보여준다 — 실제
-// 하이라이트는 백엔드의 대조 결과 위치(anchor)가 있어야 재현 가능해서 지금은 생략했다.
+const AVATAR_TONES: AvatarTone[] = ['accent', 'warn', 'success']
+
+function toneFor(memberId: string): AvatarTone {
+  let hash = 0
+  for (const char of memberId) hash = (hash + char.charCodeAt(0)) % AVATAR_TONES.length
+  return AVATAR_TONES[hash]
+}
+
+/**
+ * 문서 개정안 검토 화면.
+ *
+ * **라우트의 `reviewId` 파라미터는 실제로는 리뷰 요청 id다** — 코멘트 조회·검토 제출·
+ * 재교정·반영이 전부 리뷰 요청 스코프다(`GET /api/review-requests/{id}/...`). 코멘트를
+ * 새로 달 때만 reviewId가 필요한데, 그건 검토 제출과 한 트랜잭션으로 묶여 있다(`D-63`).
+ *
+ * 본문의 하이라이트는 아직 없다 — 대조 결과의 위치(anchor)를 본문 위에 표시하는 렌더링은
+ * `T-INT-10` 제안 클러스터와 `T-INT-17`에서 함께 다룬다.
+ */
 export function DocumentReviewThreadPage() {
-  const { workspaceId = '', documentId = '', reviewId = '' } = useParams<{
+  const {
+    workspaceId = '',
+    documentId = '',
+    reviewId: reviewRequestId = '',
+  } = useParams<{
     workspaceId: string
     documentId: string
     reviewId: string
   }>()
-  const { data: comments } = useReviewThreadComments(reviewId)
-  const addComment = useAddReviewThreadComment(reviewId)
+  const navigate = useNavigate()
+  const { data: comments } = useReviewThreadComments(reviewRequestId)
+  const { data: reviewRequest } = useReviewRequest(reviewRequestId)
+  const { data: progress } = useReviewProgress(reviewRequestId)
+  const { data: revision } = useDocumentRevision(reviewRequestId)
   const { data: document } = useDocument(workspaceId, documentId)
+  const { data: members } = useWorkspaceMembers(workspaceId)
+  const submit = useSubmitReview(reviewRequestId)
+  const reexamine = usePerformReexamine(reviewRequestId)
+  const revise = usePerformRevise(reviewRequestId)
   const currentMember = useAuthStore((state) => state.currentMember)
-  const [commentDraft, setCommentDraft] = useState('')
-  const isSeededDemoReview = reviewId === DOCUMENT_REVIEW_REQUEST_ID
 
-  function handleSubmitComment() {
-    if (!commentDraft.trim() || !currentMember) return
-    addComment.mutate(
+  const [commentDraft, setCommentDraft] = useState('')
+  const [pending, setPending] = useState<DraftComment[]>([])
+
+  const nameByMemberId = new Map((members ?? []).map((member) => [member.id, member.name]))
+
+  function stashComment() {
+    if (!commentDraft.trim()) return
+    setPending((previous) => [...previous, { content: commentDraft.trim() }])
+    setCommentDraft('')
+  }
+
+  function submitVerdict(verdict: 'APPROVED' | 'CHANGES_REQUESTED') {
+    // 리뷰어는 항상 최신 재교정 회차를 보고 검토한다 — 개정안이 아직 없으면 최초 회차(0)다.
+    submit.mutate(
       {
-        reviewId,
-        authorId: currentMember.id,
-        authorName: currentMember.displayName,
-        authorInitial: currentMember.displayName.charAt(0),
-        content: commentDraft.trim(),
+        reviewRequestId,
+        targetRound: revision?.reexamineRound ?? 0,
+        verdict,
+        comments: pending,
       },
-      { onSuccess: () => setCommentDraft('') },
+      { onSuccess: () => setPending([]) },
     )
   }
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="font-display text-lg font-bold text-text">
-          {isSeededDemoReview
-            ? '이용자→구독자 등 치환 12건 반영'
-            : `${document?.title ?? '문서'} 개정 반영`}
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="font-display text-lg font-bold text-text">
+            {reviewRequest?.title ?? (document?.title ?? '문서') + ' 개정 반영'}
+          </h1>
+          {reviewRequest && <Pill tone="neutral">{reviewRequest.status}</Pill>}
+          {revision !== null && revision !== undefined && revision.reexamineRound > 0 && (
+            <span className="text-[11px] text-text-quaternary">
+              재교정 {revision.reexamineRound}회차
+            </span>
+          )}
+        </div>
         <div className="flex gap-[10px]">
-          <Button variant="outline">Change request</Button>
-          <Button variant="primary">Approve</Button>
+          {reviewRequest?.status === 'CHANGES_REQUESTED' && (
+            <Button
+              variant="outline"
+              disabled={reexamine.isPending}
+              onClick={() =>
+                reexamine.mutate({
+                  proposedBody: revision?.proposedBody ?? document?.content,
+                  addressedCommentIds: (comments ?? []).map((comment) => comment.id),
+                })
+              }
+            >
+              재교정 완료
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            disabled={submit.isPending}
+            onClick={() => submitVerdict('CHANGES_REQUESTED')}
+          >
+            Change request
+            {pending.length > 0 ? ' (' + pending.length + ')' : ''}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={submit.isPending}
+            onClick={() => submitVerdict('APPROVED')}
+          >
+            Approve
+          </Button>
+          <Button
+            variant="primary"
+            disabled={!progress?.reviseEligible || revise.isPending}
+            title={progress?.reviseEligible ? undefined : '정족수를 채워야 반영할 수 있습니다'}
+            onClick={() =>
+              revise.mutate(undefined, {
+                onSuccess: () => navigate(routes.documentDetail(workspaceId, documentId)),
+              })
+            }
+          >
+            반영
+          </Button>
         </div>
       </div>
 
+      {progress && (
+        <p className="mb-4 text-[11px] text-text-quaternary">
+          승인 {progress.approvedCount} · 변경요청 {progress.changesRequestedCount} · 필요 정족수{' '}
+          {progress.requiredReviewerCount}
+        </p>
+      )}
+
       <div className="flex items-start gap-5">
         <Card className="flex-1 p-[26px] text-sm leading-[2.1] text-[#2A2D33]">
-          {isSeededDemoReview ? (
-            <>
-              새로운 신규 획득 정책 2026에 따라{' '}
-              <span className="border-b-2 border-accent bg-accent-bg">이용자</span>를 대상으로
-              다음과 같은 비즈니스 규칙을 적용합니다. 첫 번째 규칙은{' '}
-              <span className="border-b-2 border-border-strong">체험판</span> 14일이 충분한
-              시점을 기준으로 합니다. 이때 고객의 상태는{' '}
-              <span className="border-b-2 border-border-strong">가입완료</span>로 자동
-              전환되어야 합니다. 만약 이 과정에서{' '}
-              <span className="border-b-2 border-danger bg-danger-bg">오류</span>가 발생할
-              경우, 시스템은 즉시{' '}
-              <span className="border-b-2 border-danger bg-danger-bg">탈퇴</span> 처리를
-              진행하고 안내 메일을 발송해야 합니다.
-            </>
-          ) : (
-            <p className="whitespace-pre-wrap">{document?.content}</p>
-          )}
+          <p className="whitespace-pre-wrap">{document?.content}</p>
         </Card>
 
         <div className="flex w-[340px] shrink-0 flex-col gap-3">
-          {comments?.length === 0 && (
+          <ReviewerPanel
+            reviewRequestId={reviewRequestId}
+            members={(members ?? []).map((member) => ({
+              memberId: member.id,
+              name: member.name,
+            }))}
+            excludeMemberId={reviewRequest?.requesterId}
+          />
+
+          {comments?.length === 0 && pending.length === 0 && (
             <p className="text-xs text-text-tertiary">아직 코멘트가 없습니다.</p>
           )}
-          {comments?.map((comment) => (
-            <Card
-              key={comment.id}
-              className={comment.mine ? 'border-[1.5px] border-accent p-[14px]' : 'p-[14px]'}
-            >
+          {comments?.map((comment) => {
+            const name = nameByMemberId.get(comment.authorId) ?? '—'
+            const mine = comment.authorId === currentMember?.id
+            return (
+              <Card
+                key={comment.id}
+                className={mine ? 'border-[1.5px] border-accent p-[14px]' : 'p-[14px]'}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <Avatar initial={name.charAt(0)} tone={toneFor(comment.authorId)} size={22} />
+                  <span className="text-[12.5px] font-bold">{name}</span>
+                  <span className="text-[10.5px] text-text-quaternary">
+                    {toRelativeTime(comment.createdAt)}
+                  </span>
+                </div>
+                <p className="text-[12.5px] leading-[1.6] text-text-secondary">
+                  {comment.content}
+                </p>
+              </Card>
+            )
+          })}
+          {pending.map((comment, idx) => (
+            <Card key={'pending-' + idx} className="border-dashed p-[14px]">
               <div className="mb-2 flex items-center gap-2">
                 <Avatar
-                  initial={comment.authorInitial}
-                  tone={comment.authorTone}
+                  initial={currentMember?.displayName.charAt(0) ?? '나'}
+                  tone="accent"
                   size={22}
                 />
-                <span className="text-[12.5px] font-bold">{comment.authorName}</span>
-                <span className="text-[10.5px] text-text-quaternary">
-                  {new Date(comment.createdAt).toLocaleString('ko-KR')}
+                <span className="text-[12.5px] font-bold">
+                  {currentMember?.displayName ?? '나'}
                 </span>
+                <span className="text-[10.5px] text-text-quaternary">미제출</span>
               </div>
-              <p className="text-[12.5px] leading-[1.6] text-text-secondary">
-                {comment.content}
-              </p>
-              {comment.mine && (
-                <p className="mt-2 cursor-pointer text-[11px] font-semibold text-accent-strong">
-                  삭제
-                </p>
-              )}
+              <p className="text-[12.5px] leading-[1.6] text-text-secondary">{comment.content}</p>
             </Card>
           ))}
+
           <div className="flex flex-col gap-2">
             <textarea
               value={commentDraft}
               onChange={(event) => setCommentDraft(event.target.value)}
-              placeholder="댓글 남기기…"
+              placeholder="댓글 남기기… (Approve / Change request 할 때 함께 제출됩니다)"
               rows={2}
               className="rounded-[10px] border border-border-strong bg-surface-muted px-3 py-[10px] text-[12.5px] text-text placeholder:text-text-quaternary"
             />
@@ -118,10 +216,10 @@ export function DocumentReviewThreadPage() {
               size="sm"
               variant="primary"
               className="self-end"
-              onClick={handleSubmitComment}
-              disabled={addComment.isPending || !commentDraft.trim()}
+              onClick={stashComment}
+              disabled={!commentDraft.trim()}
             >
-              등록
+              담기
             </Button>
           </div>
         </div>
