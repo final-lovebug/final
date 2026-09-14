@@ -1597,3 +1597,104 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | 요청 DTO 검증 실패, `memberId` 누락, `sort` 화이트리스트 밖 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---
+
+# **RevisionLog API**
+
+사전집과 문서가 확정된 뒤 발행 시점의 차이를 고정해 둔 개정 이력을 조회한다. 관련 도메인은 `revisionlog`이다.
+
+**개정 이력은 이 API로 만들거나 고치지 않는다.** `DictionaryRevisedEvent`·`DocumentEditedEvent`·`ReviewRequestRevisedEvent` 소비 경로만 행을 만들며, 확정된 기록은 append-only다. 그래서 `POST`·`PATCH`·`DELETE`가 없다.
+
+## **엔드포인트**
+
+| Method | Path | 성공 | 권한 |
+| --- | --- | --- | --- |
+| GET | `/api/workspaces/{workspaceId}/revision-logs` | `200` | 참여자 |
+| GET | `/api/workspaces/{workspaceId}/revision-logs/{revisionLogId}` | `200` | 참여자 |
+
+요청자 회원은 `@AuthenticationPrincipal`에서 읽는다. 비참여 워크스페이스는 `404`이며, 참여자 사이에는 별도 등급 제한이 없다.
+
+## **개정 이력 목록 조회**
+
+`GET /api/workspaces/{workspaceId}/revision-logs?targetType=DICTIONARY&targetId=10&page=0&size=20&sort=publishedAt,desc`
+
+`targetType`은 필수다. 사전집(`DICTIONARY`)과 문서(`DOCUMENT`) 이력을 같은 목록에 섞지 않기 위해서다. `targetId`는 선택이며 생략하면 워크스페이스의 해당 축 타임라인 전체를, 전달하면 대상 하나의 이력만 돌려준다. 문서 화면은 `targetId`를 전달한다.
+
+페이징은 «페이징·정렬 규격»을 따른다. `sort` 화이트리스트는 `publishedAt` 하나이고 기본값은 `publishedAt,desc`다. 이 값은 이력 행 생성 시각이 아니라 원본 버전이 확정된 시각이다.
+
+```json
+{
+  "content": [
+    {
+      "revisionLogId": 42,
+      "workspaceId": 1,
+      "targetType": "DICTIONARY",
+      "targetId": 10,
+      "versionNo": 7,
+      "previousVersionNo": 6,
+      "origin": "REVIEW_REVISE",
+      "summary": "용어 5개 추가",
+      "addedCount": 5,
+      "changedCount": 0,
+      "removedCount": 0,
+      "grade": "NEW_TERMS",
+      "affectedDocumentCount": 0,
+      "baseDictionaryVersionNo": null,
+      "publishedBy": 7,
+      "publishedAt": "2026-09-13T10:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+`grade`와 `affectedDocumentCount`는 사전집 축 전용이고, `baseDictionaryVersionNo`는 문서 축 전용이다. 사용하지 않는 축의 nullable 값은 `null`이다.
+
+## **개정 이력 상세 조회**
+
+`GET /api/workspaces/{workspaceId}/revision-logs/{revisionLogId}`
+
+목록 항목과 같은 메타데이터에 변경 항목을 붙여 내려준다. 사전집 항목은 용어의 추가·변경·삭제이고, 문서 항목은 실제로 적용된 치환만 담는다. `KEEP_ORIGINAL` 제안은 본문을 바꾸지 않았으므로 포함하지 않는다.
+
+```json
+{
+  "revisionLog": {
+    "revisionLogId": 42,
+    "targetType": "DOCUMENT",
+    "targetId": 20,
+    "versionNo": 3,
+    "previousVersionNo": 2,
+    "origin": "REVIEW_REVISE",
+    "summary": "제안어 1개 적용",
+    "addedCount": 0,
+    "changedCount": 1,
+    "removedCount": 0,
+    "grade": null,
+    "affectedDocumentCount": 0,
+    "baseDictionaryVersionNo": 7,
+    "publishedBy": 7,
+    "publishedAt": "2026-09-13T10:00:00Z"
+  },
+  "entries": [
+    {
+      "changeType": "CHANGED",
+      "subject": "회원",
+      "subjectEnglishName": null,
+      "replacement": "사용자",
+      "detail": null
+    }
+  ]
+}
+```
+
+## **에러**
+
+| 상황 | 상태 | 코드 |
+| --- | --- | --- |
+| 없거나 다른 워크스페이스의 개정 이력 | 404 | `REVISION_LOG_NOT_FOUND` |
+| 참여하지 않은 워크스페이스 | 404 | `WORKSPACE_NOT_FOUND` |
+| `targetType` 누락, 페이지·정렬 값 오류 | 400 | `COMMON_INVALID_REQUEST` |
+
+---
