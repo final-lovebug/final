@@ -269,7 +269,7 @@ revisionlog
 
 | 포트 | 메서드 | 프로퍼티 |
 | --- | --- | --- |
-| `DictionaryTermQueryPort` | `findDictionaryIdByVersion(Long, int)` · `readTerms(Long)` | `app.crossdomain.dictionary.mode` (기존 재사용) |
+| `DictionaryTermQueryPort` | `findDictionaryIdByVersion(Long, int)` · `readTerms(Long)` · `readVersion(Long, int)` | `app.crossdomain.dictionary.mode` (기존 재사용) |
 | `DocumentQueryPort` | `readVersions(Long)` · `countAlignedBelow(Long, int)` | `app.crossdomain.document.mode` (기존 재사용) |
 | `ReviewRequestQueryPort` | `findDocumentRevision(Long)` | `app.crossdomain.review-request.mode` (기존 재사용) |
 | `DraftDocumentQueryPort` | `readAppliedSuggestions(Long)` | `app.crossdomain.draft-document.mode` (기존 재사용) |
@@ -280,9 +280,11 @@ revisionlog
 
 ```java
 record TermSnapshot(String preferredForm, String englishName, String definition) {}
+record DictionaryVersionSnapshot(Long dictionaryId, Long publishedBy, OffsetDateTime publishedAt) {}
 record DocumentVersionSnapshot(int versionNo, Integer dictionaryVersionNo, boolean edited,
                                OffsetDateTime publishedAt, Long publishedBy) {}
-record DocumentRevisionSnapshot(Long documentId, Long draftDocumentId, int resultVersionNo, Long performedBy) {}
+record DocumentRevisionSnapshot(Long workspaceId, Long documentId, Long draftDocumentId, int resultVersionNo,
+                                Long performedBy) {}
 record AppliedSuggestion(String originTerm, String suggestionTerm) {}
 ```
 
