@@ -44,7 +44,7 @@
 | [T-INT-7](T-INT-7-sqs-contract.md) | SQS 작업 큐 계약 문서화 | B | 없음 | 대기 | |
 | [T-INT-8](T-INT-8-sqs-adapter.md) | 추출·대조 real 어댑터(SQS) | B | T-INT-7 | 대기 | |
 | [T-INT-9](T-INT-9-workspace.md) | workspace 실연동 | A | 없음 | **코드 작성 완료**(QA 대기, 2026-09-14) | |
-| [T-INT-10](T-INT-10-document.md) | document 실연동(5/10, 제안 클러스터 보류) | A | T-INT-18(이름만) | **진행중**(2026-09-14) | |
+| [T-INT-10](T-INT-10-document.md) | document 실연동(제안 클러스터 보류) | A | T-INT-18(완료) | **범위 내 완료**(작성자 이름 보강까지, QA 대기) / 제안 클러스터 4개는 별도 세션 | WLSH-171 |
 | [T-INT-11](T-INT-11-dictionary.md) | dictionary 실연동 | A | T-INT-20(완료) | **코드 작성 완료**(후보어 포함, QA 대기, 2026-09-14) | WLSH-171 |
 | [T-INT-12](T-INT-12-review.md) | review(리뷰 요청) 실연동 | A | 없음 | **코드 작성 완료**(QA 대기, 2026-09-14) | WLSH-171 |
 | [T-INT-13](T-INT-13-notification.md) | notification 실연동 | A | 없음 | **목록·읽음처리 코드 완료**(QA 대기) / 설정 화면은 보류(`D-54`) | WLSH-171 |
