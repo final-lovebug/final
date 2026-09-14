@@ -76,11 +76,13 @@
 - 시크릿은 **환경변수 또는 AWS 파라미터 스토어**로 주입한다. 저장소에 커밋 금지.
 - Compose 파일은 **역할에 따라 둘로 나눈다.** 파일명은 `compose.yaml`을 쓰고, `docker-compose.yml`을 새로 만들지 않는다. 포트·이미지 태그를 임의로 바꾸지 않는다.
   - **`backend/compose.yaml` — 로컬 실행용.** `spring-boot-docker-compose`(`developmentOnly`)가 관리한다. `bootRun`이 컨테이너를 자동으로 띄우고 접속 정보를 주입하므로 `docker compose up -d`를 직접 실행하지 않는다.
-  - **루트 `compose.yaml` — 전체 통합 테스트용.** `backend/Dockerfile`로 이미지를 빌드해 MySQL·MongoDB·Redis·Grafana LGTM과 함께 띄운다. 이쪽은 `docker compose up -d`로 직접 기동한다.
-    - 첫 실행은 `docker compose build backend`를 먼저 돌린다. LGTM 스택과 Gradle 빌드 JVM이 겹치면 Docker Desktop 기본 메모리에서 빌드가 OOM으로 죽는다.
-    - 노출 포트는 **앱 포트만** — backend `8080`, Grafana UI `3000`. DB는 Compose 네트워크 내부로만 접근한다.
-    - **`bootRun`과 동시에 띄우지 않는다.** Compose 프로젝트는 분리되지만 호스트 포트 3000·8080이 겹쳐 `port is already allocated`로 죽는다.
+  - **루트 `compose.yaml` — 전체 통합 테스트용.** `backend/Dockerfile`·`frontend/Dockerfile`로 이미지를 빌드해 MySQL·Redis·LocalStack·Grafana LGTM과 함께 띄운다. 이쪽은 `docker compose up -d`로 직접 기동한다. **MongoDB는 없다** — 미사용으로 결정돼 제거했다(`Y-22`·`NFR-INF-001`).
+    - 첫 실행은 `docker compose build backend`와 `docker compose build frontend`를 **따로** 먼저 돌린다. LGTM 스택과 Gradle·Vite 빌드가 겹치면 Docker Desktop 기본 메모리에서 빌드가 OOM으로 죽는다.
+    - 노출 포트는 **앱 포트만** — backend `8080`, frontend `5173`, Grafana UI `3000`. DB와 LocalStack은 Compose 네트워크 내부로만 접근한다(큐 확인은 `docker compose exec localstack awslocal sqs ...`).
+    - **`bootRun`·Vite dev 서버와 동시에 띄우지 않는다.** Compose 프로젝트는 분리되지만 호스트 포트 3000·8080·5173이 겹쳐 `port is already allocated`로 죽는다.
     - 접속 정보는 전부 환경변수로 주입한다. `application.properties`에 적지 않는다.
+    - **`SPRING_PROFILES_ACTIVE=local,dev`로 띄운다.** 순서가 의미를 갖는다 — `local`이 `DevAuthController`(`@Profile("local")`)와 `app.auth.cookie.secure=false`를 얹고, 뒤에 온 `dev`가 충돌 키를 이겨 `app.ai.dispatch.mode=sqs`(LocalStack 경로)를 유지한다. `dev` 단독이면 개발용 로그인 백도어가 없어 Google 로그인을 실제로 성공시키기 전까지 모든 도메인 API가 401이다.
+    - `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET`은 기본값이 없다. 루트 `.env`(`.gitignore` 등록됨)나 셸 환경변수로 넘긴다. **값이 없어도 스택은 뜬다** — Google 로그인만 실패하며, `local` 프로파일의 `/api/auth/dev/login`으로 토큰을 받아 나머지 흐름을 볼 수 있다.
   - 로컬 오버라이드가 필요하면 `compose.override.yaml`을 쓰고 `.gitignore`에 등록한다.
 - 어떤 경우에도 운영·공용 환경의 `ddl-auto`를 `create`/`create-drop`/`update`로 설정하지 않는다.
 

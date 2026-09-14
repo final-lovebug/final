@@ -83,9 +83,9 @@
 
 | 서비스 | 이미지 |
 | --- | --- |
-| Grafana LGTM | `grafana/otel-lgtm:latest` |
+| Grafana LGTM | `grafana/otel-lgtm:0.32.1` |
 | MySQL | `mysql:8.4` |
-| Redis | `redis:latest` |
+| Redis | `redis:8.2-alpine` |
 | LocalStack (SQS) | `localstack/localstack:4` |
 
 - MySQL의 계정과 데이터베이스 이름은 `compose.yaml`의 환경변수로만 정의한다.
