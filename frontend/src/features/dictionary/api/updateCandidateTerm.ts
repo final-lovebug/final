@@ -1,26 +1,32 @@
-import { delay } from '../../../shared/lib/delay'
-import { CANDIDATE_TERM_FIXTURES, type CandidateTermListItem } from '../model/fixtures'
+import { httpClient } from '../../../shared/api/httpClient'
+import type { CandidateTermListItem } from '../model/fixtures'
+import type { CandidateTermType } from '../model/types'
+import { toListItem, type CandidateTermApiResponse } from './candidateTermApi'
 
 export interface UpdateCandidateTermInput {
   candidateId: string
-  /** words 중 표준어로 고를 것 */
+  /** words 중 표준어로 고른 것 — 백엔드에서는 대표 표기(form) 자체를 바꾸는 일이다. */
   selectedWord?: string
   proposedDefinition?: string
+  type?: CandidateTermType
+  /** 목록에서 이미 해석해 둔 등록자 이름. 응답에 이름이 없어 그대로 되돌려준다. */
+  ownerName?: string
 }
 
+// 실제 백엔드 연동(`PATCH /api/candidate-terms/{candidateTermId}`). 넘긴 필드만 바뀐다.
+//
+// 표준어 선택은 별도 필드가 아니라 `form` 교체다 — 백엔드는 대표 표기 하나(form)와 표기
+// 묶음(variantForms)을 갖고, 묶음 중 무엇이 대표인지가 곧 표준어다.
 export async function updateCandidateTerm(
   input: UpdateCandidateTermInput,
 ): Promise<CandidateTermListItem> {
-  await delay(200)
-
-  const target = CANDIDATE_TERM_FIXTURES.find((c) => c.id === input.candidateId)
-  if (!target) throw new Error('후보를 찾을 수 없습니다.')
-
-  if (input.selectedWord !== undefined) target.selectedWord = input.selectedWord
-  if (input.proposedDefinition !== undefined) {
-    target.proposedDefinition = input.proposedDefinition
-  }
-  target.updatedAt = new Date().toISOString()
-
-  return target
+  const response = await httpClient.patch<CandidateTermApiResponse>(
+    `/api/candidate-terms/${input.candidateId}`,
+    {
+      form: input.selectedWord,
+      proposedDefinition: input.proposedDefinition,
+      type: input.type,
+    },
+  )
+  return toListItem(response, input.ownerName ?? '—')
 }

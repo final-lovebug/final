@@ -1,42 +1,47 @@
-import { delay } from '../../../shared/lib/delay'
+import { httpClient } from '../../../shared/api/httpClient'
+import type { CandidateTermListItem } from '../model/fixtures'
+import type { CandidateTermType } from '../model/types'
+import type { WorkspaceId } from '../../../shared/types/ids'
 import {
-  CANDIDATE_TERM_FIXTURES,
-  DRAFT_DICTIONARY_ID,
-  type CandidateTermListItem,
-} from '../model/fixtures'
+  findExaminingDraftDictionaryId,
+  toListItem,
+  type CandidateTermApiResponse,
+} from './candidateTermApi'
 
 export interface CreateCandidateTermInput {
+  workspaceId: WorkspaceId
   form: string
-  type: '동의어' | '동형이의' | '표기 변형'
-  ownerId: string
+  type: CandidateTermType
+  /** 등록자 표시 이름. 등록자는 요청자 본인이라 조회 없이 화면 값을 그대로 쓴다. */
   ownerName: string
 }
 
-// 사전집 초안 화면의 "+" 로 직접 등록하는 후보어. 문서에서 자동 추출된 게 아니라 사람이
-// 바로 적은 것이라 occurrenceCount/occurredDocumentIds/quotes는 비워둔다.
+/**
+ * 사전집 초안 화면의 "+"로 직접 등록하는 후보어
+ * (`POST /api/draft-dictionaries/{id}/candidate-terms`).
+ *
+ * 문서에서 추출된 게 아니라 사람이 바로 적은 것이라 occurredDocumentIds·contextSnippets·
+ * variantForms를 비워 보낸다. `occurrenceCount`는 1 미만이면 백엔드가 거절하므로 1이다
+ * (docs/API.md "후보어 등록·수정·삭제·목록").
+ */
 export async function createCandidateTerm(
   input: CreateCandidateTermInput,
 ): Promise<CandidateTermListItem> {
-  await delay(200)
-
-  const now = new Date().toISOString()
-  const created: CandidateTermListItem = {
-    id: `cand-${crypto.randomUUID()}`,
-    draftDictionaryId: DRAFT_DICTIONARY_ID,
-    form: input.form,
-    words: [input.form],
-    type: input.type,
-    occurrenceCount: 0,
-    occurredDocumentIds: [],
-    proposedDefinition: '',
-    ownerName: input.ownerName,
-    quotes: [],
-    status: 'PENDING',
-    createdAt: now,
-    createdBy: input.ownerId,
-    updatedAt: now,
+  const draftDictionaryId = await findExaminingDraftDictionaryId(input.workspaceId)
+  if (draftDictionaryId === null) {
+    throw new Error('교정 중인 사전 초안이 없습니다. 먼저 용어 추출을 실행해 주세요.')
   }
 
-  CANDIDATE_TERM_FIXTURES.push(created)
-  return created
+  const response = await httpClient.post<CandidateTermApiResponse>(
+    `/api/draft-dictionaries/${draftDictionaryId}/candidate-terms`,
+    {
+      form: input.form,
+      occurrenceCount: 1,
+      occurredDocumentIds: [],
+      contextSnippets: [],
+      variantForms: [],
+      type: input.type,
+    },
+  )
+  return toListItem(response, input.ownerName)
 }

@@ -79,13 +79,24 @@ export interface DraftDictionary {
   updatedAt: string
 }
 
-// 대기 / 등재승인 / 동의어편입 / 거절 / 보류
+// 대기 / 등재승인 / 동의어편입 / 거절 / 보류 / 승계유지
+// 백엔드 CandidateTermStatus와 1:1이다(docs/API.md "후보어 등록·수정·삭제·목록").
 export type CandidateTermStatus =
   | 'PENDING'
-  | 'APPROVED'
+  | 'REGISTRATION_APPROVED'
   | 'MERGED_AS_SYNONYM'
   | 'REJECTED'
   | 'ON_HOLD'
+  | 'KEPT'
+
+/** 추출된 신규(EXTRACTED) / 이전 사전집에서 승계(EXISTING). */
+export type CandidateTermOrigin = 'EXTRACTED' | 'EXISTING'
+
+/**
+ * 사람이 등록할 때 고른 분류. **추출이 만든 후보어에는 없다** — 추출 파이프라인이
+ * HOMOGRAPH를 건너뛰어 variantForms로 유도할 수도 없다(T-INT-11 결정 1).
+ */
+export type CandidateTermType = 'SYNONYM' | 'HOMOGRAPH' | 'VARIANT'
 
 export interface CandidateTerm {
   id: CandidateTermId
@@ -101,6 +112,15 @@ export interface CandidateTerm {
   /** 검토 시 판단 근거 */
   contextSnippets?: string[]
   status: CandidateTermStatus
+  origin?: CandidateTermOrigin
+  /** 사람이 고른 분류. 추출 생성분은 비어 있다. */
+  type?: CandidateTermType
+  /** 추출기가 같은 개념으로 묶어 돌려준 표기 변형들(대표 표기 form 포함). */
+  variantForms?: string[]
+  /** 판정을 내린 처리자. 등록자(createdBy)와 다르다. */
+  handledBy?: MemberId
+  rejectReason?: string
+  mergeTargetTermId?: TermId
   /** 승인 후 생성된 표준 용어 */
   resultTermId?: TermId
   createdAt: string
