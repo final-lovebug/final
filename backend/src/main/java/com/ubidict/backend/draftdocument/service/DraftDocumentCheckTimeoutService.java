@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 콜백이 끝내 오지 않은 작업을 회수한다(D-73).
+ * 콜백이 끝내 오지 않은 작업을 회수한다(D-77).
  *
  * <p>이것이 없으면 고아 작업 하나가 <b>그 문서의 대조를 영구히 막는다</b> — 생성 정책이 진행 중인 작업의 존재만 보고 거절하기 때문이다.
  *

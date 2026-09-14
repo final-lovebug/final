@@ -10,6 +10,7 @@ import com.ubidict.backend.reviewrequest.implement.ReviewRequestEventPublisher;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestRemover;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestWriter;
+import com.ubidict.backend.reviewrequest.implement.ReviewerReader;
 import com.ubidict.backend.reviewrequest.implement.RevisionDictionaryReader;
 import com.ubidict.backend.reviewrequest.implement.RevisionDocumentReader;
 import com.ubidict.backend.reviewrequest.service.model.CancelReviewRequestCommand;
@@ -19,6 +20,8 @@ import com.ubidict.backend.reviewrequest.service.model.ReviewRequestSearchQuery;
 import com.ubidict.backend.reviewrequest.service.model.UpdateReviewRequestCommand;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,11 +39,39 @@ public class ReviewRequestService {
     private final ApprovalAuthorityValidator approvalAuthorityValidator;
     private final RevisionDocumentReader revisionDocumentReader;
     private final RevisionDictionaryReader revisionDictionaryReader;
+    private final ReviewerReader reviewerReader;
     private final ReviewRequestEventPublisher eventPublisher;
 
+    /**
+     * 목록 응답에 대상 문서/사전집 id와 리뷰어 수를 실어 보낸다(T-INT-12, D-63) — 프론트가
+     * 항목마다 {@code revision-documents}/{@code reviewers}를 따로 호출하지 않도록(N+1 방지).
+     * type별로 나눠 필요한 revision 테이블만 배치 조회하고, 리뷰어 수는 한 번에 집계한다.
+     */
     @Transactional(readOnly = true)
     public PageResult<ReviewRequestResult> search(ReviewRequestSearchQuery query) {
-        return reviewRequestReader.search(query).map(ReviewRequestResult::from);
+        PageResult<ReviewRequest> page = reviewRequestReader.search(query);
+
+        List<Long> documentReviewRequestIds = page.content().stream()
+                .filter(r -> r.getType() == ReviewRequestType.DOCUMENT)
+                .map(ReviewRequest::getId)
+                .toList();
+        List<Long> dictionaryReviewRequestIds = page.content().stream()
+                .filter(r -> r.getType() == ReviewRequestType.DICTIONARY)
+                .map(ReviewRequest::getId)
+                .toList();
+        List<Long> allReviewRequestIds =
+                page.content().stream().map(ReviewRequest::getId).toList();
+
+        Map<Long, RevisionDocument> latestDocumentRevisions =
+                revisionDocumentReader.readLatestByReviewRequestIds(documentReviewRequestIds);
+        Map<Long, RevisionDictionary> latestDictionaryRevisions =
+                revisionDictionaryReader.readLatestByReviewRequestIds(dictionaryReviewRequestIds);
+        Map<Long, Integer> reviewerCounts = reviewerReader.countsByReviewRequestIds(allReviewRequestIds);
+
+        return page.map(reviewRequest -> ReviewRequestResult.from(
+                reviewRequest,
+                resolveTargetId(reviewRequest, latestDocumentRevisions, latestDictionaryRevisions),
+                reviewerCounts.getOrDefault(reviewRequest.getId(), 0)));
     }
 
     @Transactional
@@ -68,8 +99,15 @@ public class ReviewRequestService {
     @Transactional(readOnly = true)
     public ReviewRequestResult read(Long reviewRequestId, Long memberId) {
         ReviewRequest reviewRequest = readAccessible(reviewRequestId, memberId);
+        Long targetId = resolveTargetId(
+                reviewRequest,
+                revisionDocumentReader.readLatestByReviewRequestIds(List.of(reviewRequest.getId())),
+                revisionDictionaryReader.readLatestByReviewRequestIds(List.of(reviewRequest.getId())));
+        int reviewerCount = reviewerReader
+                .countsByReviewRequestIds(List.of(reviewRequest.getId()))
+                .getOrDefault(reviewRequest.getId(), 0);
 
-        return ReviewRequestResult.from(reviewRequest);
+        return ReviewRequestResult.from(reviewRequest, targetId, reviewerCount);
     }
 
     @Transactional
@@ -112,6 +150,18 @@ public class ReviewRequestService {
         workspaceAccessValidator.validateParticipant(reviewRequest.getWorkspaceId(), memberId);
 
         return reviewRequest;
+    }
+
+    private Long resolveTargetId(
+            ReviewRequest reviewRequest,
+            Map<Long, RevisionDocument> latestDocumentRevisions,
+            Map<Long, RevisionDictionary> latestDictionaryRevisions) {
+        if (reviewRequest.getType() == ReviewRequestType.DOCUMENT) {
+            RevisionDocument revision = latestDocumentRevisions.get(reviewRequest.getId());
+            return revision == null ? null : revision.getDocumentId();
+        }
+        RevisionDictionary revision = latestDictionaryRevisions.get(reviewRequest.getId());
+        return revision == null ? null : revision.getDictionaryId();
     }
 
     private Long sourceDraftId(ReviewRequest reviewRequest) {

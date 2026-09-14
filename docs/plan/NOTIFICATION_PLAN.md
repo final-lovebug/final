@@ -228,9 +228,9 @@ notification
 
 **수신자 본인 확인은 워크스페이스 검증과 별개다.** 같은 워크스페이스 참여자라도 남의 알림은 볼 수 없고, 이때도 `403`이 아니라 `404`를 준다 — `403`을 주면 그 알림의 존재가 드러난다.
 
-### 요청자 식별 — 임시 방식
+### 요청자 식별
 
-컨트롤러가 `@RequestParam Long memberId`를 받고 클래스 javadoc에 `TODO(NFR-USR-001)`을 단다. `T-INT-3`이 전부 한 번에 걷어낸다.
+**해소(9/13, `T-INT-3`)** — 컨트롤러가 `@RequestParam Long memberId`를 받던 임시 방식은 `T-INT-3`이 다른 도메인과 함께 걷어냈다. `@AuthenticationPrincipal Long memberId`로 인증 주체에서 해석한다.
 
 ---
 

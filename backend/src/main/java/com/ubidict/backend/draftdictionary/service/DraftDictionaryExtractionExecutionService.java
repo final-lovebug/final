@@ -57,7 +57,7 @@ public class DraftDictionaryExtractionExecutionService {
     /**
      * 워커가 돌려준 추출 결과를 초안으로 굳힌다.
      *
-     * <p><b>이미 끝난 작업이면 아무 일도 하지 않는다</b>(D-68). SQS는 at-least-once라 같은 결과가 두 번 올 수 있는데, 가드가 없으면 두 번째
+     * <p><b>이미 끝난 작업이면 아무 일도 하지 않는다</b>(D-72). SQS는 at-least-once라 같은 결과가 두 번 올 수 있는데, 가드가 없으면 두 번째
      * 호출이 「워크스페이스에 진행 중인 초안이 있다」는 409로 튕겨 워커에게 <i>재시도하라</i>는 잘못된 신호를 준다.
      */
     @Transactional
@@ -94,6 +94,7 @@ public class DraftDictionaryExtractionExecutionService {
                     term.occurredDocumentIds(),
                     term.occurrenceCount(),
                     term.contextSnippets(),
+                    term.variantForms(),
                     extractionJob.getRequestedBy()));
         }
         extractionJob.succeed(draftDictionary.getId());
@@ -135,7 +136,7 @@ public class DraftDictionaryExtractionExecutionService {
     }
 
     /**
-     * 콜백을 보낸 쪽이 우리가 요청을 넘긴 그 워커인지 확인한다(D-66).
+     * 콜백을 보낸 쪽이 우리가 요청을 넘긴 그 워커인지 확인한다(D-70).
      *
      * <p>{@code /api/internal/**}은 인증 필터를 통과하므로 <b>이 대조가 유일한 방어선</b>이다.
      */

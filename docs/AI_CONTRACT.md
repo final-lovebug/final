@@ -2,7 +2,7 @@
 
 이 문서는 백엔드(Spring Boot)와 AI 워커(FastAPI)가 주고받는 것의 **유일한 원본**이다(`REQ-AI-001`). 워커 구현은 이 저장소 밖에 있으므로, 여기 적힌 것과 코드가 어긋나면 배포하고 나서야 드러난다.
 
-근거 결정은 `docs/plan/CONFLICTS.md` 3-4절(`D-62`~`D-74`)이다.
+근거 결정은 `docs/plan/CONFLICTS.md` 3-4절(`D-66`~`D-78`)이다.
 
 > **콜백 엔드포인트의 HTTP 규격은 `docs/API.md`의 각 도메인 절에도 있다.** 그것은 우리가 여는 엔드포인트이기 때문이다. 이 문서는 그 절을 **참조하고 복제하지 않는다** — 두 문서가 어긋나는 것이 `CONFLICTS.md`가 존재하는 이유다.
 
@@ -73,11 +73,11 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 | 전달 | **at-least-once — 같은 메시지가 두 번 이상 온다** |
 | 본문 | UTF-8 JSON 문자열 |
 
-**도메인 이벤트 큐(`lovebug-domain-event`)와 다른 큐다**(`D-63`). 그쪽에는 백엔드 내부의 이벤트가 흐르며 워커가 볼 것이 없다.
+**도메인 이벤트 큐(`lovebug-domain-event`)와 다른 큐다**(`D-67`). 그쪽에는 백엔드 내부의 이벤트가 흐르며 워커가 볼 것이 없다.
 
 `MessageGroupId`·`MessageDeduplicationId`는 붙지 않는다 — 표준 큐에 실어 보내면 SQS가 `InvalidParameterValue`로 거절한다.
 
-**DLQ와 redrive policy는 인프라에서 건다**(`NFR-MSG-004`). `maxReceiveCount`와 가시성 타임아웃은 백엔드의 `app.ai.timeout.job`(기본 `PT15M`)보다 **작아야 한다** — 재배달 중인 작업을 백엔드 스위퍼가 먼저 실패시키면 워커의 응답이 버려진다(`D-73`).
+**DLQ와 redrive policy는 인프라에서 건다**(`NFR-MSG-004`). `maxReceiveCount`와 가시성 타임아웃은 백엔드의 `app.ai.timeout.job`(기본 `PT15M`)보다 **작아야 한다** — 재배달 중인 작업을 백엔드 스위퍼가 먼저 실패시키면 워커의 응답이 버려진다(`D-77`).
 
 ### 4-2. 콜백 (워커 → 백엔드)
 
@@ -85,7 +85,7 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 | --- | --- |
 | 경로 접두사 | `/api/internal/llm/` |
 | 인증 헤더 | **없다** |
-| 호출자 확인 | 본문의 `requestId` 대조(`D-66`) |
+| 호출자 확인 | 본문의 `requestId` 대조(`D-70`) |
 | Content-Type | `application/json` |
 
 **`/api/internal/**`은 인증 필터를 통과한다.** 회원 principal이 없는 서버-투-서버 경로이기 때문이다. 그래서 **배포 시 보안 그룹·인그레스로 워커 출발지만 이 경로에 닿게 제한해야 하며, 그것이 없으면 `NFR-AI-002`는 미충족이다.**
@@ -108,7 +108,7 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 
 **작업 종류에 따라 채워지지 않는 필드는 `null`로 실린다.** 워커는 `jobType`으로 분기한다.
 
-### 5-2. `mode`의 의미 (`D-67`)
+### 5-2. `mode`의 의미 (`D-71`)
 
 - **`REAL`** — 모델을 호출해 실제 결과를 만든다.
 - **`STUB`** — **모델을 호출하지 않는다.** 임의 시간(수 초 이내)을 기다린 뒤 형식만 맞는 목 데이터를 돌려준다. 비용 없이 전 구간 왕복을 확인하기 위한 것이다.
@@ -162,7 +162,7 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 
 ### 5-5. 워커가 읽는 테이블
 
-**백엔드 DB를 직접 조회한다**(`D-65`). 읽기 전용 계정을 쓴다.
+**백엔드 DB를 직접 조회한다**(`D-69`). 읽기 전용 계정을 쓴다.
 
 | 테이블 | 읽는 것 | 주의 |
 | --- | --- | --- |
@@ -192,7 +192,8 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
       "proposedEnglishName": "Payment",
       "occurredDocumentIds": [10],
       "occurrenceCount": 3,
-      "contextSnippets": ["회원은 결제할 수 있다."]
+      "contextSnippets": ["회원은 결제할 수 있다."],
+      "variantForms": ["결제", "페이먼트"]
     }
   ]
 }
@@ -207,6 +208,7 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 | `terms[].occurredDocumentIds` | `null` 금지. **`sourceDocumentIds` 밖의 id가 있으면 거절** |
 | `terms[].occurrenceCount` | 1 이상 |
 | `terms[].contextSnippets` | `null` 금지(빈 배열 허용) |
+| `terms[].variantForms` | 추출기가 **한 개념으로 묶은 여러 표기**(`D-65`). 생략하거나 `null`이면 빈 목록으로 다룬다 |
 | `terms[].proposedDefinition`·`proposedEnglishName` | `null` 허용 |
 
 ### 6-2. 대조 성공
@@ -260,7 +262,7 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 
 ## 7. 상태·오류 규약
 
-### 7-1. 응답 코드와 재시도 (`D-69`)
+### 7-1. 응답 코드와 재시도 (`D-73`)
 
 | 응답 | 뜻 | 워커 동작 |
 | --- | --- | --- |
@@ -273,7 +275,7 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 
 **4xx를 재시도하면 안 된다.** 같은 본문으로 다시 보내도 같은 응답이 오고, 메시지는 DLQ까지 간다.
 
-### 7-2. 멱등 (`D-68`)
+### 7-2. 멱등 (`D-72`)
 
 같은 메시지를 두 번 받아 콜백을 두 번 보내도 **초안은 하나만 생긴다.** 이미 끝난 작업에 도착한 콜백은 아무것도 바꾸지 않고 **204**로 답한다 — 성공한 작업에 늦게 도착한 실패 콜백도 성공을 뒤집지 않는다.
 
@@ -281,13 +283,13 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 
 ### 7-3. 콜백을 보내지 못한 경우
 
-백엔드가 응답하지 않아 결과를 끝내 전달하지 못하면, 백엔드의 타임아웃 스위퍼가 그 작업을 **실패로 회수한다**(`D-73`). 사용자는 폴링에서 실패 사유를 보고 다시 요청할 수 있다.
+백엔드가 응답하지 않아 결과를 끝내 전달하지 못하면, 백엔드의 타임아웃 스위퍼가 그 작업을 **실패로 회수한다**(`D-77`). 사용자는 폴링에서 실패 사유를 보고 다시 요청할 수 있다.
 
 ---
 
 ## 8. 관측
 
-- **`requestId`가 correlation id를 겸한다**(`D-66`). 워커는 모든 로그에 이 값을 남긴다 — 백엔드 로그의 같은 값과 맞춰 한 작업의 전 구간을 따라갈 수 있다(`NFR-INF-008`).
+- **`requestId`가 correlation id를 겸한다**(`D-70`). 워커는 모든 로그에 이 값을 남긴다 — 백엔드 로그의 같은 값과 맞춰 한 작업의 전 구간을 따라갈 수 있다(`NFR-INF-008`).
 - 워커는 모델 호출마다 **시작·성공·실패·타임아웃·재시도·최종 실패**를 남긴다. 필드는 `docs/LOG.md` «외부 연동 로그»를 따른다 — 외부 시스템 이름, 내부 식별자(`jobId`), 외부 요청 식별자, `elapsedMs`.
 - **본문과 모델 응답 원문을 로그에 남기지 않는다.**
 
@@ -297,4 +299,4 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 
 | 버전 | 날짜 | 변경 | 호환성 |
 | --- | --- | --- | --- |
-| 1 | 2026-09-14 | 최초 정의(`T-INT-6`, `D-62`~`D-74`) | — |
+| 1 | 2026-09-14 | 최초 정의(`T-INT-6`, `D-66`~`D-78`) | — |

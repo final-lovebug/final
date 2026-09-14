@@ -52,7 +52,7 @@ public class ExtractionJob extends BaseEntity {
     private Long draftDictionaryId;
 
     /**
-     * 워커에게 발행할 때 만든 UUIDv4. 콜백이 같은 값을 돌려주는지로 호출자를 확인한다(D-66).
+     * 워커에게 발행할 때 만든 UUIDv4. 콜백이 같은 값을 돌려주는지로 호출자를 확인한다(D-70).
      *
      * <p>작업 하나에만 쓰이는 1회용 토큰이라, 새어 나가도 그 작업 외에는 영향이 없다.
      */

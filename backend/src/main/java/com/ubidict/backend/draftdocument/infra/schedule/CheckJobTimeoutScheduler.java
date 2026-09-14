@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** 고아 대조 작업 회수를 주기적으로 돌린다(D-73). 스케줄 트리거만 담당하고 판단은 서비스가 한다. */
+/** 고아 대조 작업 회수를 주기적으로 돌린다(D-77). 스케줄 트리거만 담당하고 판단은 서비스가 한다. */
 @Slf4j
 @Component
 @RequiredArgsConstructor

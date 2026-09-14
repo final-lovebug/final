@@ -37,7 +37,7 @@ app:
     mode: sqs
     sqs:
       queue: lovebug-domain-event
-      # AI 워커 전용 큐(D-63). DLQ 와 redrive policy 는 인프라에서 건다(NFR-MSG-004).
+      # AI 워커 전용 큐(D-67). DLQ 와 redrive policy 는 인프라에서 건다(NFR-MSG-004).
       llm-request-queue: lovebug-llm-request
   ai:
     dispatch:

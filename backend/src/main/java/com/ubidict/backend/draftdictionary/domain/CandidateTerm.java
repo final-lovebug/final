@@ -74,6 +74,17 @@ public class CandidateTerm extends BaseEntity {
     @Column(name = "snippet", length = 1000)
     private List<String> contextSnippets = new ArrayList<>();
 
+    /**
+     * 추출기가 같은 개념으로 묶어서 돌려준 표기 변형들(ubidict-py {@code GroupCandidate.forms}). 대표 표기는
+     * {@link #form}에 남고, 그 대표 표기를 포함해 그룹에 속했던 모든 표기가 여기 보존된다 — 프론트에서 "같은 개념의
+     * 여러 표기"를 묶어 보여주는 화면을 만들 때 쓴다(T-INT-11 후속 과제, `D-65`).
+     */
+    @ElementCollection
+    @BatchSize(size = 100)
+    @CollectionTable(name = "candidate_term_variant_form", joinColumns = @JoinColumn(name = "candidate_term_id"))
+    @Column(name = "variant_form", length = 200)
+    private List<String> variantForms = new ArrayList<>();
+
     private CandidateTerm(
             Long draftDictionaryId,
             String form,
@@ -82,6 +93,7 @@ public class CandidateTerm extends BaseEntity {
             List<Long> docs,
             int count,
             List<String> snippets,
+            List<String> variants,
             Long createdBy) {
         if (form == null || form.isBlank())
             throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_INVALID_FORM);
@@ -96,6 +108,21 @@ public class CandidateTerm extends BaseEntity {
         this.status = CandidateTermStatus.PENDING;
         if (docs != null) this.occurredDocumentIds = new ArrayList<>(docs);
         if (snippets != null) this.contextSnippets = new ArrayList<>(snippets);
+        if (variants != null) this.variantForms = new ArrayList<>(variants);
+    }
+
+    public static CandidateTerm create(
+            Long draftDictionaryId,
+            String form,
+            String definition,
+            String english,
+            List<Long> docs,
+            int count,
+            List<String> snippets,
+            List<String> variants,
+            Long createdBy) {
+        return new CandidateTerm(
+                draftDictionaryId, form, definition, english, docs, count, snippets, variants, createdBy);
     }
 
     public static CandidateTerm create(
@@ -107,7 +134,7 @@ public class CandidateTerm extends BaseEntity {
             int count,
             List<String> snippets,
             Long createdBy) {
-        return new CandidateTerm(draftDictionaryId, form, definition, english, docs, count, snippets, createdBy);
+        return create(draftDictionaryId, form, definition, english, docs, count, snippets, List.of(), createdBy);
     }
 
     public static CandidateTerm create(
@@ -118,7 +145,7 @@ public class CandidateTerm extends BaseEntity {
             List<Long> docs,
             int count,
             List<String> snippets) {
-        return create(draftDictionaryId, form, definition, english, docs, count, snippets, null);
+        return create(draftDictionaryId, form, definition, english, docs, count, snippets, List.of(), null);
     }
 
     /**
@@ -130,8 +157,8 @@ public class CandidateTerm extends BaseEntity {
      */
     public static CandidateTerm createExisting(
             Long draftDictionaryId, Long sourceTermId, String form, String definition, String english, Long createdBy) {
-        CandidateTerm candidate =
-                new CandidateTerm(draftDictionaryId, form, definition, english, List.of(), 1, List.of(), createdBy);
+        CandidateTerm candidate = new CandidateTerm(
+                draftDictionaryId, form, definition, english, List.of(), 1, List.of(), List.of(), createdBy);
         candidate.origin = CandidateTermOrigin.EXISTING;
         candidate.sourceTermId = sourceTermId;
         candidate.occurrenceCount = null;

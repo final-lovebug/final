@@ -24,8 +24,8 @@ export function DictionaryPage() {
       ...terms.map((term) => [
         term.preferredForm,
         term.englishName ?? '',
-        term.definition,
-        term.updatedAt,
+        term.definition ?? '',
+        term.updatedAt ?? '',
       ]),
     ]
     downloadCsv(`${dictionary.name}_r${dictionary.currentVersionNo}.csv`, rows)
@@ -85,11 +85,13 @@ export function DictionaryPage() {
                       </span>
                     )}
                   </td>
+                  {/* 실 API 목록 응답엔 definition이 없다(D-41) — T-INT-11(2026-09-14)에서
+                      사용자 결정: "—"로 표시. updatedAt도 목록에 없어 같은 방식으로 처리. */}
                   <td className="border-b border-border-faint px-4 py-3 text-text-secondary">
-                    {term.definition}
+                    {term.definition ?? '—'}
                   </td>
                   <td className="border-b border-border-faint px-4 py-3 text-text-quaternary">
-                    {new Date(term.updatedAt).toLocaleDateString('ko-KR')}
+                    {term.updatedAt ? new Date(term.updatedAt).toLocaleDateString('ko-KR') : '—'}
                   </td>
                 </tr>
               ))}

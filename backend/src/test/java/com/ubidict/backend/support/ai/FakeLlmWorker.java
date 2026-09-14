@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 테스트에서 FastAPI 워커의 자리를 대신한다(D-71).
+ * 테스트에서 FastAPI 워커의 자리를 대신한다(D-75).
  *
  * <p>실제 큐를 읽는다 — 이 전환의 위험이 정확히 거기 있기 때문이다. 직렬화, 큐 이름, 계약 필드, at-least-once 재수신은 인메모리 대역으로는 검증되지
  * 않는다.
@@ -83,7 +83,7 @@ public class FakeLlmWorker {
                 respond(request, requestId);
             }
         } catch (RuntimeException exception) {
-            // 워커는 4xx를 재시도하지 않는다(D-69). 여기서도 메시지를 되돌리지 않고 기록만 남긴다.
+            // 워커는 4xx를 재시도하지 않는다(D-73). 여기서도 메시지를 되돌리지 않고 기록만 남긴다.
             log.info(
                     "[FakeLlmWorker.on] Callback rejected. jobId={}, reason={}", request.jobId(), exception.toString());
         }

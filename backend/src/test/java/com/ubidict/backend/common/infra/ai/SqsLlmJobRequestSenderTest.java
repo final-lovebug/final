@@ -57,7 +57,7 @@ class SqsLlmJobRequestSenderTest {
                 .contains("\"workspaceId\":1")
                 .contains("\"sourceDocumentIds\":[10,20]")
                 .contains("\"mode\":\"REAL\"");
-        // 본문은 싣지 않는다(D-65) — 워커가 DB에서 직접 읽는다.
+        // 본문은 싣지 않는다(D-69) — 워커가 DB에서 직접 읽는다.
         assertThat(body).doesNotContain("\"body\"");
     }
 

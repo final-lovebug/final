@@ -32,9 +32,9 @@ app:
     mode: ${MESSAGING_MODE:in-memory}
     sqs:
       queue: ${MESSAGING_SQS_QUEUE:lovebug-domain-event}
-      # AI 워커(FastAPI)에게 작업을 넘기는 전용 큐(D-63). 도메인 이벤트 큐와 나눈 이유는
+      # AI 워커(FastAPI)에게 작업을 넘기는 전용 큐(D-67). 도메인 이벤트 큐와 나눈 이유는
       # 소비자가 우리 코드가 아니어서 봉투 규약을 강요할 수 없고, 메시지 크기·가시성 타임아웃·DLQ 정책이
-      # 정반대이기 때문이다. 응답용 큐는 두지 않는다 — 완료 통보는 동기 HTTP 콜백이다(D-64).
+      # 정반대이기 때문이다. 응답용 큐는 두지 않는다 — 완료 통보는 동기 HTTP 콜백이다(D-68).
       llm-request-queue: ${MESSAGING_SQS_LLM_REQUEST_QUEUE:lovebug-llm-request}
   crossdomain:
     # 크로스 도메인 어댑터 선택(D-33). 6개 도메인이 모두 머지돼 여덟 축이 전부 real이고,
@@ -58,18 +58,18 @@ app:
     dictionary-publish:
       mode: ${DICTIONARY_PUBLISH_CROSSDOMAIN_MODE:real}
   ai:
-    # 용어 추출·문서 대조의 AI 워커 경계(D-62). 실행 주체는 별도 프로세스(FastAPI)이며,
+    # 용어 추출·문서 대조의 AI 워커 경계(D-66). 실행 주체는 별도 프로세스(FastAPI)이며,
     # 백엔드는 요청을 발행하고 완료 콜백을 받는 데까지만 관여한다.
     dispatch:
       # in-process | sqs. app.messaging.mode 와 독립된 축이다 — 도메인 이벤트를 어느 어댑터로 보내든
       # 추출·대조는 이 값만 따른다. in-process 는 워커가 없는 환경(로컬·테스트)의 대역으로,
       # 큐 대신 같은 JVM 안에서 빈 결과를 돌려준다.
       mode: ${AI_DISPATCH_MODE:in-process}
-    # stub | real. 요청 메시지에 실려 나가 **워커가** 실제 모델을 부를지 정한다(D-67).
+    # stub | real. 요청 메시지에 실려 나가 **워커가** 실제 모델을 부를지 정한다(D-71).
     # 백엔드는 이 값으로 분기하지 않는다.
     mode: ${AI_MODE:stub}
     timeout:
-      # 콜백이 끝내 오지 않은 작업을 회수한다(D-73). 이것이 없으면 고아 작업 하나가
+      # 콜백이 끝내 오지 않은 작업을 회수한다(D-77). 이것이 없으면 고아 작업 하나가
       # 워크스페이스·문서의 추출·대조를 영구히 막는다.
       enabled: ${AI_TIMEOUT_ENABLED:true}
       # SQS 가시성 타임아웃 × maxReceiveCount 보다 커야 한다(NFR-MSG-005).

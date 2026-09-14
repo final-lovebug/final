@@ -8,7 +8,7 @@ export function DocumentDetailPage() {
     workspaceId: string
     documentId: string
   }>()
-  const { data: document, isLoading, isError } = useDocument(documentId)
+  const { data: document, isLoading, isError } = useDocument(workspaceId, documentId)
 
   if (isLoading) return <p className="text-sm text-text-tertiary">불러오는 중…</p>
   if (isError || !document) {
@@ -28,7 +28,7 @@ export function DocumentDetailPage() {
           <p className="text-[12px] text-text-tertiary">
             {document.currentVersionNo > 0 ? `r${document.currentVersionNo}` : '초안'} ·
             {' '}
-            {document.ownerName} 작성 · {document.updaterName} 최종 수정 ·{' '}
+            {document.ownerName ?? '—'} 작성 · {document.updaterName ?? '—'} 최종 수정 ·{' '}
             {new Date(document.updatedAt).toLocaleString('ko-KR')}
           </p>
         </div>

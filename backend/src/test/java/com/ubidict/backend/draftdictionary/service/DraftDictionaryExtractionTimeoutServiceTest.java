@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * 콜백이 끝내 오지 않은 작업의 회수(D-73).
+ * 콜백이 끝내 오지 않은 작업의 회수(D-77).
  *
  * <p>외부 워커로 나가면서 「콜백이 영영 오지 않는다」가 실제 가능한 경우가 됐다. 회수하지 않으면 고아 작업 하나가 워크스페이스 전체의 추출을 막는다.
  */

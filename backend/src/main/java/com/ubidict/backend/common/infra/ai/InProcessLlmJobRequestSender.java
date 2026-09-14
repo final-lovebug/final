@@ -7,7 +7,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 /**
- * 워커가 없는 환경(로컬·테스트)의 대역(D-70).
+ * 워커가 없는 환경(로컬·테스트)의 대역(D-74).
  *
  * <p>요청을 큐 대신 <b>같은 JVM의 스프링 이벤트로 흘린다.</b> 각 도메인의 로컬 워커가 그것을 듣고 목 결과로 작업을 끝내므로, LocalStack 없이도 접수부터
  * 완료까지의 흐름을 그대로 볼 수 있다 — 전환 전 스텁 리스너가 주던 개발 경험을 보존하기 위한 것이다.

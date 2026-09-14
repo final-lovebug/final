@@ -32,7 +32,7 @@ public class TestcontainersConfiguration {
     }
 
     /**
-     * AI 워커 요청 큐(SQS)의 로컬 대체(D-70).
+     * AI 워커 요청 큐(SQS)의 로컬 대체(D-74).
      *
      * <p><b>별도 {@code @TestConfiguration}으로 떼지 않는다.</b> 떼면 「SQS가 필요한 테스트」와 아닌 테스트의 Spring 컨텍스트가 갈리고,
      * 컨텍스트가 갈리면 MySQL·Redis·LGTM까지 한 벌 더 뜬다. 컨테이너 하나를 더 띄우는 비용이 훨씬 싸다.
@@ -51,7 +51,7 @@ public class TestcontainersConfiguration {
     /**
      * {@code @ServiceConnection}은 LocalStack을 모른다 — 접속 정보를 직접 넣는다.
      *
-     * <p>큐는 미리 만들지 않고 첫 접근에 만든다(D-74). 초기화 스크립트와 리스너 컨테이너 기동 사이의 순서 경합을 없애기 위해서다.
+     * <p>큐는 미리 만들지 않고 첫 접근에 만든다(D-78). 초기화 스크립트와 리스너 컨테이너 기동 사이의 순서 경합을 없애기 위해서다.
      */
     @Bean
     DynamicPropertyRegistrar localStackProperties(LocalStackContainer localStack) {

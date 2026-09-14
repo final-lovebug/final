@@ -16,6 +16,7 @@ import com.ubidict.backend.notification.exception.NotificationErrorCode;
 import com.ubidict.backend.notification.service.NotificationService;
 import com.ubidict.backend.notification.service.model.NotificationResult;
 import com.ubidict.backend.notification.service.model.NotificationSearchQuery;
+import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@WithLoginMember(2L)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(NotificationController.class)
 class NotificationControllerTest {
@@ -61,7 +63,7 @@ class NotificationControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}/notifications?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/notifications", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("content[0].notificationId", equalTo(NOTIFICATION_ID.intValue()))
@@ -76,10 +78,7 @@ class NotificationControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/notifications?memberId={memberId}&sort=title,desc",
-                        WORKSPACE_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/notifications?sort=title,desc", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value());
     }
@@ -90,10 +89,7 @@ class NotificationControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/notifications?memberId={memberId}&size=101",
-                        WORKSPACE_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/notifications?size=101", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value());
     }
@@ -107,10 +103,7 @@ class NotificationControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get(
-                        "/api/workspaces/{workspaceId}/notifications/unread-count?memberId={memberId}",
-                        WORKSPACE_ID,
-                        MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}/notifications/unread-count", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("unreadCount", equalTo(3));
@@ -127,10 +120,9 @@ class NotificationControllerTest {
         RestAssuredMockMvc.given()
                 .when()
                 .patch(
-                        "/api/workspaces/{workspaceId}/notifications/{notificationId}/read?memberId={memberId}",
+                        "/api/workspaces/{workspaceId}/notifications/{notificationId}/read",
                         WORKSPACE_ID,
-                        NOTIFICATION_ID,
-                        MEMBER_ID)
+                        NOTIFICATION_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("read", is(true));
@@ -148,10 +140,9 @@ class NotificationControllerTest {
         RestAssuredMockMvc.given()
                 .when()
                 .patch(
-                        "/api/workspaces/{workspaceId}/notifications/{notificationId}/read?memberId={memberId}",
+                        "/api/workspaces/{workspaceId}/notifications/{notificationId}/read",
                         WORKSPACE_ID,
-                        NOTIFICATION_ID,
-                        MEMBER_ID)
+                        NOTIFICATION_ID)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo(NotificationErrorCode.NOTIFICATION_NOT_FOUND.name()));
@@ -166,24 +157,10 @@ class NotificationControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .patch(
-                        "/api/workspaces/{workspaceId}/notifications/read-all?memberId={memberId}",
-                        WORKSPACE_ID,
-                        MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}/notifications/read-all", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("updated", equalTo(5));
-    }
-
-    @DisplayName("memberId가 없으면 400을 응답한다.")
-    @Test
-    void search_withoutMemberId() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .when()
-                .get("/api/workspaces/{workspaceId}/notifications", WORKSPACE_ID)
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value());
     }
 
     private NotificationResult notificationResult() {

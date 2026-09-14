@@ -174,7 +174,7 @@ public record WorkspaceCreatedEvent(Long workspaceId, Long ownerId, OffsetDateTi
 
 ### **외부 워커 경계**
 
-우리 코드가 소비하지 않는 큐는 규칙이 다르다. AI 워커(FastAPI)로 나가는 요청이 그것이다(`D-62`~`D-69`).
+우리 코드가 소비하지 않는 큐는 규칙이 다르다. AI 워커(FastAPI)로 나가는 요청이 그것이다(`D-66`~`D-73`).
 
 - **`EventEnvelope`를 쓰지 않는다.** 봉투는 `eventType`에 Java 클래스의 단순 이름을 싣고 본문은 해석하지 않은 채 넘기는 규약이라, 소비자가 우리 코드일 때만 성립한다. 소비자가 외부면 클래스를 리팩터링하는 순간 계약이 깨진다. 대신 **`contractVersion`을 가진 명시적 계약 DTO**를 싣고 스키마 원본은 `docs/AI_CONTRACT.md`가 갖는다.
 - **도메인 이벤트 버스와 다른 큐, 다른 선택 축을 쓴다.** LLM 요청은 `app.ai.dispatch.mode`로 갈리며 `app.messaging.mode`와 독립이다. 두 축을 얽으면 도메인 이벤트 어댑터를 바꾸는 것만으로 워커 경로가 통째로 죽는다 — 실제로 그런 결함이 있었다.

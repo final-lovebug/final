@@ -22,6 +22,7 @@ public record CandidateTermResult(
         Long resultTermId,
         List<Long> occurredDocumentIds,
         List<String> contextSnippets,
+        List<String> variantForms,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {
     public static CandidateTermResult from(CandidateTerm e) {
@@ -41,6 +42,7 @@ public record CandidateTermResult(
                 e.getResultTermId(),
                 List.copyOf(e.getOccurredDocumentIds()),
                 List.copyOf(e.getContextSnippets()),
+                List.copyOf(e.getVariantForms()),
                 e.getCreatedAt(),
                 e.getUpdatedAt());
     }

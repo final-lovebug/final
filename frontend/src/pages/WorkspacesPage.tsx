@@ -29,8 +29,13 @@ export function WorkspacesPage() {
               <span className="font-display text-[15px] font-bold text-text">
                 {workspace.name}
               </span>
+              {/* 실 API(WorkspaceResponse)는 updatedAt을 안 내려준다(docs/API.md 461행) —
+                  T-INT-9(2026-09-14)에서 발견. 목업엔 있었으므로 있으면 "최근 수정",
+                  없으면 createdAt을 "생성일"로 대신 보여준다. */}
               <span className="text-[11px] text-text-tertiary">
-                최근 수정 {new Date(workspace.updatedAt).toLocaleDateString('ko-KR')}
+                {workspace.updatedAt
+                  ? `최근 수정 ${new Date(workspace.updatedAt).toLocaleDateString('ko-KR')}`
+                  : `생성일 ${new Date(workspace.createdAt).toLocaleDateString('ko-KR')}`}
               </span>
             </Card>
           </Link>

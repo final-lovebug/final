@@ -25,7 +25,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  *
  * <p>{@code /api/internal/**}은 AI 워커(FastAPI)가 작업 결과를 돌려주는 서버-투-서버 경로다. 회원
  * principal이 없으므로 인증을 요구할 수 없고, 대신 <b>작업마다 발행되는 1회용 상관 식별자를 본문에서 받아
- * 작업 행의 값과 대조</b>한다(D-66). 이것만으로는 {@code NFR-AI-002}가 충족되지 않는다 — 배포 시
+ * 작업 행의 값과 대조</b>한다(D-70). 이것만으로는 {@code NFR-AI-002}가 충족되지 않는다 — 배포 시
  * 보안 그룹·인그레스로 워커 출발지만 이 경로에 닿게 제한해야 한다.
  *
  * <p>{@code /oauth2/**}(로그인 시작)와 {@code /login/oauth2/**}(Google 콜백)도 인증 전

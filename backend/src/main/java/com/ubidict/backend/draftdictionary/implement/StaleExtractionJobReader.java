@@ -10,7 +10,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-/** 제한 시간이 지나도록 끝나지 않은 추출 작업을 찾는다(D-73). */
+/** 제한 시간이 지나도록 끝나지 않은 추출 작업을 찾는다(D-77). */
 @Component
 @RequiredArgsConstructor
 public class StaleExtractionJobReader {

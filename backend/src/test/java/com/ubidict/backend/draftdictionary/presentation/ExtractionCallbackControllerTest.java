@@ -28,7 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * AI 워커 콜백의 HTTP 계약.
  *
  * <p><b>{@code @WithLoginMember}가 없다.</b> 이 엔드포인트는 인증 주체 없이 동작해야 하므로 principal을 주입하지 않는 것 자체가 검증이다
- * (D-65). permitAll 범위는 {@code SecurityConfigTest}가 따로 본다.
+ * (D-69). permitAll 범위는 {@code SecurityConfigTest}가 따로 본다.
  */
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ExtractionCallbackController.class)
@@ -65,7 +65,8 @@ class ExtractionCallbackControllerTest {
                         eq(30L),
                         eq(REQUEST_ID),
                         eq(List.of(10L)),
-                        eq(List.of(new ExtractedTerm("결제", "정의", "Payment", List.of(10L), 2, List.of("문맥")))));
+                        eq(List.of(new ExtractedTerm(
+                                "결제", "정의", "Payment", List.of(10L), 2, List.of("문맥"), List.of("결제", "페이먼트")))));
     }
 
     @DisplayName("실패 콜백을 받으면 작업을 실패로 기록하고 204를 응답한다.")
@@ -146,7 +147,8 @@ class ExtractionCallbackControllerTest {
         return """
                 {"requestId":"%s","sourceDocumentIds":[10],
                  "terms":[{"form":"결제","proposedDefinition":"정의","proposedEnglishName":"Payment",
-                           "occurredDocumentIds":[10],"occurrenceCount":2,"contextSnippets":["문맥"]}]}
+                           "occurredDocumentIds":[10],"occurrenceCount":2,"contextSnippets":["문맥"],
+                           "variantForms":["결제","페이먼트"]}]}
                 """.formatted(REQUEST_ID);
     }
 }

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 콜백이 끝내 오지 않은 작업을 회수한다(D-73).
+ * 콜백이 끝내 오지 않은 작업을 회수한다(D-77).
  *
  * <p>이것이 없으면 고아 작업 하나가 <b>워크스페이스 전체의 추출을 영구히 막는다</b> — 생성 정책이 진행 중인 작업의 존재만 보고 거절하기 때문이다. 외부 워커로
  * 나가면서 「콜백이 영영 오지 않는다」가 실제 가능한 경우가 됐으므로 회수 경로가 반드시 필요하다.

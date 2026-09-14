@@ -63,7 +63,7 @@ public class DraftDocumentCheckExecutionService {
      * 앵커의 기준이 되는 본문은 우리가 읽은 것이어야 한다. 워커가 본 버전({@code documentVersionNo})과 지금 본문의 버전이 다르면 앵커 오프셋이 이미
      * 무효이므로, {@link CheckSuggestionValidator}가 터지기 전에 분명한 사유로 작업을 끝낸다.
      *
-     * <p>이미 끝난 작업이면 아무 일도 하지 않는다(D-68) — SQS는 at-least-once라 같은 결과가 두 번 올 수 있다.
+     * <p>이미 끝난 작업이면 아무 일도 하지 않는다(D-72) — SQS는 at-least-once라 같은 결과가 두 번 올 수 있다.
      */
     @Transactional
     public void complete(Long checkJobId, String requestId, int documentVersionNo, List<CheckSuggestion> suggestions) {
@@ -147,7 +147,7 @@ public class DraftDocumentCheckExecutionService {
     }
 
     /**
-     * 콜백을 보낸 쪽이 우리가 요청을 넘긴 그 워커인지 확인한다(D-66).
+     * 콜백을 보낸 쪽이 우리가 요청을 넘긴 그 워커인지 확인한다(D-70).
      *
      * <p>{@code /api/internal/**}은 인증 필터를 통과하므로 <b>이 대조가 유일한 방어선</b>이다.
      */

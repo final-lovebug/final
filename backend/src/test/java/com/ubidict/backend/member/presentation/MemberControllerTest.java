@@ -14,12 +14,16 @@ import com.ubidict.backend.member.exception.MemberErrorCode;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.member.presentation.dto.CreateMemberRequest;
 import com.ubidict.backend.member.presentation.dto.UpdateMemberRequest;
+import com.ubidict.backend.member.service.MemberDirectory;
 import com.ubidict.backend.member.service.MemberService;
 import com.ubidict.backend.member.service.model.MemberResult;
+import com.ubidict.backend.member.service.model.MemberSummary;
 import com.ubidict.backend.member.service.model.UpdateMemberCommand;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,6 +56,9 @@ class MemberControllerTest {
 
     @MockitoBean
     private MemberService memberService;
+
+    @MockitoBean
+    private MemberDirectory memberDirectory;
 
     @MockitoBean
     private JwtProvider jwtProvider;
@@ -194,5 +201,78 @@ class MemberControllerTest {
         RestAssuredMockMvc.given().when().delete("/api/members/me").then().statusCode(HttpStatus.NO_CONTENT.value());
 
         verify(memberService).withdraw(MY_MEMBER_ID);
+    }
+
+    @DisplayName("다른 회원을 id로 조회하면 200과 이름/이메일만 담긴 요약 정보를 응답한다.")
+    @Test
+    void getSummary() {
+        // given
+        given(memberDirectory.getSummary(2L))
+                .willReturn(new MemberSummary(2L, "김개발", "kim.dev@potenup.io", MemberStatus.ACTIVE));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/api/members/2")
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("memberId", equalTo(2))
+                .body("displayName", equalTo("김개발"))
+                .body("email", equalTo("kim.dev@potenup.io"));
+    }
+
+    @DisplayName("존재하지 않는 회원 id를 조회하면 404를 응답한다.")
+    @Test
+    void getSummary_notFound() {
+        // given
+        given(memberDirectory.getSummary(999L)).willThrow(new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/api/members/999")
+                .then()
+                .statusCode(HttpStatus.NOT_FOUND.value())
+                .body("code", equalTo("MEMBER_NOT_FOUND"));
+    }
+
+    @DisplayName("여러 회원을 배치로 조회하면 200과 요약 정보 목록을 응답한다.")
+    @Test
+    void getSummaries() {
+        // given
+        Map<Long, MemberSummary> summaries = new LinkedHashMap<>();
+        summaries.put(1L, new MemberSummary(1L, "민뱅", "idabc1234@gmail.com", MemberStatus.ACTIVE));
+        summaries.put(2L, new MemberSummary(2L, "김개발", "kim.dev@potenup.io", MemberStatus.ACTIVE));
+        given(memberDirectory.getSummaries(List.of(1L, 2L))).willReturn(summaries);
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .queryParam("ids", "1,2")
+                .when()
+                .get("/api/members")
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("size()", equalTo(2))
+                .body("[0].displayName", equalTo("민뱅"))
+                .body("[1].displayName", equalTo("김개발"));
+    }
+
+    @DisplayName("배치 조회에서 존재하지 않는 id는 결과에서 조용히 빠진다.")
+    @Test
+    void getSummaries_partialMiss() {
+        // given
+        Map<Long, MemberSummary> summaries = new LinkedHashMap<>();
+        summaries.put(1L, new MemberSummary(1L, "민뱅", "idabc1234@gmail.com", MemberStatus.ACTIVE));
+        given(memberDirectory.getSummaries(List.of(1L, 999L))).willReturn(summaries);
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .queryParam("ids", "1,999")
+                .when()
+                .get("/api/members")
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("size()", equalTo(1))
+                .body("[0].memberId", equalTo(1));
     }
 }

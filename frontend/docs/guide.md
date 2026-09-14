@@ -69,11 +69,21 @@ npm run preview
 지금 단계(목데이터 기반)에서는 환경 변수 설정이 필요 없다. 이후 실제 연동 시:
 
 ```bash
-# frontend/.env.local (커밋 금지 — 루트 CLAUDE.md 준수)
+# frontend/.env.local (커밋 금지 — 루트 CLAUDE.md 준수). frontend/.env.local.example을
+# 복사해서 만든다: cp .env.local.example .env.local
 VITE_API_BASE_URL=http://localhost:8080
 ```
 
-- 로컬 백엔드는 `backend/CLAUDE.md` 기준 `8080` 포트에서 `./gradlew bootRun`으로 실행한다.
+- 로컬 백엔드는 `backend/CLAUDE.md` 기준 `--spring.profiles.active=local`로 `8080` 포트에서
+  실행한다(`local` 프로파일 없이 띄우면 refresh 토큰 쿠키의 `Secure` 플래그가 `true`로
+  고정돼 `http://localhost`에서 쿠키가 동작하지 않는다):
+  ```bash
+  cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'
+  ```
+- 이 값을 아예 설정하지 않아도 `src/shared/config/env.ts`의 기본값(`http://localhost:8080`)이
+  적용된다 — 로컬 기본 구성이면 `.env.local` 없이도 동작한다.
+- 프론트 dev 서버에는 별도 프록시 설정이 없다 — `credentials: 'include'` + 백엔드 CORS
+  허용(`CORS_ALLOWED_ORIGINS`, 기본값이 이미 `http://localhost:5173`)으로 직접 통신한다.
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 ## **관련 문서**

@@ -5,8 +5,11 @@ import { useSuggestionHistory } from '../../features/document/hooks/useSuggestio
 import { cx } from '../../shared/lib/cx'
 
 export function DocumentHistoryPage() {
-  const { documentId = '' } = useParams<{ documentId: string }>()
-  const { data: versions, isLoading, isError } = useDocumentVersions(documentId)
+  const { workspaceId = '', documentId = '' } = useParams<{
+    workspaceId: string
+    documentId: string
+  }>()
+  const { data: versions, isLoading, isError } = useDocumentVersions(workspaceId, documentId)
   const { data: history } = useSuggestionHistory(documentId)
 
   return (
@@ -36,7 +39,7 @@ export function DocumentHistoryPage() {
                     ? ` · 기준 사전집 r${version.dictionaryVersionNo}`
                     : ''}
                 </p>
-                <p className="mt-1 text-[12.5px] text-text-secondary">{version.body}</p>
+                <p className="mt-1 text-[12.5px] text-text-secondary">{version.body ?? '—'}</p>
               </div>
             </Card>
           ))}

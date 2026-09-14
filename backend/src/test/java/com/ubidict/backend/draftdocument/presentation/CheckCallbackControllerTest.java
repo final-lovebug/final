@@ -30,7 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * AI 워커 콜백의 HTTP 계약.
  *
  * <p><b>{@code @WithLoginMember}가 없다.</b> 이 엔드포인트는 인증 주체 없이 동작해야 하므로 principal을 주입하지 않는 것 자체가 검증이다
- * (D-65).
+ * (D-69).
  */
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(CheckCallbackController.class)

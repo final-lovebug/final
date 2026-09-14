@@ -17,12 +17,12 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * 접수된 대조 작업을 AI 워커에게 넘긴다(D-62).
+ * 접수된 대조 작업을 AI 워커에게 넘긴다(D-66).
  *
  * <p>전환 이전에는 이 자리에서 <b>작업을 직접 실행</b>했다. 이제 실행은 외부 FastAPI 워커의 몫이고, 여기가 하는 일은 상관 식별자를 만들어 작업에 새기고 요청을
  * 발행하는 것까지다.
  *
- * <p>본문은 싣지 않는다(D-65). 대신 <b>워커가 읽어야 할 문서 버전</b>을 실어 보낸다 — 결과 앵커가 어느 본문 기준인지 대조하려면 그 번호가 있어야 한다.
+ * <p>본문은 싣지 않는다(D-69). 대신 <b>워커가 읽어야 할 문서 버전</b>을 실어 보낸다 — 결과 앵커가 어느 본문 기준인지 대조하려면 그 번호가 있어야 한다.
  */
 @Slf4j
 @Component

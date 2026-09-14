@@ -15,7 +15,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * 접수된 추출 작업을 AI 워커에게 넘긴다(D-62).
+ * 접수된 추출 작업을 AI 워커에게 넘긴다(D-66).
  *
  * <p>전환 이전에는 이 자리에서 <b>작업을 직접 실행</b>했다 — 스텁 포트를 부르고 결과까지 굳혔다. 이제 실행은 외부 FastAPI 워커의 몫이고, 여기가 하는 일은
  * 상관 식별자를 만들어 작업에 새기고 요청을 발행하는 것까지다. 완료는 워커의 HTTP 콜백이 알려 준다.

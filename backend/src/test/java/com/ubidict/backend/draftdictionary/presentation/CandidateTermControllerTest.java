@@ -181,6 +181,7 @@ class CandidateTermControllerTest {
                 null,
                 List.of(100L),
                 List.of("문맥"),
+                List.of(),
                 now,
                 now);
     }

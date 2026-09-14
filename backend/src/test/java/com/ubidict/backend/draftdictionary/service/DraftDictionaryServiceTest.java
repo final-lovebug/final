@@ -15,10 +15,12 @@ import com.ubidict.backend.draftdictionary.service.model.AddCandidateTermCommand
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
+import com.ubidict.backend.draftdictionary.service.model.DraftDictionarySearchQuery;
 import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdictionary.service.model.UpdateSourceDocumentsCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Permission;
+import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import com.ubidict.backend.workspace.fixture.ParticipantFixture;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
 import com.ubidict.backend.workspace.infra.ParticipantRepository;
@@ -65,6 +67,45 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
                 .memberId(REGULAR_ID)
                 .permission(Permission.REGULAR)
                 .build());
+    }
+
+    @DisplayName("워크스페이스 기준으로 진행 중 사전 초안 목록을 조회한다(T-INT-20).")
+    @Test
+    void search() {
+        createDraft(List.of(10L));
+
+        var result = draftDictionaryService.search(
+                new DraftDictionarySearchQuery(WORKSPACE_ID, null, 0, 20, "createdAt,desc", MEMBER_ID));
+
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.totalElements()).isOne();
+    }
+
+    @DisplayName("상태로 필터링해 사전 초안 목록을 조회한다.")
+    @Test
+    void search_filterByStatus() {
+        Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
+        draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, MEMBER_ID));
+
+        var examining = draftDictionaryService.search(new DraftDictionarySearchQuery(
+                WORKSPACE_ID, DraftDictionaryStatus.EXAMINING, 0, 20, "createdAt,desc", MEMBER_ID));
+        var examined = draftDictionaryService.search(new DraftDictionarySearchQuery(
+                WORKSPACE_ID, DraftDictionaryStatus.EXAMINED, 0, 20, "createdAt,desc", MEMBER_ID));
+
+        assertThat(examining.content()).isEmpty();
+        assertThat(examined.content()).hasSize(1);
+    }
+
+    @DisplayName("참여자가 아니면 목록을 조회할 수 없다.")
+    @Test
+    void search_notParticipant() {
+        createDraft(List.of(10L));
+
+        assertThatThrownBy(() -> draftDictionaryService.search(
+                        new DraftDictionarySearchQuery(WORKSPACE_ID, null, 0, 20, "createdAt,desc", STRANGER_ID)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
     }
 
     @DisplayName("사전 초안의 유래 문서 목록을 교체한다.")

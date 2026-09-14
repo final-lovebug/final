@@ -1,11 +1,24 @@
-import { delay } from '../../../shared/lib/delay'
-import { WORKSPACE_FIXTURES } from '../model/fixtures'
-import type { Workspace } from '../model/types'
+import { httpClient } from '../../../shared/api/httpClient'
+import type { ParticipantPermission, Workspace } from '../model/types'
 
-// 목업 구현체. 실제 백엔드 연동 시 이 함수 내부만 fetch/http client 호출로 바꾸면 된다 —
-// 반환 타입(Promise<Workspace[]>)을 유지하는 한 features/workspace/hooks와 화면 코드는
-// 손댈 필요가 없다 (frontend/docs/ARCHITECTURE.md 의존성 규칙 참고).
+interface WorkspaceApiItem {
+  workspaceId: number
+  name: string
+  requiredDocumentReviewerCount: number
+  requiredDictionaryReviewerCount: number
+  myPermission: ParticipantPermission
+  createdAt: string
+}
+
+// 실제 백엔드 연동(docs/API.md "참여 중인 워크스페이스 목록 조회", GET /api/workspaces).
+// 참여 중인 워크스페이스만 내려오고, 페이징 규격의 명시적 예외로 배열을 그대로 반환한다
+// (한 회원이 참여하는 워크스페이스 수가 구조적으로 작기 때문 — API.md 495행).
 export async function fetchWorkspaces(): Promise<Workspace[]> {
-  await delay()
-  return WORKSPACE_FIXTURES
+  const items = await httpClient.get<WorkspaceApiItem[]>('/api/workspaces')
+  return items.map((item) => ({
+    id: String(item.workspaceId),
+    name: item.name,
+    createdAt: item.createdAt,
+    myPermission: item.myPermission,
+  }))
 }

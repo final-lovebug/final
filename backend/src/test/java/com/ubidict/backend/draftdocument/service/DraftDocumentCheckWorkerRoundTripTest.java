@@ -36,7 +36,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 접수 → 실제 SQS 발행 → 워커 → 완료 콜백까지의 왕복(D-70·D-71).
+ * 접수 → 실제 SQS 발행 → 워커 → 완료 콜백까지의 왕복(D-74·D-75).
  *
  * <p>대조는 추출과 달리 <b>문서 버전</b>이 계약에 실린다 — 워커가 읽은 본문과 결과를 굳힐 때의 본문이 같아야 제안어 앵커가 유효하기 때문이다.
  */

@@ -223,7 +223,7 @@ class SecurityConfigTest {
             return "pong";
         }
 
-        /** AI 워커 콜백 자리. 인증 주체 없이 필터 체인을 통과해야 한다(D-65). */
+        /** AI 워커 콜백 자리. 인증 주체 없이 필터 체인을 통과해야 한다(D-69). */
         @GetMapping("/api/internal/ping")
         String internalPing() {
             return "pong";

@@ -34,7 +34,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 접수 → 실제 SQS 발행 → 워커 → 완료 콜백까지의 왕복(D-70·D-71).
+ * 접수 → 실제 SQS 발행 → 워커 → 완료 콜백까지의 왕복(D-74·D-75).
  *
  * <p>LocalStack 위에서 <b>진짜 메시지</b>가 오간다. 인메모리 대역으로는 직렬화·큐 이름·계약 필드·중복 수신이 검증되지 않는데, 이 전환의 위험이 정확히
  * 거기에 있다.
@@ -109,7 +109,7 @@ class DraftDictionaryExtractionWorkerRoundTripTest extends IntegrationTestSuppor
         assertThat(sent.jobId()).isEqualTo(requested.extractionJobId());
         assertThat(sent.sourceDocumentIds()).containsExactly(documentId);
         assertThat(sent.mode()).isEqualTo(LlmMode.STUB);
-        // 워커가 돌려준 상관 식별자가 작업 행의 것과 같아야 콜백이 받아들여진다(D-66).
+        // 워커가 돌려준 상관 식별자가 작업 행의 것과 같아야 콜백이 받아들여진다(D-70).
         assertThat(job(requested.extractionJobId()).matchesRequestId(sent.requestId()))
                 .isTrue();
     }

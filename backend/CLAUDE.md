@@ -17,7 +17,7 @@
 - **영속성** — Spring Data JPA + MySQL
 - **스키마 마이그레이션** — Flyway
 - **캐시·세션** — Redis
-- **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS**(`spring-cloud-aws-starter-sqs`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 발행 어댑터 둘은 `common/infra/event/`(인메모리)와 `common/infra/event/sqs/`(SQS)에 있고 `@ConditionalOnProperty`로 배타 선택된다. 수신 어댑터는 소비 도메인에 두며 **둘이 같은 공용 핸들러에 위임한다.** 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다. **큐는 둘이다** — 도메인 이벤트 큐(`app.messaging.sqs.queue`)와 **AI 워커 요청 큐**(`app.messaging.sqs.llm-request-queue`, `D-63`). **AI 워커 요청 큐는 `app.messaging.mode`와 무관하게 `app.ai.dispatch.mode`로 갈린다** — `local`·`test`는 인프로세스 대역, `dev`는 LocalStack, `prod`는 실 SQS다. **완료 통보는 큐가 아니라 워커가 치는 동기 HTTP 콜백(`/api/internal/llm/**`)이다**(`D-64`). 계약은 `docs/AI_CONTRACT.md`가 원본이다
+- **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS**(`spring-cloud-aws-starter-sqs`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 발행 어댑터 둘은 `common/infra/event/`(인메모리)와 `common/infra/event/sqs/`(SQS)에 있고 `@ConditionalOnProperty`로 배타 선택된다. 수신 어댑터는 소비 도메인에 두며 **둘이 같은 공용 핸들러에 위임한다.** 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다. **큐는 둘이다** — 도메인 이벤트 큐(`app.messaging.sqs.queue`)와 **AI 워커 요청 큐**(`app.messaging.sqs.llm-request-queue`, `D-67`). **AI 워커 요청 큐는 `app.messaging.mode`와 무관하게 `app.ai.dispatch.mode`로 갈린다** — `local`·`test`는 인프로세스 대역, `dev`는 LocalStack, `prod`는 실 SQS다. **완료 통보는 큐가 아니라 워커가 치는 동기 HTTP 콜백(`/api/internal/llm/**`)이다**(`D-68`). 계약은 `docs/AI_CONTRACT.md`가 원본이다
 - **인증·인가** — Spring Security, JWT (JJWT), OAuth2
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
 - **관측** — Actuator, Micrometer(Prometheus), OpenTelemetry / Grafana LGTM
@@ -95,14 +95,14 @@
 - 테스트용 컨테이너는 별도로 `TestcontainersConfiguration`이 관리한다.
   (MySQL, Redis, Grafana LGTM, LocalStack — 이미지 태그는 `compose.yaml`과 맞춘다.)
 - **도메인 이벤트** 버스는 로컬·테스트에서 인메모리 어댑터를 쓴다(`app.messaging.mode`).
-  **AI 워커 요청 큐는 다르다** — `dev` 프로파일과 통합 테스트가 **LocalStack으로 실제 SQS 경로를 탄다**(`D-70`).
+  **AI 워커 요청 큐는 다르다** — `dev` 프로파일과 통합 테스트가 **LocalStack으로 실제 SQS 경로를 탄다**(`D-74`).
   컨테이너는 `compose.yaml`과 `TestcontainersConfiguration` **양쪽에** 들어 있다 — 한쪽만 있으면
   테스트가 로컬에서만 돌거나 그 반대가 된다.
 - LocalStack 포트(4566)를 고정한 이유는 `spring-boot-docker-compose`가 LocalStack 커넥션 정보를
   자동 주입하지 않기 때문이다. `application-dev.yml`이 그 주소를 직접 가리킨다.
   테스트는 Testcontainers가 띄우므로 포트가 무엇이든 `DynamicPropertyRegistrar`가 주입한다.
 - **큐를 미리 만들지 않는다.** `spring.cloud.aws.sqs.queue-not-found-strategy: create`가 첫 접근에 만든다.
-  **`prod`는 기본값(`fail`)을 유지한다** — 큐 이름을 틀린 채 조용히 새 큐가 생기는 것을 막는다(`D-74`).
+  **`prod`는 기본값(`fail`)을 유지한다** — 큐 이름을 틀린 채 조용히 새 큐가 생기는 것을 막는다(`D-78`).
 
 ### 환경변수
 

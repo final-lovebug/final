@@ -4,7 +4,7 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * AI 워커 경계 설정(D-67·D-73).
+ * AI 워커 경계 설정(D-71·D-77).
  *
  * @param mode 워커가 실제 모델을 호출할지 정해 요청 메시지에 실어 보내는 값. <b>백엔드는 이 값으로 분기하지 않는다</b>
  * @param timeout 콜백이 오지 않는 작업을 회수하는 기준

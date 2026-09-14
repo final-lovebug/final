@@ -16,7 +16,9 @@ public record ReviewRequestResponse(
         OffsetDateTime approvedAt,
         OffsetDateTime revisedAt,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        Long targetId,
+        int reviewerCount) {
 
     public static ReviewRequestResponse from(ReviewRequestResult result) {
         return new ReviewRequestResponse(
@@ -30,6 +32,8 @@ public record ReviewRequestResponse(
                 result.approvedAt(),
                 result.revisedAt(),
                 result.createdAt(),
-                result.updatedAt());
+                result.updatedAt(),
+                result.targetId(),
+                result.reviewerCount());
     }
 }

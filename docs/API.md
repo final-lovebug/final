@@ -30,7 +30,7 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 
 토큰이 없거나 잘못된 경우의 응답은 «Auth API»의 인증 실패 표를 따른다.
 
-**예외 — 내부 워커 콜백.** `/api/internal/**`은 인증 주체가 없다. AI 워커(FastAPI)가 작업 결과를 돌려주는 서버-투-서버 경로이며 회원 principal이 존재하지 않는다. 대신 **작업마다 발행되는 1회용 상관 식별자(`requestId`)를 본문으로 받아 작업 행에 저장된 값과 대조**하고, 배포 환경에서는 네트워크로 출발지를 제한한다(`NFR-AI-002`·`D-66`). **이 경로도 요청자를 본문으로 받지 않는다** — 행위의 주체는 작업 행에 이미 기록된 `requestedBy`이므로 「요청자를 클라이언트가 참칭하지 못한다」는 원칙의 취지는 그대로다. 그 밖의 `/api/**`에는 예외가 없다.
+**예외 — 내부 워커 콜백.** `/api/internal/**`은 인증 주체가 없다. AI 워커(FastAPI)가 작업 결과를 돌려주는 서버-투-서버 경로이며 회원 principal이 존재하지 않는다. 대신 **작업마다 발행되는 1회용 상관 식별자(`requestId`)를 본문으로 받아 작업 행에 저장된 값과 대조**하고, 배포 환경에서는 네트워크로 출발지를 제한한다(`NFR-AI-002`·`D-70`). **이 경로도 요청자를 본문으로 받지 않는다** — 행위의 주체는 작업 행에 이미 기록된 `requestedBy`이므로 「요청자를 클라이언트가 참칭하지 못한다」는 원칙의 취지는 그대로다. 그 밖의 `/api/**`에는 예외가 없다.
 
 ## **데이터 격리 — 접근 불가 리소스는 404**
 
@@ -363,6 +363,44 @@ DELETE /api/members/me
 
 - 로컬 상태를 `WITHDRAWN`으로 변경하고 소프트 삭제한다. Google 쪽 소셜 연동 해제(Unlink)는 호출하지 않는다 — 필요하면 회원이 Google 계정에서 직접 해제해야 한다(`docs/DOMAIN.md` 인증·회원가입 정책).
 - 성공 시 `204 No Content`.
+
+### **다른 회원 조회**
+
+```
+GET /api/members/{memberId}
+GET /api/members?ids=1,2,3
+```
+
+로그인한 회원이면 누구나 다른 회원의 이름·이메일을 조회할 수 있다 — 특별한 스코프
+제한을 두지 않는다(`memberId`는 이미 다른 인가된 엔드포인트를 통해서만 얻을 수
+있으므로, `docs/plan/CONFLICTS.md` `D-62`). 배치 조회는 콤마로 구분한 id 목록을
+받고, 존재하지 않는 id는 결과에서 조용히 빠진다(에러가 아니다).
+
+#### Response Body
+
+단건:
+```json
+{ "memberId": 2, "displayName": "김개발", "email": "kim.dev@potenup.io" }
+```
+
+배치(`GET /api/members?ids=1,2`):
+```json
+[
+  { "memberId": 1, "displayName": "민뱅", "email": "idabc1234@gmail.com" },
+  { "memberId": 2, "displayName": "김개발", "email": "kim.dev@potenup.io" }
+]
+```
+
+`status`·`role`은 담지 않는다 — 타인의 사이트 권한·계정 상태까지 공개할 이유가
+없다. 탈퇴한 회원은 익명화된 값(`탈퇴한 회원`, `withdrawn-{id}@deleted.local`)이
+그대로 내려간다(`Member.withdraw()`가 이미 해당 필드를 그렇게 바꿔 두므로 별도
+처리가 필요 없다).
+
+#### 에러
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 단건 조회에서 존재하지 않는 `memberId` | 404 | `MEMBER_NOT_FOUND` |
 
 ### **회원 생성(테스트/관리자용)**
 
@@ -1205,7 +1243,7 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 - **문서 리뷰** — 초안이 `EXAMINED`여야 한다. 개정안은 초안의 `documentId`·`baseVersionNo`·교정된 본문을 스냅샷으로 담는다. 권한은 워크스페이스 참여자다.
 - **사전 리뷰** — 초안이 `EXAMINED`이고 **최종 등재 목록이 현재 활성 사전집과 실제로 달라야** 하며 그 정의가 비어 있지 않아야 한다(자격 판정은 초안 도메인에 위임한다 — `D-44`). 개정안의 `baseVersionNo`는 **발행 기준이 되는 현재 활성 사전집 버전**이고 첫 회차는 `0`이다. 권한은 **ADMIN 이상**이다(`G-2`).
 
-응답은 리뷰 요청 상세와 같은 형식이다. 만들어진 뒤 `ReviewRequestCreatedEvent`가 발행되고, 초안은 그것을 받아 `REVIEW_REQUESTED`로 전이한다.
+응답은 리뷰 요청 상세와 같은 형식이다(아래 "리뷰 요청 상세 조회" 참고). 만들어진 뒤 `ReviewRequestCreatedEvent`가 발행되고, 초안은 그것을 받아 `REVIEW_REQUESTED`로 전이한다.
 
 | **상황** | **status** | **code** |
 | --- | --- | --- |
@@ -1221,6 +1259,29 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 `GET /api/review-requests/{reviewRequestId}` → `200 OK`
 
 응답 형식은 생성 응답과 같다. 요청이 속한 워크스페이스의 참여자만 조회할 수 있다.
+
+```json
+{
+  "reviewRequestId": 1,
+  "workspaceId": 1,
+  "type": "DOCUMENT",
+  "title": "정산 문서 리뷰",
+  "description": "정산 문서의 개정안을 검토합니다.",
+  "requesterId": 7,
+  "status": "PENDING_REVIEW",
+  "approvedAt": null,
+  "revisedAt": null,
+  "createdAt": "2026-09-14T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-14T10:00:00.000000+09:00",
+  "targetId": 42,
+  "reviewerCount": 2
+}
+```
+
+| **필드** | **타입** | **설명** |
+| --- | --- | --- |
+| `targetId` | Long \| null | `type`에 따라 대상 문서 id(`DOCUMENT`) 또는 사전집 id(`DICTIONARY`). 최신 회차 개정안 기준. 사전집이 처음 발행되는 회차라 아직 사전집 자체가 없으면 `null`(T-INT-12, `D-63`) |
+| `reviewerCount` | Int | 지정된 리뷰어 수. 정족수 판정은 워크스페이스 룰셋 기준이라(`G-4`) 이 값과 다를 수 있다 — 단순 참고용 |
 
 ## **리뷰 요청 수정**
 
@@ -1375,6 +1436,7 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | --- | --- | --- |
 | POST | `/api/draft-dictionaries/extractions` | `202` |
 | GET | `/api/draft-dictionaries/extractions/{extractionJobId}` | `200` |
+| GET | `/api/draft-dictionaries?workspaceId=&status=&page=&size=&sort=` | `200` |
 | GET | `/api/draft-dictionaries/{draftDictionaryId}` | `200` |
 | PUT | `/api/draft-dictionaries/{draftDictionaryId}/source-documents` | `200` |
 | DELETE | `/api/draft-dictionaries/{draftDictionaryId}` | `204` |
@@ -1412,6 +1474,12 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 
 `PUT /api/draft-dictionaries/{draftDictionaryId}/source-documents`는 `sourceDocumentIds`를 전체 교체한다.
 
+## **워크스페이스 기준 목록 조회**
+
+`GET /api/draft-dictionaries?workspaceId={workspaceId}&status=&page=0&size=20&sort=createdAt,desc` → `200 OK`(T-INT-20, `D-64`)
+
+**워크스페이스만 갖고 시작하는 화면**(사전 초안 교정 화면 등)이 "이 워크스페이스의 진행 중 사전 초안"을 찾을 방법이 없었던 문제를 해소한다. `DraftDocument API`의 목록 조회와 같은 패턴이다. `status`는 선택(`EXAMINING`/`EXAMINED`/`REVIEW_REQUESTED`/`REVISED`), 참여자만 조회 가능(비참여자는 `WORKSPACE_NOT_FOUND`). `sort` 화이트리스트는 `createdAt`·`updatedAt`·`id`. 응답은 `PageResponse<DraftDictionaryResponse>`이며 각 항목은 단건 조회와 같은 형식이다(위 "조회·유래 문서 수정 응답" 참고).
+
 ## **후보어 등록·수정·삭제·목록**
 
 초안 안의 후보어를 다룬다. **`REQ-DIC-004`(용어 수동 추가·수정·삭제)의 구현 자리가 여기다** — 확정 사전집의 `Term`을 직접 고치는 경로는 없고, 교정 중인 초안에서만 항목을 더하고 고친다(`R-11`).
@@ -1425,13 +1493,14 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
   "proposedEnglishName": "PaymentMethod",
   "occurredDocumentIds": [10, 20],
   "occurrenceCount": 7,
-  "contextSnippets": ["회원은 결제수단을 등록할 수 있다."]
+  "contextSnippets": ["회원은 결제수단을 등록할 수 있다."],
+  "variantForms": []
 }
 ```
 
-`form`만 필수다. `occurrenceCount`는 1 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다.
+`form`만 필수다. `occurrenceCount`는 1 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다. `variantForms`는 선택이다(생략 시 빈 목록).
 
-응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다.
+응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다. `variantForms`는 추출기가 같은 개념으로 묶어서 돌려준 표기 변형 전체(대표 표기인 `form` 포함)를 담는다 — 추출 파이프라인을 거치지 않고 수동으로 등록·수정한 항목은 보통 빈 배열이다(`D-65`).
 
 ```json
 {
@@ -1450,6 +1519,7 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
   "resultTermId": null,
   "occurredDocumentIds": [10, 20],
   "contextSnippets": ["회원은 결제수단을 등록할 수 있다."],
+  "variantForms": ["결제수단", "결제 방법"],
   "createdAt": "2026-09-11T10:00:00.000000+09:00",
   "updatedAt": "2026-09-11T10:00:00.000000+09:00"
 }
@@ -1585,7 +1655,8 @@ POST /api/internal/llm/extractions/{extractionJobId}/failure
       "proposedEnglishName": "Payment",
       "occurredDocumentIds": [10],
       "occurrenceCount": 3,
-      "contextSnippets": ["회원은 결제할 수 있다."]
+      "contextSnippets": ["회원은 결제할 수 있다."],
+      "variantForms": ["결제", "페이먼트"]
     }
   ]
 }
@@ -1637,10 +1708,6 @@ POST /api/internal/llm/extractions/{extractionJobId}/failure
 
 **알림은 이 API로 만들지 않는다.** 생성 경로는 HTTP가 아니라 이벤트다 — 리뷰 요청이 만들어지거나 판정이 제출되거나 개정안이 반영되면 `notification`이 그 이벤트를 비동기로 받아 행을 만든다(`NFR-NTF-003`). 그래서 `POST`가 없다.
 
-## **요청자 식별 — 임시 방식**
-
-인증 계층(`NFR-USR-001`)이 없어 요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다. **인증 전까지 운영 배포 대상이 아니다.** 알림은 수신자 본인만 보는 자원이라 이 파라미터를 신뢰하는 것이 특히 위험하다 — 인증이 들어오면 `memberId`는 전부 사라지고 인증 주체에서 해석한다.
-
 ## **알아 둘 것 셋**
 
 - **남의 알림은 `404`다.** 존재하지만 내 것이 아닌 알림에 `403`을 주면 그 알림의 존재가 드러난다(`NFR-WS-001`). 비참여 워크스페이스도 같다.
@@ -1658,7 +1725,7 @@ POST /api/internal/llm/extractions/{extractionJobId}/failure
 
 ## **알림 목록 조회**
 
-`GET /api/workspaces/{workspaceId}/notifications?memberId={memberId}&page=0&size=20&unreadOnly=false`
+`GET /api/workspaces/{workspaceId}/notifications?page=0&size=20&unreadOnly=false`
 
 **항상 요청자 본인이 수신자인 알림만** 돌려준다. `recipientId`를 파라미터로 받지 않는 이유다.
 
@@ -1693,7 +1760,7 @@ POST /api/internal/llm/extractions/{extractionJobId}/failure
 
 ## **미읽음 수 조회**
 
-`GET /api/workspaces/{workspaceId}/notifications/unread-count?memberId={memberId}`
+`GET /api/workspaces/{workspaceId}/notifications/unread-count`
 
 헤더 벨의 표시용이다. 목록을 받아 세지 않게 하려고 따로 둔다.
 
@@ -1703,13 +1770,13 @@ POST /api/internal/llm/extractions/{extractionJobId}/failure
 
 ## **읽음 처리**
 
-`PATCH /api/workspaces/{workspaceId}/notifications/{notificationId}/read?memberId={memberId}`
+`PATCH /api/workspaces/{workspaceId}/notifications/{notificationId}/read`
 
 요청 본문이 없다. 갱신된 알림을 목록 항목과 같은 형식으로 돌려준다. 이미 읽었으면 아무것도 바뀌지 않고 `200`이다.
 
 ## **모두 읽음**
 
-`PATCH /api/workspaces/{workspaceId}/notifications/read-all?memberId={memberId}`
+`PATCH /api/workspaces/{workspaceId}/notifications/read-all`
 
 요청자 본인의 안 읽은 알림을 한 번에 읽음으로 바꾼다. 알림 패널의 「모두 읽음」이 쓴다.
 
