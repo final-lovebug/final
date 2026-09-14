@@ -896,10 +896,12 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 ```json
 {
+  "dictionaryId": 5,
+  "workspaceId": 1,
   "versionNo": 2,
   "status": "ACTIVE",
   "publishedAt": "2026-09-10T11:00:00.000000Z",
-  "publishedBy": 7,
+  "createdBy": 7,
   "terms": {
     "content": [
       { "termId": 11, "preferredForm": "사전집", "englishName": "Dictionary" },
@@ -924,8 +926,8 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 ```json
 {
   "content": [
-    { "versionNo": 2, "status": "ACTIVE", "publishedAt": "2026-09-10T11:00:00.000000Z", "publishedBy": 7, "termCount": 2 },
-    { "versionNo": 1, "status": "ARCHIVED", "publishedAt": "2026-09-09T10:00:00.000000Z", "publishedBy": 7, "termCount": 1 }
+    { "dictionaryId": 5, "versionNo": 2, "status": "ACTIVE", "publishedAt": "2026-09-10T11:00:00.000000Z", "createdBy": 7, "termCount": 2 },
+    { "dictionaryId": 4, "versionNo": 1, "status": "ARCHIVED", "publishedAt": "2026-09-09T10:00:00.000000Z", "createdBy": 7, "termCount": 1 }
   ],
   "page": 0,
   "size": 20,
