@@ -15,7 +15,13 @@
       ~~`api/updateCandidateTerm.ts`~~ — **보류(2026-09-14 사용자 결정).** 후보어는
       `draftDictionaryId`가 있어야 조회 가능한데, "이 워크스페이스의 현재 사전 초안"을
       찾는 목록 엔드포인트가 백엔드에 없다(id로만 조회 가능). `T-INT-20`(백엔드 보강)이
-      선행돼야 한다 — `docs/task/T-INT-20-draft-dictionary-lookup.md` 참고
+      선행돼야 한다 — `docs/task/T-INT-20-draft-dictionary-lookup.md` 참고. **여전히
+      프론트 연동 자체는 보류지만, 후보어를 "여러 표기 묶음"으로 보여줄 수 있는지 질문이
+      나와 백엔드 쪽 유실 지점을 확인·보강했다(`D-65`, Direction A) — `CandidateTerm`/
+      `ExtractedTerm`에 `variantForms: List<String>`을 추가해 ubidict-py
+      `GroupCandidate.forms` 그룹핑 정보가 끝까지 보존되도록 스키마·API를 먼저 넓혀
+      뒀다. `CandidateTermResponse.variantForms`로 이미 노출된다 — 이 태스크가 실제로
+      풀릴 때 프론트가 그룹으로 묶어 보여주는 화면을 만들면 된다(데이터는 이미 있음)**
 - [x] ~~`api/fetchDictionaryRevisionTimeline.ts`~~ — **보류(2026-09-14 사용자 결정).**
       백엔드 `revisionlog` 도메인은 `domain`/`infra`(엔티티·리포지토리)만 있고
       서비스·컨트롤러·조회 API가 전혀 없다(`backend/src/main/java/com/ubidict/backend/

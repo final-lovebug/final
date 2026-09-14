@@ -73,6 +73,7 @@ public class DraftDictionaryExtractionExecutionService {
                     term.occurredDocumentIds(),
                     term.occurrenceCount(),
                     term.contextSnippets(),
+                    term.variantForms(),
                     extractionJob.getRequestedBy()));
         }
         extractionJob.succeed(draftDictionary.getId());

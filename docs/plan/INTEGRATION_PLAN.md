@@ -107,7 +107,7 @@ JSON. `result`(SUCCESS)는 각각 `ExtractResponse`/`ContrastResponse`. **필드
 |---|---|---|---|
 | `sourceDocumentIds`+문서 본문 | → | `ExtractRequest.documents[]`(`DocumentInput`) | `department`는 백엔드에 대응 개념이 없다 — **빈 문자열로 채운다**(제안 — 프롬프트 라벨용일 뿐 구조에 영향 없어 별도 확정 불필요) |
 | `List<TermSnapshot> activeTerms` | → | `ExtractRequest.existingTerms[]` | `synonyms`는 항상 `[]`(`D-28`로 동의어를 안 둔다) |
-| `ExtractResponse.candidates[]`(`GroupCandidate`\|`HomographCandidate`) | → | `List<ExtractedTerm>` | `GroupCandidate` → `form=proposedPreferredForm`, `occurredDocumentIds`=occurrences documentId 중복제거, `contextSnippets`=occurrences[].snippet. **`HomographCandidate`는 대응 필드가 없다**(`ExtractedTerm`은 표기 하나=뜻 하나 전제) — 1차는 건너뛰고 경고 로그만 남긴다(제안) |
+| `ExtractResponse.candidates[]`(`GroupCandidate`\|`HomographCandidate`) | → | `List<ExtractedTerm>` | `GroupCandidate` → `form=proposedPreferredForm`, `occurredDocumentIds`=occurrences documentId 중복제거, `contextSnippets`=occurrences[].snippet, **`variantForms=forms`**(대표 표기 포함 그룹 전체, `D-65`로 `ExtractedTerm`/`CandidateTerm`에 필드가 생겼으니 어댑터가 유실 없이 그대로 채워 넣는다). **`HomographCandidate`는 대응 필드가 없다**(`ExtractedTerm`은 표기 하나=뜻 하나 전제) — 1차는 건너뛰고 경고 로그만 남긴다(제안) |
 | `DocumentSnapshot`(단일 문서) | → | `ContrastRequest.documents=[그 문서 하나]` | 리스트지만 항상 원소 1개 |
 | `List<TermSnapshot> activeTerms` | → | `ContrastRequest.dictionary[]`(`DictionaryEntry`) | `definition` 포함, `synonyms=[]` |
 | `ContrastResponse.suggestions[]` | → | `List<CheckSuggestion>` | `anchor=TextRange(charStart,charEnd)`, `originTerm=foundForm`, `suggestionTerm=preferredForm`. `termId`·`documentId`·`department`·`reason`·`method`는 `CheckSuggestion`에 자리가 없어 버려진다(근거 표시가 필요해지면 후속 과제) |

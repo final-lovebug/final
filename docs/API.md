@@ -1461,13 +1461,14 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
   "proposedEnglishName": "PaymentMethod",
   "occurredDocumentIds": [10, 20],
   "occurrenceCount": 7,
-  "contextSnippets": ["회원은 결제수단을 등록할 수 있다."]
+  "contextSnippets": ["회원은 결제수단을 등록할 수 있다."],
+  "variantForms": []
 }
 ```
 
-`form`만 필수다. `occurrenceCount`는 1 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다.
+`form`만 필수다. `occurrenceCount`는 1 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다. `variantForms`는 선택이다(생략 시 빈 목록).
 
-응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다.
+응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다. `variantForms`는 추출기가 같은 개념으로 묶어서 돌려준 표기 변형 전체(대표 표기인 `form` 포함)를 담는다 — 추출 파이프라인을 거치지 않고 수동으로 등록·수정한 항목은 보통 빈 배열이다(`D-65`).
 
 ```json
 {
@@ -1486,6 +1487,7 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
   "resultTermId": null,
   "occurredDocumentIds": [10, 20],
   "contextSnippets": ["회원은 결제수단을 등록할 수 있다."],
+  "variantForms": ["결제수단", "결제 방법"],
   "createdAt": "2026-09-11T10:00:00.000000+09:00",
   "updatedAt": "2026-09-11T10:00:00.000000+09:00"
 }

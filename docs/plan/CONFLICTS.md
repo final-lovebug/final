@@ -19,7 +19,7 @@
 | `D-44`~`D-46` | **마무리 통합 세션(2026-09-13)이 확정한 결정** | 전역 | 이 문서 3-1절 |
 | `D-47`~`D-54` | **Notification 도메인 세션(2026-09-13)이 확정한 결정** | 전역 | 이 문서 3-2절 |
 | `D-55`~`D-61` | **RevisionLog 도메인 세션(2026-09-13)이 확정한 결정** | 전역 | 이 문서 3-3절 |
-| `D-62`~`D-64` | **FE↔BE 통합(트랙 A) 세션(2026-09-14)이 확정한 결정** | 전역 | 이 문서 3-4절 |
+| `D-62`~`D-65` | **FE↔BE 통합(트랙 A) 세션(2026-09-14)이 확정한 결정** | 전역 | 이 문서 3-4절 |
 | `R-1`~`R-24` | **큰 흐름이 뒤집은 기존 결정** | 전역 | 이 문서 4절. 문서 수정이 구현보다 앞선다 |
 | `F-1`~`F-6` | 뒤집힘이 만든 새 과제 | 전역 | 이 문서 5절 |
 | `X-*` | 문서 ↔ 문서 충돌 | 전역 | 이 문서 6절 |
@@ -30,7 +30,7 @@
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다.
 
-**새 결정 ID는 `D-65`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
+**새 결정 ID는 `D-66`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
 
 ### `D-1`~`D-18` 색인 — 이 문서 밖에 정의된 결정
 
@@ -215,7 +215,7 @@
 
 ---
 
-## 3-4. FE↔BE 통합(트랙 A) 세션이 확정한 결정 (`D-62`~`D-64`)
+## 3-4. FE↔BE 통합(트랙 A) 세션이 확정한 결정 (`D-62`~`D-65`)
 
 2026-09-14. `docs/plan/INTEGRATION_PLAN.md` 트랙 A(프론트 목업 → 실 API 연동)를 진행하며 workspace·document·dictionary·draftdictionary·reviewrequest 5개 도메인이 전부 "행위자는 `memberId`만 주고 이름·이메일이 없다"는 같은 문제를 공유하는 것을 확인했다(`docs/task/fe-be-1st-report.md` A절).
 
@@ -224,6 +224,7 @@
 | **D-62** | **회원 조회 API를 `member` 도메인에 공개 엔드포인트로 신설한다.** `GET /api/members/{memberId}`(단건) + `GET /api/members?ids=`(배치, 콤마 구분). **접근 범위는 제한을 두지 않는다** — 로그인한 회원이면 누구나 다른 회원의 이름·이메일을 조회할 수 있다. `memberId` 자체가 이미 인가된 다른 엔드포인트(참여자 목록·문서 작성자 등)를 통해서만 얻어지므로 추가 스코프 검증이 실효가 적고, 검증하려면 모든 호출부가 워크스페이스 컨텍스트를 함께 넘겨야 해 API가 복잡해진다. **도메인별 조인(예: `ParticipantResponse`에 email 직접 포함) 대신 공용 API를 택했다** — 5개 도메인이 같은 문제를 공유하는 상황에서 반복 구현을 막기 위함. 응답은 `{memberId, displayName, email}`뿐 `status`·`role`은 담지 않는다(타인의 사이트 권한·계정 상태를 공개할 이유가 없다). 이미 존재하던 내부 포트 `MemberDirectory`(`getSummary`/`getSummaries`, 이전 세션이 만들어 뒀으나 소비자가 0곳이었다)를 그대로 재사용해 `MemberController`에 REST 엔드포인트만 얹었다 | `T-INT-18` |
 | **D-63** | **리뷰 코멘트는 검토(verdict) 제출과 함께 한 번에 보낸다 — 백엔드를 바꾸지 않는다.** `POST /api/review-requests/{id}/reviews`가 이미 `{targetRound, verdict, comments[]}`를 한 트랜잭션으로 받는 구조였다. 프론트가 "코멘트 작성 중엔 verdict가 없어 못 단다"로 오인했으나, 의도된 흐름은 GitHub의 "pending review"와 같다 — 리뷰어가 단어별(사전 개정안, `targetItemId`=후보어 id)·위치별(문서 개정안, `anchor`) 코멘트를 작성하는 동안은 **프론트 로컬 상태에만** 쌓아 두고, approve/change request를 고르는 순간 코멘트 배열 + verdict를 한 번에 제출한다. `ReviewRequestResponse`에는 목록 화면이 필요로 하는 대상 문서/사전집 id(`targetId`)와 `reviewerCount`를 직접 추가했다(프론트 N+1 방지) — `RevisionDocument`/`RevisionDictionary` 최신 회차 배치 조회와 `Reviewer` 집계 쿼리로 구현(`ReviewRequestService.search`/`read`). 사전 개정안의 "삭제" 행 판별(이전 버전과 비교)은 이번 범위에서 다루지 않기로 확정 — 프론트는 "추가"·"정의수정"만 표시한다 | `T-INT-12` |
 | **D-64** | **워크스페이스 기준 사전 초안 목록 조회를 `draftdictionary` 도메인에 신설한다.** `GET /api/draft-dictionaries?workspaceId=&status=&page=&size=&sort=` — `DraftDocument API`의 `GET /api/draft-documents?documentId=&status=`와 같은 패턴(목록 엔드포인트, `DraftDictionary`는 엔티티에 `workspaceId`를 직접 갖고 있어 `DraftDocument`처럼 크로스 도메인 접근 가능 id 목록을 거칠 필요 없이 바로 필터링). 워크스페이스 참여자만 조회 가능. `DraftDictionaryReader.search`/`DraftDictionaryService.search`로 구현 | `T-INT-20` |
+| **D-65** | **`CandidateTerm`/`ExtractedTerm`에 `variantForms`를 추가해 추출기의 그룹핑 정보를 보존한다(Direction A).** ubidict-py `ExtractResponse.candidates[]`의 `GroupCandidate.forms`는 같은 개념의 여러 표기를 한 그룹으로 묶어 돌려주지만, 백엔드 `CandidateTerm`(한 행 = 한 표기)·`ExtractedTerm`(포트 레코드, `form: String` 단수)은 그룹핑 개념이 없어 `DraftDictionaryExtractionExecutionService.complete()`에서 대표 표기 하나만 남고 나머지는 유실되는 구조였다. 대안(B: 영구 평탄화 후 사후 `synonym-merge`로만 대응) 대신 **A: `variantForms: List<String>`을 두 타입에 추가해 그룹 전체를 끝까지 보존**하기로 확정 — 대표 표기 변경은 기존 `edit(form, ...)`로 충분하며 `variantForms` 자동 동기화 같은 추가 로직은 넣지 않는다. 기존 호출부 21곳은 하위호환 오버로드(레코드는 위임 보조 생성자, 도메인은 오버로드 팩토리)로 무수정 유지. 프론트에서 그룹으로 묶어 보여주는 화면은 T-INT-11 프론트 파트의 후속 과제 — 이번엔 데이터 유실을 막는 백엔드 스키마·API 확장까지만 | T-INT-11(백엔드) |
 
 ---
 ## 4. 큰 흐름이 뒤집은 기존 결정 (`R-1`~`R-24`)
@@ -393,7 +394,7 @@
 
 ## 10. 남은 결정 대기
 
-**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건은 `D-33`~`D-36`으로, 도메인 Phase 3~4가 드러낸 것은 `D-38`~`D-43`으로 확정했다. 2026-09-13 마무리 통합이 드러낸 3건도 `D-44`~`D-46`으로, Notification 도메인 세션이 확정한 8건은 `D-47`~`D-54`로, RevisionLog 도메인 세션이 확정한 7건은 `D-55`~`D-61`로, 2026-09-14 FE↔BE 통합(트랙 A) 세션이 드러낸 3건은 `D-62`~`D-64`로 확정했다.
+**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건은 `D-33`~`D-36`으로, 도메인 Phase 3~4가 드러낸 것은 `D-38`~`D-43`으로 확정했다. 2026-09-13 마무리 통합이 드러낸 3건도 `D-44`~`D-46`으로, Notification 도메인 세션이 확정한 8건은 `D-47`~`D-54`로, RevisionLog 도메인 세션이 확정한 7건은 `D-55`~`D-61`로, 2026-09-14 FE↔BE 통합(트랙 A) 세션이 드러낸 4건은 `D-62`~`D-65`로 확정했다.
 
 `상태` 칸이 `제안`인 항목(`X-04`·`X-05`·`X-08`~`X-14`·`X-17`, `Y-22`)과 `기록`인 항목(`Y-24`~`Y-27`)은 **결정이 필요한 것이 아니라 담당 태스크에서 형태를 정하는 것**이다. 설계 방향은 이미 정해져 있다.
 

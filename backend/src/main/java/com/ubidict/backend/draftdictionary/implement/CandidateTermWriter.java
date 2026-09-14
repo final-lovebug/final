@@ -26,6 +26,7 @@ public class CandidateTermWriter {
                 c.occurredDocumentIds(),
                 c.occurrenceCount(),
                 c.contextSnippets(),
+                c.variantForms(),
                 c.memberId()));
     }
 

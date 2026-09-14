@@ -10,4 +10,26 @@ public record AddCandidateTermCommand(
         List<Long> occurredDocumentIds,
         int occurrenceCount,
         List<String> contextSnippets,
-        Long memberId) {}
+        List<String> variantForms,
+        Long memberId) {
+    public AddCandidateTermCommand(
+            Long draftDictionaryId,
+            String form,
+            String proposedDefinition,
+            String proposedEnglishName,
+            List<Long> occurredDocumentIds,
+            int occurrenceCount,
+            List<String> contextSnippets,
+            Long memberId) {
+        this(
+                draftDictionaryId,
+                form,
+                proposedDefinition,
+                proposedEnglishName,
+                occurredDocumentIds,
+                occurrenceCount,
+                contextSnippets,
+                List.of(),
+                memberId);
+    }
+}
