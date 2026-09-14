@@ -129,12 +129,13 @@ JSON. `result`(SUCCESS)는 각각 `ExtractResponse`/`ContrastResponse`. **필드
 | **T-INT-9** workspace 실연동 | `api/*` 3개 파일을 `httpClient`로, `model/types.ts`를 실제 응답 shape에 맞춤 | `frontend/src/features/workspace/**` |
 | **T-INT-10** document 실연동 | **부분 완료**(2026-09-14, 5/10) — 목록·상세·버전이력·생성·라벨은 실연동. 대조 제안 클러스터(초안 목록·제안·이력·처리 4개)는 보류 — `DocumentReviewPage.tsx`의 본문 렌더링이 특정 문서에만 하드코딩돼 있어 API만 바꿔선 의미가 없다. `docs/task/T-INT-10-document.md` 참고 | `frontend/src/features/document/**` |
 | **T-INT-11** dictionary 실연동 | 6개 api 파일(목록·검색·초안·후보어) | `frontend/src/features/dictionary/**` |
-| **T-INT-12** review 실연동 | **보류**(2026-09-14) — 단순 API 연동이 아니라 프론트 화면 모델과 백엔드 도메인 모델 사이의 구조적 차이 3건(목록 N+1, 개정 diff 불가, 코멘트가 검토 제출 후에만 가능)이 나와 별도 세션에서 재설계 필요. `docs/task/T-INT-12-review.md` 참고 | `frontend/src/features/review/**` |
+| **T-INT-12** review 실연동 | **백엔드 완료**(2026-09-14, `D-63`) — `ReviewRequestResponse`에 `targetId`(대상 문서/사전집)·`reviewerCount` 추가(배치 조회로 N+1 방지). 코멘트-검토 결합은 오진단으로 정정(백엔드 변경 불필요 — `POST .../reviews`가 이미 verdict+코멘트를 한 번에 받음, GitHub pending review 패턴). 사전 개정안 "삭제" 행은 만들지 않기로 확정. **남은 건 프론트**(리뷰 요청 목록 연동 + 리뷰 작성 화면 신규). `docs/task/T-INT-12-review.md` 참고 | `frontend/src/features/review/**`, `backend/.../reviewrequest/**` |
 | **T-INT-13** notification 실연동 | **보류**(2026-09-14) — 대응하는 알림 "설정" API가 백엔드에 없다(`D-54`로 MVP1에서 채널 개념 자체를 제거). 목록/읽음 처리 API는 있지만 프론트 연동 코드가 아예 없어 원래 범위보다 커서 이번 트랙 A에서는 건너뛴다 | `frontend/src/features/notification/**` |
 | **T-INT-14** member 잔여 실연동 | **완료**(2026-09-14) — `fetchWorkspaceMembers.ts`가 participants 목록 + `GET /api/members?ids=`(T-INT-18) 배치 조회를 join해서 완성 | `frontend/src/features/member/**` |
 | **T-INT-15** 인증 가드 점검 | 라우터 주석의 "목업 가드" 서술이 낡았는지 확인(`authStore`는 이미 실 로그인과 연결된 것으로 보임) — 코드보다 주석 정정 가능성 높음 | `frontend/src/app/RequireAuth.tsx`, `router.tsx` |
 | **T-INT-16** 환경설정 정리 | `.env.local.example` 추가, `VITE_API_BASE_URL` 로컬 설정 가이드 | `frontend/.env.local.example` |
 | **T-INT-18** 회원 배치/단건 조회 API(백엔드) | **완료**(2026-09-14) — `GET /api/members/{id}`(단건) + `GET /api/members?ids=`(배치) 구현·테스트·문서화(`D-62`). 기존에 소비자 없이 존재하던 내부 포트 `MemberDirectory`를 재사용해 REST 엔드포인트만 추가. workspace·document·dictionary·draftdictionary·reviewrequest 5개 도메인이 공유하던 "행위자 id만 있고 이름 없음" 문제의 공용 해법. `docs/task/T-INT-18-*.md` 참고 | `backend/.../member/**` |
+| **T-INT-20** 워크스페이스의 진행 중 사전 초안 조회(백엔드) | **완료**(2026-09-14, `D-64`) — `GET /api/draft-dictionaries?workspaceId=&status=` 목록 엔드포인트 신설(`DraftDocument`와 동일 패턴). `T-INT-11`의 후보어 3개 항목(fetchCandidates 등)의 선행 — 그 태스크 재개 시 이 엔드포인트 사용 | `backend/.../draftdictionary/**` |
 
 **패턴**: 대부분 "픽스처 반환 → `httpClient.get/post/patch/delete` 호출"로 함수 본문만
 바꾸는 기계적 작업이다(`httpClient`가 인증·리프레시를 이미 처리). 응답 DTO가 목업 타입과
@@ -147,7 +148,7 @@ API가 아예 없는 항목이 나오면(T-INT-13·T-INT-14가 그 사례) 억�
 
 | 태스크 | 범위 |
 |---|---|
-| **T-INT-7** 큐 계약 문서화 | 위 1절을 `docs/plan/CONFLICTS.md`에 `D-62`로 등재. `application.yml`/`application-prod.yml`(+양쪽 test yml)의 주석 처리된 `llm-request-queue`/`llm-reply-queue` 키를 활성화 |
+| **T-INT-7** 큐 계약 문서화 | 위 1절을 `docs/plan/CONFLICTS.md`에 새 결정 ID로 등재(착수 시점 다음 번호 확인 — `D-64`부터 비어 있음). `application.yml`/`application-prod.yml`(+양쪽 test yml)의 주석 처리된 `llm-request-queue`/`llm-reply-queue` 키를 활성화 |
 | **T-INT-8a** 추출 real 어댑터 | `SqsTermExtractorAdapter`(요청 발행) + `ExtractionReplyListener`(`@SqsListener`, 응답 수신 → `DraftDictionaryExtractionExecutionService.complete/fail` 직접 호출). **포트를 "발행만" 하는 형태로 바꾼다** — 응답이 비동기로 딴 곳에서 오므로 `TermExtractorPort.extract(...)`의 동기 반환값을 없앤다 |
 | **T-INT-8b** 대조 real 어댑터 | 동일 패턴, `SqsTermCheckerAdapter` + `CheckReplyListener` |
 | **T-INT-8c** 프로퍼티 전환 | `app.ai.extractor.mode`/`app.ai.checker.mode`에 `real` 옵션 추가(`@ConditionalOnProperty(havingValue="real")`), 기본값은 계속 `stub` |

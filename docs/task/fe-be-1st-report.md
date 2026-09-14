@@ -25,8 +25,8 @@
 | # | 문제 | 상태 | 결정된 내용 / 남은 결정 | 후속 태스크 |
 |---|---|---|---|---|
 | A | 회원 이름/이메일을 id로 조회할 방법이 없다 | ✅ **해결 완료**(2026-09-14) | `GET /api/members/{id}`(단건) + `GET /api/members?ids=`(배치) 구현·테스트·문서화 완료 | `T-INT-18` |
-| B | 워크스페이스→"진행 중 사전 초안" lookup이 없다 | 🟡 결정 필요 | 방향 2가지 제시(목록 엔드포인트 신설 vs 워크스페이스 응답에 필드 추가), 미확정 | `T-INT-20` |
-| C | review 도메인 구조적 불일치(목록 N+1·개정 diff 불가·코멘트-검토 결합) | 🟡 결정 필요 | 백엔드 보강만으론 안 됨, 프론트+백엔드 합동 재설계 세션 필요. 방향 미정 | `T-INT-12` |
+| B | 워크스페이스→"진행 중 사전 초안" lookup이 없다 | ✅ **해결 완료** | `GET /api/draft-dictionaries?workspaceId=&status=` 구현·테스트·문서화 완료(`D-64`) | `T-INT-20` |
+| C | review 도메인 — 목록 N+1·코멘트 흐름·개정 diff | ✅ **백엔드 완료**(`D-63`) | 코멘트-검토 결합은 **오진단이었음**(백엔드 변경 불필요). 목록 N+1은 `targetId`/`reviewerCount` 추가로 해결. "삭제" diff는 안 만들기로 확정. **프론트(리뷰 작성 화면 등)만 남음** | `T-INT-12` |
 | D | `DocumentReviewPage` 본문 렌더링이 특정 문서 2개에 하드코딩 | 🟡 결정 필요 | 재작업 필요하다는 것만 확인, 구체 방식(anchor 좌표 기반 재작업 범위 등) 미정 | `T-INT-10`(보류분) |
 | E | 사전집 개정 이력(RevisionLog) 조회 API 미착수 | 🟡 결정 필요(우선순위) | phase-2 착수 여부/시점 미정 | `T-INT-11`(보류분) |
 | F | 알림 "설정" API가 없다 | ⚪ 결정 불요 | `D-54`로 이미 의도적 제외된 설계 — 액션 없음 | — |
@@ -42,7 +42,7 @@
 | T-INT-9 workspace | ✅ 완료(QA 대기) |
 | T-INT-10 document | 🟡 5/10 완료, 나머지 4개는 **D** 때문에 보류 |
 | T-INT-11 dictionary | 🟡 범위 축소 완료(후보어 3개는 **B**, 개정 이력 1개는 **E** 때문에 보류) |
-| T-INT-12 review | 🔴 전체 보류(**C**) |
+| T-INT-12 review | 🟢 백엔드 완료, 프론트 대기(**C**) |
 | T-INT-13 notification | 🔴 전체 보류(**F** — 액션 불필요) |
 | T-INT-14 member | ✅ **완료**(2026-09-14, `T-INT-18` 완료 후 재개해 마무리) |
 | T-INT-15 auth guard | ✅ 완료(주석 정정만) |
@@ -93,53 +93,54 @@ CONFLICTS.md`에 `D-62`로 등재, `docs/API.md` Member API 절에 문서화, �
 - **T-INT-14**: ✅ 완료(participants 목록 + 배치 조회 join)
 - **T-INT-10**: 이미 끝난 작업의 보강(`uploaderId` → 이름 교체)
 - **T-INT-11**: 영향 없음(현재 화면이 `publishedBy`를 안 씀)
-- **T-INT-12**: 이것만으론 안 풀림(별개 문제 — C 참고)
+- **T-INT-12**: A와는 무관하게 별도로 범위 확정됨(C 참고) — 백엔드 목록 응답 보강 +
+  프론트 리뷰 작성 화면 신설
 
 ---
 
-## B. [🟡 결정 필요] 워크스페이스 기준 "진행 중 사전 초안" 조회가 없다
+## B. [🟢 설계 확정] 워크스페이스 기준 "진행 중 사전 초안" 조회가 없다
 
 **영향**: 사전 초안 교정 화면(후보어 목록/등록/수정)
 
 `DraftDictionary API`는 `GET /api/draft-dictionaries/{draftDictionaryId}`처럼 **id로만**
 조회 가능하다. "이 워크스페이스의 현재 진행 중인 사전 초안"을 찾는 목록/조회
 엔드포인트가 없어, workspaceId만 갖고 시작하는 교정 화면이 후보어 목록에 접근할
-방법이 없다. `DraftDocument API`는 `GET /api/draft-documents?documentId=&status=`로
-이미 비슷한 조회가 있다 — DraftDictionary만 이 패턴이 빠져 있다.
+방법이 없다.
 
-**제시된 방향(미확정)**:
-1. `GET /api/draft-dictionaries?workspaceId=&status=` 목록 엔드포인트 신설
-   (DraftDocument와 같은 패턴)
-2. 워크스페이스 조회 응답에 `activeDraftDictionaryId` 필드 추가
+**결정(2026-09-14)**: `GET /api/draft-dictionaries?workspaceId=&status=` 목록
+엔드포인트 신설(`DraftDocument`의 `GET /api/draft-documents?documentId=&status=`와
+동일 패턴)로 확정.
 
-→ **`T-INT-20`**(`docs/task/T-INT-20-draft-dictionary-lookup.md`) — 방향 결정 필요
+→ **`T-INT-20`**(`docs/task/T-INT-20-draft-dictionary-lookup.md`) — ✅ 완료
 
 ---
 
-## C. [🟡 결정 필요] review(리뷰 요청) 도메인 구조적 불일치
+## C. [🟢 대부분 해결] review(리뷰 요청) 도메인
 
 **영향**: 리뷰 요청 목록, 사전집 개정안 화면, 리뷰 코멘트 전체
 
-단순 필드 매핑으로 안 끝나는 **구조적 차이 3가지**(백엔드 소스 확인 완료):
+백엔드 소스를 직접 확인해 구조적 문제로 봤던 것 중 하나는 **오진단**이었다.
 
 1. **목록 응답에 `documentId`·`reviewerCount`가 없다** — `ReviewRequestResponse`는
    `{reviewRequestId, workspaceId, type, title, description, requesterId, status,
-   approvedAt, revisedAt, createdAt, updatedAt}`뿐. 화면에 필요한 `documentId`·
-   `reviewerCount`는 항목마다 `GET .../revision-documents`·`GET .../reviewers`
-   추가 호출이 필요(N+1).
-2. **사전 개정안 "추가/정의수정/삭제" 행에 대응하는 diff API가 없다** — "삭제"
-   (이전 버전엔 있었는데 이번엔 없는 용어) 판별은 이전 버전과의 비교가 필요한데
-   그 비교를 해주는 API가 없다.
-3. **코멘트(`POST /api/reviews/{reviewId}/comments`)는 검토(verdict) 제출 후에만
-   가능하다.** 프론트엔 검토 제출(Approve/Change request) UI 자체가 없다(버튼이
-   이미 `onClick` 없이 미연결 상태). 코멘트 스레드 화면이 "검토 제출 뒤에만
-   코멘트 가능"이라는 모델을 전제하지 않고 만들어졌다.
+   approvedAt, revisedAt, createdAt, updatedAt}`뿐. **결정**: 백엔드가
+   `RevisionDocument`/`RevisionDictionary`·`Reviewer` 조인·집계로 이 필드들을
+   직접 추가한다(프론트 N+1 방지).
+2. **사전 개정안 "삭제" 행 판별 불가** — 이전 사전집 버전과 비교해야 하는데 그 API가
+   없다. **사용자 결정(2026-09-14): "삭제" 분류 없이 진행** — "추가"·"정의수정"만
+   표시한다.
+3. ~~**코멘트는 검토(verdict) 제출 후에만 가능하다**~~ — **오진단이었다.**
+   `POST /api/review-requests/{id}/reviews`가 원래 `{verdict, comments[]}`를
+   한 번에 받는 구조였다(`ReviewService.submit()`). 실제 의도된 흐름: 리뷰어가
+   화면에서 단어별(`targetItemId`=후보어 id)·위치별(`anchor`) 코멘트를 작성하는
+   동안은 **프론트 로컬 상태**에만 쌓아 두고, approve/change request를 고르는
+   순간 한 번에 제출한다 — GitHub의 "pending review"와 같은 패턴을 프론트가
+   맡으면 되는 것이었다. **백엔드 변경 불필요**, 프론트에 리뷰 작성 화면(코멘트
+   컴포저+로컬 draft+제출)만 새로 만들면 된다.
 
-**남은 결정**: 백엔드 보강만으론 안 풀린다 — 검토 제출 UI를 먼저 만들지, 코멘트를
-검토 제출과 분리된 스레드로 바꿀지 등 **프론트+백엔드 합동 설계 세션**에서 정해야
-한다.
+`D-63`(`docs/plan/CONFLICTS.md`)로 등재 완료.
 
-→ `docs/task/T-INT-12-review.md`(보류 사유 전문)
+→ `docs/task/T-INT-12-review.md`(생명주기 설명 + 결정 사항 전문)
 
 ---
 
@@ -203,11 +204,14 @@ CONFLICTS.md`에 `D-62`로 등재, `docs/API.md` Member API 절에 문서화, �
 ## 다음 단계 제안
 
 1. ~~`T-INT-18` 착수~~ — ✅ **완료**(2026-09-14). ~~`T-INT-14`~~ — ✅ **완료**(이어서 진행).
-2. **`T-INT-20`(B)** — 방향 2가지 중 택1 논의.
-3. **review 도메인(C)** — 백엔드+프론트 합동 설계 세션 일정 필요.
+2. ~~`T-INT-20`(B)~~ — ✅ **완료**(2026-09-14, 백엔드 구현까지 끝남).
+3. ~~review 도메인(C)~~ — ✅ **백엔드 완료**(2026-09-14, `targetId`/`reviewerCount`
+   추가 + "삭제" 없이 진행 확정). **남은 건 프론트뿐** — 리뷰 요청 목록 연동 +
+   리뷰 작성 화면(코멘트 컴포저+제출) 신규.
 4. **`DocumentReviewPage` 렌더링(D)** — 별도 세션으로 범위 정하기.
 5. **RevisionLog(E)** — 착수 시점만 우선순위 논의.
-6. 위가 정리되는 대로 트랙 A 잔여(T-INT-10 나머지 4개, T-INT-11 후보어)마저 진행.
+6. 위가 정리되는 대로 트랙 A 잔여(T-INT-10 나머지 4개, T-INT-11 후보어, T-INT-12,
+   T-INT-20)마저 진행.
 7. 완료된 부분(T-INT-9·11(부분)·10(부분)·14·15·16·18)은 로컬 백엔드로 QA 후 커밋/PR —
    사용자 지시 시 진행.
 

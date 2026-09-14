@@ -46,14 +46,14 @@
 | [T-INT-9](T-INT-9-workspace.md) | workspace 실연동 | A | 없음 | **코드 작성 완료**(QA 대기, 2026-09-14) | |
 | [T-INT-10](T-INT-10-document.md) | document 실연동(5/10, 제안 클러스터 보류) | A | T-INT-18(이름만) | **진행중**(2026-09-14) | |
 | [T-INT-11](T-INT-11-dictionary.md) | dictionary 실연동(범위 축소) | A | T-INT-20(후보어만) | **코드 작성 완료**(범위 내 — 후보어 제외, QA 대기, 2026-09-14) | |
-| [T-INT-12](T-INT-12-review.md) | review(리뷰 요청) 실연동 | A | 없음 | **보류**(2026-09-14, 구조적 재설계 필요) | |
+| [T-INT-12](T-INT-12-review.md) | review(리뷰 요청) 실연동 | A | 없음 | **백엔드 완료**(2026-09-14), 프론트 대기 | |
 | [T-INT-13](T-INT-13-notification.md) | notification 실연동 | A | 없음 | **보류**(2026-09-14, 대응 API 없음 — 파일 참고) | |
 | [T-INT-14](T-INT-14-member.md) | member 잔여 실연동 | A | T-INT-18(완료) | **완료**(2026-09-14) | |
 | [T-INT-15](T-INT-15-auth-guard.md) | 인증 가드(`RequireAuth`) 점검 | A | 없음 | **완료**(2026-09-14, 주석 정정만) | |
 | [T-INT-16](T-INT-16-env-config.md) | 프론트 환경설정 정리 | A | 없음 | **완료**(2026-09-14) | |
 | [T-INT-17](T-INT-17-extraction-ui.md) | 추출/대조 결과 화면 | B | T-INT-8 | 대기 | |
 | [T-INT-18](T-INT-18-participant-member-info.md) | 회원 배치/단건 조회 API 신설(백엔드) | B | 없음 | **완료**(2026-09-14) | |
-| [T-INT-20](T-INT-20-draft-dictionary-lookup.md) | 워크스페이스의 진행 중 사전 초안 조회(백엔드) | B | 없음 | 대기 | |
+| [T-INT-20](T-INT-20-draft-dictionary-lookup.md) | 워크스페이스의 진행 중 사전 초안 조회(백엔드) | B | 없음 | **완료**(2026-09-14) | |
 
 **트랙 A**(프론트 목업 제거, T-INT-9~16)는 서로 완전히 독립이라 몇 명이 동시에 붙어도
 된다. **트랙 B**(SQS↔FastAPI 실연동)는 T-INT-7 → T-INT-8 → T-INT-17 순서로 이어진다.

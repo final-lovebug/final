@@ -1,6 +1,6 @@
 # T-INT-20 — 워크스페이스의 진행 중 사전 초안 조회(백엔드)
 
-상태: 대기 | 담당자: (미정)
+상태: **완료(2026-09-14)** | 담당자: (세션 진행)
 근거: `T-INT-11` 진행 중 발견(2026-09-14) — `docs/task/T-INT-11-dictionary.md` 참고
 의존: 없음. **`T-INT-11`의 후보어 관련 3개 항목(fetchCandidates/createCandidateTerm/
 updateCandidateTerm)의 선행**
@@ -17,25 +17,32 @@ updateCandidateTerm)의 선행**
 `T-INT-14`(참여자 이름/이메일)와 같은 성격의 gap이다 — 백엔드가 "id로 하나 조회"만
 지원하고 "워크스페이스 기준으로 찾기"를 지원하지 않는 패턴이 반복되고 있다.
 
-## 설계는 여기서 확정하지 않는다
+## 설계 확정(2026-09-14, 사용자 결정)
 
-두 방향이 있다(임의로 확정하지 않는다 — 루트 `CLAUDE.md`).
+**방향 1 — `GET /api/draft-dictionaries?workspaceId={id}&status=` 목록 엔드포인트
+신설**로 확정. `DraftDocument API`의 `GET /api/draft-documents?documentId=&status=
+&page=&size=&sort=`(참여 중인 워크스페이스로 암묵 필터링)와 같은 패턴이라
+일관성이 있다. 응답은 `PageResponse<DraftDictionaryResponse>`(기존
+`GET /api/draft-dictionaries/{id}` 단건 응답과 같은 shape의 배열)로, `status`
+쿼리 파라미터로 `EXAMINING` 등 진행 상태 필터링을 지원한다.
 
-1. **`GET /api/draft-dictionaries?workspaceId={id}&status=`** 목록 엔드포인트 신설.
-   `DraftDocument API`의 `GET /api/draft-documents?documentId=&status=&page=&size=&sort=`
-   (참여 중인 워크스페이스로 암묵 필터링)와 같은 패턴 — 이미 선례가 있다.
-2. `GET /api/workspaces/{workspaceId}` 같은 기존 워크스페이스 조회 응답에
-   `activeDraftDictionaryId`(있으면)를 얹는 방식. 크로스 도메인 조회가 늘어나는
-   대가가 있다.
+`docs/plan/CONFLICTS.md`에 `D-64`로 등재 완료.
 
-1번이 `DraftDocument`와 패턴이 같아 일관성 있어 보이지만, 실제 착수 시
-`docs/plan/CONFLICTS.md`에 필요하면 새 결정 ID(`D-63`~)로 남기고 진행한다.
+## 체크리스트
 
-## 체크리스트(설계 확정 후 채움 — 지금은 시작하지 않음)
-
-- [ ] 위 두 방향 중 하나 선택(필요하면 사용자에게 확인)
-- [ ] 엔드포인트 구현 + 테스트
-- [ ] `docs/API.md` "DraftDictionary API" 절에 반영
-- [ ] `docs/task/T-INT-11-dictionary.md`의 후보어 3개 항목 의존 해제
-- [ ] `./gradlew spotlessApply && ./gradlew check` 통과
-- [ ] 커밋 브랜치 `feat/WLSH-{티켓}-t-int-20`, PR 생성
+- [x] `GET /api/draft-dictionaries?workspaceId=&status=&page=&size=` 구현 —
+      `DraftDictionarySearchQuery`(검증) + `DraftDictionaryRepository`(배치 조회
+      2종) + `DraftDictionaryReader.search` + `DraftDictionaryService.search`
+      (참여자 검증 포함) + `DraftDictionaryController.search`. `DraftDocument`의
+      목록 조회 구현과 동일 패턴 — 단 `DraftDictionary`는 엔티티에 `workspaceId`가
+      직접 있어 `DocumentQueryPort` 같은 크로스 도메인 접근 id 조회가 필요 없었다
+- [x] 테스트 — `DraftDictionaryControllerTest.search`(컨트롤러 슬라이스),
+      `DraftDictionaryServiceTest.search`/`search_filterByStatus`/
+      `search_notParticipant`(통합)
+- [x] `docs/API.md` "DraftDictionary API" 절에 "워크스페이스 기준 목록 조회" 추가
+- [x] `docs/plan/CONFLICTS.md`에 `D-64`로 등재
+- [ ] `docs/task/T-INT-11-dictionary.md`의 후보어 3개 항목 의존 해제(다음에 그
+      태스크 진행 시 처리)
+- [x] `./gradlew spotlessApply`, `./gradlew test --tests
+      "com.ubidict.backend.draftdictionary.*"` 통과
+- [ ] 커밋 브랜치 `feat/WLSH-{티켓}-t-int-20`, PR — **사용자 지시 시 진행**

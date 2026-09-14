@@ -1211,7 +1211,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 - **문서 리뷰** — 초안이 `EXAMINED`여야 한다. 개정안은 초안의 `documentId`·`baseVersionNo`·교정된 본문을 스냅샷으로 담는다. 권한은 워크스페이스 참여자다.
 - **사전 리뷰** — 초안이 `EXAMINED`이고 **최종 등재 목록이 현재 활성 사전집과 실제로 달라야** 하며 그 정의가 비어 있지 않아야 한다(자격 판정은 초안 도메인에 위임한다 — `D-44`). 개정안의 `baseVersionNo`는 **발행 기준이 되는 현재 활성 사전집 버전**이고 첫 회차는 `0`이다. 권한은 **ADMIN 이상**이다(`G-2`).
 
-응답은 리뷰 요청 상세와 같은 형식이다. 만들어진 뒤 `ReviewRequestCreatedEvent`가 발행되고, 초안은 그것을 받아 `REVIEW_REQUESTED`로 전이한다.
+응답은 리뷰 요청 상세와 같은 형식이다(아래 "리뷰 요청 상세 조회" 참고). 만들어진 뒤 `ReviewRequestCreatedEvent`가 발행되고, 초안은 그것을 받아 `REVIEW_REQUESTED`로 전이한다.
 
 | **상황** | **status** | **code** |
 | --- | --- | --- |
@@ -1227,6 +1227,29 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 `GET /api/review-requests/{reviewRequestId}` → `200 OK`
 
 응답 형식은 생성 응답과 같다. 요청이 속한 워크스페이스의 참여자만 조회할 수 있다.
+
+```json
+{
+  "reviewRequestId": 1,
+  "workspaceId": 1,
+  "type": "DOCUMENT",
+  "title": "정산 문서 리뷰",
+  "description": "정산 문서의 개정안을 검토합니다.",
+  "requesterId": 7,
+  "status": "PENDING_REVIEW",
+  "approvedAt": null,
+  "revisedAt": null,
+  "createdAt": "2026-09-14T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-14T10:00:00.000000+09:00",
+  "targetId": 42,
+  "reviewerCount": 2
+}
+```
+
+| **필드** | **타입** | **설명** |
+| --- | --- | --- |
+| `targetId` | Long \| null | `type`에 따라 대상 문서 id(`DOCUMENT`) 또는 사전집 id(`DICTIONARY`). 최신 회차 개정안 기준. 사전집이 처음 발행되는 회차라 아직 사전집 자체가 없으면 `null`(T-INT-12, `D-63`) |
+| `reviewerCount` | Int | 지정된 리뷰어 수. 정족수 판정은 워크스페이스 룰셋 기준이라(`G-4`) 이 값과 다를 수 있다 — 단순 참고용 |
 
 ## **리뷰 요청 수정**
 
@@ -1381,6 +1404,7 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | --- | --- | --- |
 | POST | `/api/draft-dictionaries/extractions` | `202` |
 | GET | `/api/draft-dictionaries/extractions/{extractionJobId}` | `200` |
+| GET | `/api/draft-dictionaries?workspaceId=&status=&page=&size=&sort=` | `200` |
 | GET | `/api/draft-dictionaries/{draftDictionaryId}` | `200` |
 | PUT | `/api/draft-dictionaries/{draftDictionaryId}/source-documents` | `200` |
 | DELETE | `/api/draft-dictionaries/{draftDictionaryId}` | `204` |
@@ -1417,6 +1441,12 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 ```
 
 `PUT /api/draft-dictionaries/{draftDictionaryId}/source-documents`는 `sourceDocumentIds`를 전체 교체한다.
+
+## **워크스페이스 기준 목록 조회**
+
+`GET /api/draft-dictionaries?workspaceId={workspaceId}&status=&page=0&size=20&sort=createdAt,desc` → `200 OK`(T-INT-20, `D-64`)
+
+**워크스페이스만 갖고 시작하는 화면**(사전 초안 교정 화면 등)이 "이 워크스페이스의 진행 중 사전 초안"을 찾을 방법이 없었던 문제를 해소한다. `DraftDocument API`의 목록 조회와 같은 패턴이다. `status`는 선택(`EXAMINING`/`EXAMINED`/`REVIEW_REQUESTED`/`REVISED`), 참여자만 조회 가능(비참여자는 `WORKSPACE_NOT_FOUND`). `sort` 화이트리스트는 `createdAt`·`updatedAt`·`id`. 응답은 `PageResponse<DraftDictionaryResponse>`이며 각 항목은 단건 조회와 같은 형식이다(위 "조회·유래 문서 수정 응답" 참고).
 
 ## **후보어 등록·수정·삭제·목록**
 

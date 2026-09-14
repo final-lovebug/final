@@ -1,61 +1,102 @@
 # T-INT-12 — review(리뷰 요청) 실연동
 
-상태: **보류(2026-09-14, 구조적 재설계 필요 — 아래 참고)** | 담당자: (미정)
-근거: `docs/plan/INTEGRATION_PLAN.md` 2절 Track A · 2026-09-14 사용자 결정
+상태: **백엔드 완료(2026-09-14), 프론트 대기** | 담당자: (미정)
+근거: `docs/plan/INTEGRATION_PLAN.md` 2절 Track A · 2026-09-14 사용자 결정(`D-63`)
 의존: 없음(다른 도메인 태스크와 독립)
 
 `frontend/src/features/review/**`가 전부 목업이다. 백엔드 `reviewrequest` 도메인
-(`ReviewRequest`·`Revision*`·`Reviewer`·코멘트)에 대응한다.
+(`ReviewRequest`·`Revision*`·`Reviewer`·`Review`·`Comment`)에 대응한다.
 
-## 보류 사유(2026-09-14, 백엔드 소스 확인 완료)
+## 백엔드 생명주기(2026-09-14 소스 확인, 담당자가 바뀌어도 참고할 것)
 
-단순 필드 매핑 문제가 아니라 **프론트 화면 모델과 백엔드 도메인 모델 사이의 구조적
-차이 3가지**가 나왔다. 백엔드 컨트롤러/DTO 소스
-(`backend/src/main/java/com/ubidict/backend/reviewrequest/presentation/`) 직접 확인 결과:
+1. **`POST /api/draft-documents/{draftDocumentId}/review-request` /
+   `POST /api/draft-dictionaries/{draftDictionaryId}/review-request`** —
+   `ReviewRequest` + `RevisionDocument`(또는 `RevisionDictionary`) 한 행을 한
+   트랜잭션에서 생성(`D-44`). `status = PENDING_REVIEW`.
+2. **`POST .../reviewers`** — `Reviewer`(지정, 알림용). 정족수 판정 자체는
+   워크스페이스 룰셋의 `requiredReviewerCount`를 쓴다(`G-4`) — 지정 안 된
+   참여자도 검토 가능.
+3. **`POST .../reviews`** — 리뷰어의 검토 제출. **verdict(`APPROVED`/
+   `CHANGES_REQUESTED`)와 코멘트 배열을 한 번에, 한 트랜잭션으로 받는다**:
+   ```json
+   { "targetRound": 2, "verdict": "CHANGES_REQUESTED",
+     "comments": [{ "content": "...", "targetItemId": 41 }] }
+   ```
+   `targetItemId`는 사전 개정안이면 후보어(`CandidateTerm`) id, 문서 개정안이면
+   `anchor`(본문 위치)를 쓴다. 제출과 동시에 정족수를 재계산해
+   `ReviewRequest.status`를 갱신한다(`CHANGES_REQUESTED`가 하나라도 있으면 즉시
+   전환, 없고 정족수 채우면 `APPROVED`).
+4. **`POST /api/reviews/{reviewId}/comments`** — 이미 제출된 검토에 코멘트를
+   "추가로" 더 달 때(답글 등). `CHANGES_REQUESTED`가 되면 요청자가
+   `POST .../reexaminations`(재교정, 어떤 코멘트를 처리했는지 기록)를, 정족수를
+   채우면 `POST .../revision`(반영)을 호출한다.
 
-1. **목록 응답에 `documentId`·`reviewerCount`가 없다.** `ReviewRequestResponse`
-   (`ReviewRequestResponse.java`)는 `{reviewRequestId, workspaceId, type, title,
-   description, requesterId, status, approvedAt, revisedAt, createdAt, updatedAt}`뿐이다.
-   `DocumentReviewRequestListPage`가 필요로 하는 `documentId`는
-   `GET .../revision-documents`(→`RevisionResponse.targetId`)를, `reviewerCount`는
-   `GET .../reviewers`를 **항목마다 추가 호출**해야 얻을 수 있다(N+1).
-2. **사전 개정안 "추가/정의수정/삭제" 행에 대응하는 diff API가 없다.** 후보어 목록
-   (`origin=EXTRACTED`→신규, `EXISTING`+수정→정의수정)까지는 만들 수 있어도, **"삭제"
-   (이전 버전엔 있었는데 이번 후보 목록에 없는 용어)는 이전 사전집 버전과의 비교가
-   있어야 판별 가능**한데 그런 API가 없다.
-3. **코멘트 작성 엔드포인트(`POST /api/reviews/{reviewId}/comments`)의 `reviewId`는
-   `Review`(리뷰어의 검토/verdict 제출 기록) 단위다.** 즉 **누군가 먼저 검토를 제출해야
-   코멘트를 달 자리(`reviewId`)가 생긴다.** 그런데 프론트에는 검토 제출(Approve/Change
-   request) UI 자체가 없다 — `DictionaryRevisionPage.tsx`·`DocumentReviewThreadPage.tsx`
-   둘 다 그 버튼이 이미 `onClick` 없이 미연결 상태였다(코드 주석에도 "Approve/Change
-   request 액션은 백엔드가 없어 아직 붙이지 않았다"고 적혀 있었음). 코멘트 스레드
-   화면 자체가 "검토 제출 뒤에 코멘트를 단다"는 모델을 전제하지 않고 만들어졌다.
+## 결정 사항(2026-09-14, `D-63`)
 
-이 셋은 백엔드 보강 하나로 끝나지 않고 **프론트 화면 흐름 자체를 검토(제출 → 코멘트,
-또는 코멘트를 먼저 달 수 있는 별도 스레드 개념 도입)해야 하는 재설계**에 가깝다.
-사용자 결정: **이번 트랙 A에서는 review 도메인 전체를 보류하고 별도 세션에서
-설계부터 다시 잡는다.**
+### ✅ 해결 — 코멘트는 검토 제출과 함께 보낸다(백엔드 변경 불필요)
 
-## 체크리스트(재설계 세션에서 다시 씀 — 지금은 진행하지 않음)
+원래 "코멘트를 달려면 검토(`Review`)가 먼저 있어야 한다"를 구조적 결함으로
+봤으나, **의도된 흐름이 정확히 그 모양이었다**: 리뷰어가 화면에서 단어별/위치별
+코멘트를 작성하는 동안은 **프론트 로컬 상태**에만 쌓아 두고(GitHub의 "pending
+review"를 서버가 아니라 프론트가 들고 있는 것), approve/change request를 고르는
+순간 코멘트 배열 + verdict를 위 3단계 `POST .../reviews` 한 번으로 제출한다.
+**백엔드 스키마·엔드포인트를 바꿀 필요가 없다** — 프론트에 리뷰 작성 화면(코멘트
+컴포저 + 로컬 draft 상태 + 최종 제출)을 새로 만드는 것으로 끝난다.
 
-## 체크리스트 — api 파일별
+### ✅ 결정 — 목록 응답에 필요한 속성을 백엔드가 추가한다
 
-- [ ] `api/fetchDocumentReviewRequests.ts` (리뷰 요청 목록)
-- [ ] `api/requestDocumentReview.ts` (리뷰 요청 생성 — `T-INT-5`가 만든
-      `POST /api/draft-documents/{id}/review-request` 등 진입점 사용)
-- [ ] `api/fetchDictionaryRevision.ts` (사전 개정안 조회)
-- [ ] `api/fetchReviewThreadComments.ts`
-- [ ] `api/addReviewThreadComment.ts`
-- [ ] `api/addRevisionComment.ts`
+`ReviewRequestResponse`에 대상 문서/사전집 id와 `reviewerCount`를 직접 포함시킨다
+(프론트 N+1 호출 대신). `ReviewRequest` 엔티티엔 대상 id가 없어
+`RevisionDocument`/`RevisionDictionary`를 조인해야 하고, `reviewerCount`는
+`Reviewer` 테이블 집계가 필요 — 목록 조회 서비스에 조인·집계 쿼리 추가가
+필요하다(사소한 필드 추가 이상의 작업).
 
-## 나머지
+### ✅ 결정 — 사전 개정안 "삭제" 행은 이번엔 만들지 않는다
 
+이전 버전과 비교해야 판별 가능한데 그 비교 API가 없다. **사용자 결정(2026-09-14):
+"삭제" 분류 없이 진행** — 프론트는 후보어 목록의 `origin`/상태만으로 "추가"·
+"정의수정"만 표시한다. 이전 버전과 비교해 사라진 표준어를 찾는 기능은 범위 밖으로
+남긴다(필요해지면 별도 태스크).
+
+## 체크리스트
+
+### 백엔드 — 완료
+- [x] `ReviewRequestResponse`/`ReviewRequestResult`에 `targetId`(대상 문서/사전집
+      id)·`reviewerCount` 추가
+- [x] `RevisionDocumentReader`/`RevisionDictionaryReader`에
+      `readLatestByReviewRequestIds`(배치, 재교정 회차 중 최신만) 추가,
+      `RevisionDocumentRepository`/`RevisionDictionaryRepository`에
+      `findAllByReviewRequestIdIn` 추가
+- [x] `ReviewerReader.countsByReviewRequestIds`(배치 집계) +
+      `ReviewerRepository.countByReviewRequestIdIn`(`@Query` group by,
+      `ReviewerCount` 프로젝션) 추가
+- [x] `ReviewRequestService.search()`/`read()`가 위 배치 조회로 enrichment
+      (N+1 없이 한 번씩만 조회). `create()`/`update()`/`cancel()`은 미enrichment로
+      유지(대상 id 없어도 되는 경로 — 필요해지면 후속)
+- [x] 테스트 — `DraftReviewRequestServiceTest.search_includesTargetIdAndReviewerCount`
+      (실제 리뷰 요청+개정안+리뷰어로 `targetId`/`reviewerCount` 검증),
+      `read_dictionaryTargetIdNullOnFirstVersion`(첫 사전집은 targetId null)
+- [x] `docs/API.md` ReviewRequest 절에 상세 응답 JSON 예시 + `targetId`/
+      `reviewerCount` 필드 설명 추가(기존에 예시 자체가 없었음)
+- [x] `docs/plan/CONFLICTS.md`에 `D-63`으로 등재(이 파일의 "결정 사항" 절 요약)
+- [ ] `./gradlew check` 결과 확인 대기(백그라운드 실행 중)
+
+### 프론트
+- [ ] `api/fetchDocumentReviewRequests.ts` (리뷰 요청 목록) — 위 백엔드 작업
+      완료 후 필드 그대로 매핑
+- [ ] `api/requestDocumentReview.ts` (리뷰 요청 생성) — `POST /api/draft-documents/
+      {id}/review-request` 등 T-INT-5 진입점 사용
+- [ ] **신규 — 리뷰 작성 화면**(코멘트 컴포저 + 로컬 draft 상태 + approve/change
+      request 제출). `DictionaryRevisionPage.tsx`·`DocumentReviewThreadPage.tsx`의
+      Approve/Change request 버튼이 지금 `onClick` 없이 미연결 — 이 작업으로 채움.
+      사전 개정안은 후보어(`targetItemId`)별 코멘트, 문서 개정안은 `anchor` 기반
+- [ ] `api/fetchDictionaryRevision.ts` (사전 개정안 조회 — 후보어 목록 표시.
+      "삭제" 행은 만들지 않음, "추가"·"정의수정"만 `origin`/상태로 판별)
+- [ ] `api/fetchReviewThreadComments.ts` / `addReviewThreadComment.ts` /
+      `addRevisionComment.ts` — 코멘트 조회·답글
 - [ ] `model/types.ts` — 실제 API 응답에 맞춰 조정
-- [ ] `model/fixtures.ts`·`model/reviewRequestFixtures.ts` — 화면이 더 이상 참조하지
-      않으면 그대로 둬도 무방
-- [ ] 화면 확인: 리뷰 요청 목록(`documents/reviews`), 리뷰 스레드
-      (`documents/:id/review`, `.../review/:reviewId`), 사전 개정안(`dictionary/
-      revisions/:revisionId`)에서 실 데이터 표시 QA
-- [ ] 승인/변경요청/코멘트 작성이 실제로 백엔드에 반영되는지 확인(정족수 판정 등
-      `RuleSet` 관련 화면 있으면 함께 확인)
+- [ ] `model/fixtures.ts`·`model/reviewRequestFixtures.ts` — 화면이 더 이상
+      참조하지 않으면 그대로 둬도 무방
+- [ ] 화면 확인: 리뷰 요청 목록, 리뷰 작성/제출, 코멘트, 사전 개정안에서 실
+      데이터 표시 QA(정족수 판정 등 `RuleSet` 관련 화면 있으면 함께 확인)
 - [ ] 커밋 브랜치 `feat/WLSH-{티켓}-fe-review-real-api`, PR 생성
