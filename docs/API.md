@@ -30,6 +30,8 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 
 토큰이 없거나 잘못된 경우의 응답은 «Auth API»의 인증 실패 표를 따른다.
 
+**예외 — 내부 워커 콜백.** `/api/internal/**`은 인증 주체가 없다. AI 워커(FastAPI)가 작업 결과를 돌려주는 서버-투-서버 경로이며 회원 principal이 존재하지 않는다. 대신 **작업마다 발행되는 1회용 상관 식별자(`requestId`)를 본문으로 받아 작업 행에 저장된 값과 대조**하고, 배포 환경에서는 네트워크로 출발지를 제한한다(`NFR-AI-002`·`D-66`). **이 경로도 요청자를 본문으로 받지 않는다** — 행위의 주체는 작업 행에 이미 기록된 `requestedBy`이므로 「요청자를 클라이언트가 참칭하지 못한다」는 원칙의 취지는 그대로다. 그 밖의 `/api/**`에는 예외가 없다.
+
 ## **데이터 격리 — 접근 불가 리소스는 404**
 
 **참여자가 아닌 워크스페이스에 속한 리소스는 `403`이 아니라 `404`로 응답한다.** `403`을 주면 그 리소스가 존재한다는 사실이 드러난다(`NFR-WS-001`). 참여자이지만 서열이 모자란 경우에만 `403`이고, 이때는 WARN 감사 로그를 남긴다(`NFR-REV-001`).
@@ -1077,9 +1079,38 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 상태는 `PENDING`·`RUNNING`·`SUCCEEDED`·`FAILED`다. 성공하면 `draftDocumentId`, 실패하면 `failureReason`이 채워진다.
 
-접수 트랜잭션이 커밋된 뒤 비동기 이벤트 리스너가 작업을 `RUNNING`으로 바꾸고 최신 문서 스냅샷과 활성 사전집 용어를 `TermCheckerPort`에 전달한다. 대조 결과의 원문 위치가 실제 본문과 일치할 때만 문서 초안과 제안어를 한 트랜잭션으로 저장하고 작업을 `SUCCEEDED`로 마친다. 처리 중 오류가 발생하면 초안 생성 트랜잭션을 롤백하고 작업을 `FAILED`로 기록한다.
+접수 트랜잭션이 커밋된 뒤 리스너가 작업에 상관 식별자(UUIDv4)를 새기며 `RUNNING`으로 바꾸고, **AI 워커 전용 SQS 큐로 요청을 발행한다.** 실제 대조는 외부 FastAPI 워커가 수행하고 결과는 아래 콜백으로 돌아온다. 발행 자체가 실패하면 작업을 `FAILED`로 끝낸다 — 진행 중으로 두면 같은 문서의 다음 대조 요청이 계속 막힌다.
 
-현재 `app.ai.checker.mode=stub`은 빈 고정 결과를 반환한다. 따라서 실제 AI 모델이 연결되기 전에도 비동기 접수·상태 전이·초안 생성 흐름은 검증할 수 있지만, 생성된 초안에 자동 제안어는 포함되지 않는다.
+콜백이 끝내 오지 않은 작업은 주기 스위퍼가 제한 시간(`app.ai.timeout.job`) 뒤에 `FAILED`로 회수한다.
+
+워커가 없는 환경(`app.ai.dispatch.mode=in-process`, 로컬·테스트 기본값)에서는 같은 JVM의 대역이 빈 결과로 작업을 끝낸다. 접수·상태 전이·초안 생성 흐름은 그대로 검증되지만 생성된 초안에 자동 제안어는 포함되지 않는다.
+
+## **대조 완료 콜백**
+
+```
+POST /api/internal/llm/checks/{checkJobId}/result
+POST /api/internal/llm/checks/{checkJobId}/failure
+```
+
+**AI 워커가 호출하는 서버-투-서버 경로다. 인증 주체가 없다**(«요청자 식별»의 예외). 호출자 확인은 요청 본문의 `requestId`를 작업 행에 저장된 값과 대조해서 한다 — 발행할 때 만들어 메시지에 실어 보낸 1회용 값이다.
+
+```json
+// POST /api/internal/llm/checks/40/result
+{
+  "requestId": "0d5c6f6e-0000-4000-8000-000000000001",
+  "documentVersionNo": 3,
+  "suggestions": [
+    { "anchor": { "startOffset": 10, "endOffset": 12 }, "originTerm": "유저", "suggestionTerm": "이용자" }
+  ]
+}
+
+// POST /api/internal/llm/checks/40/failure
+{ "requestId": "0d5c6f6e-0000-4000-8000-000000000001", "reason": "모델 응답이 스키마를 만족하지 않습니다.", "code": "LLM_SCHEMA_VIOLATION" }
+```
+
+성공·실패 모두 **204 No Content**다. 제안어의 원문 위치가 현재 본문과 일치할 때만 문서 초안과 제안어를 한 트랜잭션으로 저장하고 작업을 `SUCCEEDED`로 마친다. `documentVersionNo`가 현재 버전과 다르면 그 사이 문서가 바뀐 것이므로 결과를 받지 않고 작업을 실패로 끝낸다.
+
+**이미 끝난 작업에 도착한 중복·지각 콜백도 204다.** 아무것도 바꾸지 않고 무시한다 — 4xx로 답하면 워커가 영원히 재시도한다. 응답 코드별 재시도 규약은 `docs/AI_CONTRACT.md` 7절에 있다.
 
 ## **에러**
 
@@ -1106,7 +1137,8 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 | 같은 문서의 대조 작업이 이미 진행 중임 | 409 | `DRAFT_DOCUMENT_CHECK_ALREADY_RUNNING` |
 | 문서 대조 요청이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_CHECK_INVALID_REQUEST` |
 | 문서 대조 작업 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_CHECK_INVALID_STATUS` |
-| 대조 결과의 위치·원문이 현재 본문과 일치하지 않음 | 500 | `DRAFT_DOCUMENT_CHECK_INVALID_RESULT` |
+| 대조 결과의 위치·원문이 현재 본문과 일치하지 않음 | 409 | `DRAFT_DOCUMENT_CHECK_INVALID_RESULT` |
+| 콜백의 `requestId`가 작업의 것과 다름 | 403 | `DRAFT_DOCUMENT_CHECK_CALLBACK_FORBIDDEN` |
 | 초안 또는 제안어가 속한 워크스페이스의 비참여자 | 404 | 대상 리소스의 `NOT_FOUND` 코드 |
 | 요청 DTO 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
 
@@ -1526,7 +1558,43 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 
 상태는 `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`다. 성공하면 `draftDictionaryId`로 생성된 초안을 확인할 수 있고, 실패하면 `failureReason`에 원인이 기록된다.
 
-작업 실행은 요청 트랜잭션 커밋 뒤 비동기 리스너가 담당한다. `TermExtractorPort`가 문서 식별자와 활성 사전집 용어 스냅샷을 입력받고 후보어 목록을 반환하며, 현재 구현은 외부 AI를 호출하지 않는 빈 결과 스텁이다. 실제 모델 연동 전에도 이전 사전집 용어를 승계한 초안 생성과 작업 상태 전이 계약은 검증할 수 있다.
+접수 트랜잭션이 커밋된 뒤 리스너가 작업에 상관 식별자(UUIDv4)를 새기며 `RUNNING`으로 바꾸고, **AI 워커 전용 SQS 큐로 요청을 발행한다.** 실제 추출은 외부 FastAPI 워커가 수행하고 결과는 아래 콜백으로 돌아온다. 발행 자체가 실패하면 작업을 `FAILED`로 끝낸다 — 진행 중으로 두면 그 워크스페이스의 다음 추출 요청이 계속 막힌다.
+
+콜백이 끝내 오지 않은 작업은 주기 스위퍼가 제한 시간(`app.ai.timeout.job`) 뒤에 `FAILED`로 회수한다.
+
+워커가 없는 환경(`app.ai.dispatch.mode=in-process`, 로컬·테스트 기본값)에서는 같은 JVM의 대역이 빈 결과로 작업을 끝낸다. 이전 사전집 용어를 승계한 초안 생성과 작업 상태 전이 계약은 그대로 검증된다.
+
+## **추출 완료 콜백**
+
+```
+POST /api/internal/llm/extractions/{extractionJobId}/result
+POST /api/internal/llm/extractions/{extractionJobId}/failure
+```
+
+**AI 워커가 호출하는 서버-투-서버 경로다. 인증 주체가 없다**(«요청자 식별»의 예외). 호출자 확인은 요청 본문의 `requestId`를 작업 행에 저장된 값과 대조해서 한다.
+
+```json
+// POST /api/internal/llm/extractions/30/result
+{
+  "requestId": "0d5c6f6e-0000-4000-8000-000000000001",
+  "sourceDocumentIds": [10, 20],
+  "terms": [
+    {
+      "form": "결제",
+      "proposedDefinition": "재화나 용역의 대가를 지급하는 행위",
+      "proposedEnglishName": "Payment",
+      "occurredDocumentIds": [10],
+      "occurrenceCount": 3,
+      "contextSnippets": ["회원은 결제할 수 있다."]
+    }
+  ]
+}
+
+// POST /api/internal/llm/extractions/30/failure
+{ "requestId": "0d5c6f6e-0000-4000-8000-000000000001", "reason": "모델 응답이 스키마를 만족하지 않습니다.", "code": "LLM_SCHEMA_VIOLATION" }
+```
+
+성공·실패 모두 **204 No Content**다. `sourceDocumentIds`는 작업이 지시한 집합과 완전히 같아야 하며, 다르면 결과를 받지 않는다. **이미 끝난 작업에 도착한 중복·지각 콜백도 204**로 무시한다. 응답 코드별 재시도 규약은 `docs/AI_CONTRACT.md` 7절에 있다.
 
 ## **에러**
 
@@ -1558,6 +1626,7 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | 용어 추출 작업 상태를 변경할 수 없음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_STATUS` |
 | 추출 가능한 문서가 없음 | 409 | `DRAFT_DICTIONARY_NO_EXTRACTABLE_DOCUMENT` |
 | 용어 추출 결과가 올바르지 않음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_RESULT` |
+| 콜백의 `requestId`가 작업의 것과 다름 | 403 | `DRAFT_DICTIONARY_EXTRACTION_CALLBACK_FORBIDDEN` |
 | 요청 DTO 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---
