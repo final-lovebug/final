@@ -13,4 +13,7 @@ public interface RevisionLogRepository extends JpaRepository<RevisionLog, Long> 
 
     Page<RevisionLog> findAllByWorkspaceIdAndTargetTypeAndTargetId(
             Long workspaceId, RevisionLogTargetType targetType, Long targetId, Pageable pageable);
+
+    Page<RevisionLog> findAllByWorkspaceIdAndTargetType(
+            Long workspaceId, RevisionLogTargetType targetType, Pageable pageable);
 }
