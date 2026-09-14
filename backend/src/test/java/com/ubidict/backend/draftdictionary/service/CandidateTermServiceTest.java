@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.draftdictionary.domain.CandidateTerm;
 import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
+import com.ubidict.backend.draftdictionary.domain.CandidateTermType;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
 import com.ubidict.backend.draftdictionary.fixture.DraftDictionaryFixture;
 import com.ubidict.backend.draftdictionary.infra.CandidateTermRepository;
@@ -167,6 +168,65 @@ class CandidateTermServiceTest extends IntegrationTestSupport {
         assertNotExaminable(() ->
                 candidateTermService.edit(new EditCandidateTermCommand(candidateTermId, "수정어", null, null, MEMBER_ID)));
         assertNotExaminable(() -> candidateTermService.delete(candidateTermId, MEMBER_ID));
+    }
+
+    @DisplayName("등록할 때 고른 분류와 등록자를 함께 돌려준다.")
+    @Test
+    void add_returnsTypeAndCreatedBy() {
+        Long draftDictionaryId = createDraft();
+
+        CandidateTermResult result = candidateTermService.add(new AddCandidateTermCommand(
+                draftDictionaryId,
+                "이용 보류",
+                "계정을 잠시 멈춘 상태.",
+                null,
+                List.of(100L),
+                1,
+                List.of("문맥"),
+                List.of("휴면 전환"),
+                MEMBER_ID,
+                CandidateTermType.SYNONYM));
+
+        assertThat(result.type()).isEqualTo(CandidateTermType.SYNONYM);
+        assertThat(result.createdBy()).isEqualTo(MEMBER_ID);
+        assertThat(find(result.candidateTermId()).getType()).isEqualTo(CandidateTermType.SYNONYM);
+    }
+
+    @DisplayName("분류 없이 등록하면 비어 있다 — 추출이 만든 후보어에는 분류가 없다.")
+    @Test
+    void add_typeIsNullWhenNotChosen() {
+        Long draftDictionaryId = createDraft();
+
+        CandidateTermResult result = candidateTermService.add(addCommand(draftDictionaryId, "주문", "확정된 구매 건."));
+
+        assertThat(result.type()).isNull();
+    }
+
+    @DisplayName("수정할 때 분류를 바꿀 수 있고, 넘기지 않으면 이전 분류가 남는다.")
+    @Test
+    void edit_changesTypeOnlyWhenGiven() {
+        Long draftDictionaryId = createDraft();
+        Long candidateTermId = candidateTermService
+                .add(new AddCandidateTermCommand(
+                        draftDictionaryId,
+                        "결제 취소",
+                        "승인된 결제를 되돌리는 처리.",
+                        null,
+                        List.of(100L),
+                        1,
+                        List.of("문맥"),
+                        List.of(),
+                        MEMBER_ID,
+                        CandidateTermType.VARIANT))
+                .candidateTermId();
+
+        CandidateTermResult changed = candidateTermService.edit(
+                new EditCandidateTermCommand(candidateTermId, null, null, null, MEMBER_ID, CandidateTermType.SYNONYM));
+        assertThat(changed.type()).isEqualTo(CandidateTermType.SYNONYM);
+
+        CandidateTermResult untouched = candidateTermService.edit(
+                new EditCandidateTermCommand(candidateTermId, "결제 취소됨", null, null, MEMBER_ID));
+        assertThat(untouched.type()).isEqualTo(CandidateTermType.SYNONYM);
     }
 
     /** 초안 생성 진입점은 비동기 추출 작업뿐이므로(D-45) 후보어만 보는 테스트는 초안을 직접 만든다. */

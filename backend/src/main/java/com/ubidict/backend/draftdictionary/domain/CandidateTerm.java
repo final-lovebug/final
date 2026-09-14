@@ -62,6 +62,11 @@ public class CandidateTerm extends BaseEntity {
     @Column(nullable = false, length = 30)
     private CandidateTermStatus status;
 
+    /** 사람이 고른 분류. 추출 생성분은 비어 있다({@link CandidateTermType} 참고). */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private CandidateTermType type;
+
     @ElementCollection
     @BatchSize(size = 100)
     @CollectionTable(name = "candidate_term_occurred_document", joinColumns = @JoinColumn(name = "candidate_term_id"))
@@ -133,6 +138,23 @@ public class CandidateTerm extends BaseEntity {
             List<Long> docs,
             int count,
             List<String> snippets,
+            List<String> variants,
+            Long createdBy,
+            CandidateTermType type) {
+        CandidateTerm candidate =
+                create(draftDictionaryId, form, definition, english, docs, count, snippets, variants, createdBy);
+        candidate.type = type;
+        return candidate;
+    }
+
+    public static CandidateTerm create(
+            Long draftDictionaryId,
+            String form,
+            String definition,
+            String english,
+            List<Long> docs,
+            int count,
+            List<String> snippets,
             Long createdBy) {
         return create(draftDictionaryId, form, definition, english, docs, count, snippets, List.of(), createdBy);
     }
@@ -167,11 +189,16 @@ public class CandidateTerm extends BaseEntity {
     }
 
     public void edit(String form, String definition, String english) {
+        edit(form, definition, english, null);
+    }
+
+    public void edit(String form, String definition, String english, CandidateTermType type) {
         if (form != null && form.isBlank())
             throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_INVALID_FORM);
         if (form != null) this.form = form;
         if (definition != null) this.proposedDefinition = definition;
         if (english != null) this.proposedEnglishName = english;
+        if (type != null) this.type = type;
     }
 
     public void approveRegistration(Long handlerId) {

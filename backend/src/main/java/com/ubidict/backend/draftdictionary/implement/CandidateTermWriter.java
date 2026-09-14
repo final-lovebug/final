@@ -27,11 +27,12 @@ public class CandidateTermWriter {
                 c.occurrenceCount(),
                 c.contextSnippets(),
                 c.variantForms(),
-                c.memberId()));
+                c.memberId(),
+                c.type()));
     }
 
     public CandidateTerm edit(CandidateTerm e, EditCandidateTermCommand c) {
-        e.edit(c.form(), c.proposedDefinition(), c.proposedEnglishName());
+        e.edit(c.form(), c.proposedDefinition(), c.proposedEnglishName(), c.type());
         return e;
     }
 }
