@@ -1,21 +1,95 @@
-import { type FormEvent, useState } from 'react'
+import { type ChangeEvent, type FormEvent, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Card } from '../../shared/ui'
+import {
+  Button,
+  FieldLabel,
+  ScreenTitle,
+  TextArea,
+  TextInput,
+} from '../../shared/ui'
+import { cx } from '../../shared/lib/cx'
 import { routes } from '../../shared/config/routes'
+import { ApiError } from '../../shared/api/httpClient'
 import { useAuthStore } from '../../shared/stores/authStore'
 import { DOCUMENT_CONTENT_MAX_LENGTH } from '../../features/document/api/createDocument'
 import { useCreateDocument } from '../../features/document/hooks/useCreateDocument'
+import { useLabels } from '../../features/document/hooks/useLabels'
 
-// docs/DOMAIN.md 정책(업로드 가능 형식 txt/md, 본문 10,000자 이내)의 실제 파일 업로드 UI는
-// 이번 목업 단계에서 다루지 않고 텍스트 입력만 받는다. 파일 업로드 위젯은 Phase 6 후속 작업.
+const ACCEPTED_EXTENSIONS = ['.md', '.txt']
+/** 본문 상한이 10,000자라 파일도 그 언저리를 넘을 이유가 없다 — ui 안내 문구와 맞춘다. */
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+
+// ui/main.js renderUploadScreen() 이식.
+//
+// 프로토타입의 드롭존·라벨 칩·파일명 칸은 전부 장식이었다. 여기서는 실제로 동작한다 —
+// 파일을 고르거나 끌어다 놓으면 txt/md를 읽어 본문 칸을 채우고(문서명이 비어 있으면
+// 파일명에서 따온다), 라벨은 선택한 것을 생성 요청에 함께 보낸다. 백엔드에 독립 라벨
+// 생성 API가 없어(T-INT-10) **여기가 라벨이 생기는 유일한 경로**이기도 해서, 목록에 없는
+// 이름을 직접 적어 넣을 수도 있게 했다.
 export function DocumentUploadPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
   const navigate = useNavigate()
   const currentMember = useAuthStore((state) => state.currentMember)
   const createDocument = useCreateDocument()
+  const { data: labels } = useLabels(workspaceId)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [fileName, setFileName] = useState('')
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [newLabel, setNewLabel] = useState('')
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
+
+  async function readFile(file: File) {
+    setFileError(null)
+    const lowered = file.name.toLowerCase()
+    if (!ACCEPTED_EXTENSIONS.some((extension) => lowered.endsWith(extension))) {
+      setFileError('txt 또는 md 파일만 올릴 수 있습니다.')
+      return
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      setFileError('파일이 너무 큽니다(최대 10MB).')
+      return
+    }
+
+    const text = await file.text()
+    if (text.length > DOCUMENT_CONTENT_MAX_LENGTH) {
+      setFileError(
+        `본문이 ${DOCUMENT_CONTENT_MAX_LENGTH.toLocaleString()}자를 넘습니다(${text.length.toLocaleString()}자).`,
+      )
+      return
+    }
+
+    setFileName(file.name)
+    setContent(text)
+    if (title.trim() === '') {
+      setTitle(file.name.replace(/\.(md|txt)$/i, ''))
+    }
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (file) void readFile(file)
+  }
+
+  function toggleLabel(name: string) {
+    setSelectedLabels((current) =>
+      current.includes(name)
+        ? current.filter((label) => label !== name)
+        : current.length >= 5
+          ? current
+          : [...current, name],
+    )
+  }
+
+  function addNewLabel() {
+    const name = newLabel.trim()
+    if (name === '' || selectedLabels.includes(name) || selectedLabels.length >= 5) return
+    setSelectedLabels((current) => [...current, name])
+    setNewLabel('')
+  }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -24,75 +98,153 @@ export function DocumentUploadPage() {
     createDocument.mutate(
       {
         workspaceId,
-        title,
+        title: title.trim(),
         content,
         ownerId: currentMember.id,
         ownerName: currentMember.displayName,
+        labels: selectedLabels,
       },
-      {
-        onSuccess: (created) => {
-          navigate(routes.documentDetail(workspaceId, created.id))
-        },
-      },
+      { onSuccess: (created) => navigate(routes.documentDetail(workspaceId, created.id)) },
     )
   }
 
+  const knownLabelNames = (labels ?? []).map((label) => label.name)
+  const labelChoices = [
+    ...knownLabelNames,
+    ...selectedLabels.filter((name) => !knownLabelNames.includes(name)),
+  ]
+
   return (
-    <div className="mx-auto max-w-xl">
-      <h1 className="mb-1 font-display text-[19px] font-bold text-text">
-        문서 업로드
-      </h1>
-      <p className="mb-5 text-[12.5px] text-text-tertiary">
-        txt·md 형식, 본문 {DOCUMENT_CONTENT_MAX_LENGTH.toLocaleString()}자 이내
-        (docs/DOMAIN.md 정책)
-      </p>
+    <form onSubmit={handleSubmit} className="max-w-[640px]">
+      <ScreenTitle>문서 업로드</ScreenTitle>
 
-      <form onSubmit={handleSubmit}>
-        <Card className="flex flex-col gap-4 p-5">
-          <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold text-text">제목</span>
-            <input
-              className="rounded-sm border border-border-strong px-3 py-[9px] text-[13px] text-text"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              required
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".md,.txt,text/markdown,text/plain"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(event) => {
+          event.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault()
+          setDragging(false)
+          const file = event.dataTransfer.files?.[0]
+          if (file) void readFile(file)
+        }}
+        className={cx(
+          'mb-[22px] w-full cursor-pointer rounded-md border-[1.5px] border-dashed bg-surface p-10 text-center',
+          dragging ? 'border-accent bg-accent-bg-strong' : 'border-text-disabled',
+        )}
+      >
+        <div className="mb-[6px] text-[13.5px] font-semibold text-text-secondary">
+          파일을 끌어다 놓거나 클릭해 선택하세요
+        </div>
+        <div className="text-[11.5px] text-text-quaternary">.md, .txt · 최대 10MB</div>
+      </button>
+
+      {fileName && (
+        <div className="mb-[22px] rounded-sm border border-border-strong bg-surface px-3 py-[9px] text-[13px]">
+          {fileName}
+        </div>
+      )}
+      {fileError && <p className="mb-[22px] text-xs text-danger">{fileError}</p>}
+
+      <div className="flex flex-col gap-4">
+        <div>
+          <FieldLabel>라벨</FieldLabel>
+          <div className="flex flex-wrap gap-2">
+            {labelChoices.map((name) => {
+              const active = selectedLabels.includes(name)
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleLabel(name)}
+                  className={cx(
+                    'cursor-pointer rounded-[16px] px-[14px] py-[6px] text-[12.5px]',
+                    active
+                      ? 'border-[1.5px] border-accent bg-accent-bg font-semibold text-accent-strong'
+                      : 'border border-border-strong text-text-tertiary hover:bg-bg',
+                  )}
+                >
+                  {name}
+                </button>
+              )
+            })}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <TextInput
+              value={newLabel}
+              onChange={(event) => setNewLabel(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  addNewLabel()
+                }
+              }}
+              placeholder="새 라벨 이름"
+              className="flex-1 py-[7px] text-[12.5px]"
             />
-          </label>
-
-          <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold text-text">본문</span>
-            <textarea
-              className="min-h-[200px] rounded-sm border border-border-strong px-3 py-[9px] text-[13px] text-text"
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              maxLength={DOCUMENT_CONTENT_MAX_LENGTH}
-              required
-            />
-            <span className="text-right text-[11px] text-text-quaternary">
-              {content.length.toLocaleString()} / {DOCUMENT_CONTENT_MAX_LENGTH.toLocaleString()}
-            </span>
-          </label>
-
-          {createDocument.isError && (
-            <p className="text-xs text-danger">
-              {(createDocument.error as Error).message}
-            </p>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate(routes.documents(workspaceId))}
-            >
-              취소
-            </Button>
-            <Button type="submit" variant="primary" disabled={createDocument.isPending}>
-              {createDocument.isPending ? '업로드 중…' : '업로드'}
+            <Button variant="outline" size="sm" onClick={addNewLabel}>
+              추가
             </Button>
           </div>
-        </Card>
-      </form>
-    </div>
+          <p className="mt-2 text-[11px] text-text-quaternary">
+            라벨은 문서를 만들 때 함께 생깁니다 · 최대 5개
+          </p>
+        </div>
+
+        <div>
+          <FieldLabel required>문서명</FieldLabel>
+          <TextInput
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            required
+            maxLength={100}
+          />
+        </div>
+
+        <div>
+          <FieldLabel required>본문</FieldLabel>
+          <TextArea
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            maxLength={DOCUMENT_CONTENT_MAX_LENGTH}
+            required
+            className="min-h-[220px]"
+            placeholder="파일을 올리거나 직접 붙여 넣으세요"
+          />
+          <div className="mt-1 text-right text-[11px] text-text-quaternary">
+            {content.length.toLocaleString()} /{' '}
+            {DOCUMENT_CONTENT_MAX_LENGTH.toLocaleString()}
+          </div>
+        </div>
+      </div>
+
+      {createDocument.isError && (
+        <p className="mt-4 text-xs text-danger">
+          {createDocument.error instanceof ApiError
+            ? createDocument.error.message
+            : (createDocument.error as Error).message}
+        </p>
+      )}
+
+      <div className="mt-[26px] flex justify-end gap-[10px]">
+        <Button variant="outline" onClick={() => navigate(routes.documents(workspaceId))}>
+          취소
+        </Button>
+        <Button type="submit" variant="primary" disabled={createDocument.isPending}>
+          {createDocument.isPending ? '업로드 중…' : '업로드'}
+        </Button>
+      </div>
+    </form>
   )
 }

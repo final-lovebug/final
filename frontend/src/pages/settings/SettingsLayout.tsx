@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useParams } from 'react-router-dom'
 import { routes } from '../../shared/config/routes'
 import { cx } from '../../shared/lib/cx'
+import { ScreenTitle } from '../../shared/ui'
 
 // ui/main.js의 renderSettingsScreen(4개 탭: members/ruleset/notif/labels)을
 // 중첩 라우트로 옮긴 것. 각 탭은 src/pages/settings/Settings*Page.tsx.
@@ -23,7 +24,7 @@ export function SettingsLayout() {
 
   return (
     <div>
-      <h1 className="mb-1 font-display text-[19px] font-bold text-text">설정</h1>
+      <ScreenTitle>설정</ScreenTitle>
       <nav className="mb-[22px] flex gap-[22px] border-b border-border-soft">
         {TABS.map((tab) => (
           <NavLink
@@ -31,7 +32,7 @@ export function SettingsLayout() {
             to={tabHref[tab.key]}
             className={({ isActive }) =>
               cx(
-                'border-b-2 border-transparent pb-[9px] text-[13px] font-semibold text-text-quaternary',
+                'border-b-2 border-transparent pb-[9px] pt-[9px] text-[13px] font-semibold text-text-quaternary',
                 isActive && 'border-accent text-text',
               )
             }

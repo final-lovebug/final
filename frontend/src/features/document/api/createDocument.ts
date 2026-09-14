@@ -8,6 +8,8 @@ export interface CreateDocumentInput {
   content: string
   ownerId: string
   ownerName: string
+  /** 최대 5개. 라벨은 이 요청으로만 생기고 독립 생성 API가 없다(docs/API.md). */
+  labels?: string[]
 }
 
 // docs/DOMAIN.md 정책: 업로드 파일 형식은 txt/md 뿐이고 본문은 10,000자 이내다.
@@ -31,8 +33,10 @@ interface DocumentApiResponse {
 
 // 실제 백엔드 연동(docs/API.md "문서 생성", POST /api/workspaces/{workspaceId}/documents).
 // 서버도 같은 길이 제약을 검증하지만(COMMON_INVALID_REQUEST), 빠른 피드백을 위해
-// 클라이언트에서 먼저 걸러낸다. 지금 업로드 폼(DocumentUploadPage)은 라벨 입력이 없어
-// `labels`는 항상 빈 배열로 보낸다.
+// 클라이언트에서 먼저 걸러낸다.
+//
+// **라벨을 함께 보낸다**(2026-09-14 디자인 정합). 라벨은 문서 생성/수정 요청으로만 생기므로
+// (독립 생성 API가 없다 — T-INT-10) 업로드 화면의 라벨 선택이 곧 라벨을 만드는 경로다.
 //
 // 생성자는 곧 요청자 본인이라 ownerName/updaterName은 조회 없이 입력값(`input.ownerName`)
 // 을 그대로 쓴다 — T-INT-18(회원 이름 조회 수단 부재)의 영향을 받지 않는다.
@@ -45,7 +49,7 @@ export async function createDocument(input: CreateDocumentInput): Promise<Docume
 
   const response = await httpClient.post<DocumentApiResponse>(
     `/api/workspaces/${input.workspaceId}/documents`,
-    { title: input.title, content: input.content, labels: [] },
+    { title: input.title, content: input.content, labels: input.labels ?? [] },
   )
 
   return {
@@ -61,6 +65,8 @@ export async function createDocument(input: CreateDocumentInput): Promise<Docume
     updaterId: input.ownerId,
     ownerName: input.ownerName,
     updaterName: input.ownerName,
+    label: response.labels[0] ? { id: response.labels[0], name: response.labels[0] } : undefined,
+    labels: response.labels,
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,
   }

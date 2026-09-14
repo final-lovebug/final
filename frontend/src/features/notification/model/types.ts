@@ -20,8 +20,9 @@ export type NotificationTargetType = 'DOCUMENT' | 'DICTIONARY' | 'REVIEW_REQUEST
  * 파생한다 — routes.ts와 함께 features/notification/model/resolveNotificationLink.ts 참고.
  *
  * **채널(`channels`)은 없다** — `D-54`로 MVP1에서 `NotificationChannel` 개념 자체가
- * 백엔드에서 제거됐다. 아래 `NotificationSettings` 계열은 아직 목업으로만 남아 있는
- * 설정 화면이 쓰는 타입이라 별개다(`T-INT-13` 참고).
+ * 백엔드에서 제거됐다. 아래 `NotificationSettings` 계열은 **설정 화면이 현재 고정 정책을
+ * 그려 내기 위한 화면 전용 타입**이다 — 조회·저장 엔드포인트가 없어서 서버 응답이 아니다
+ * (`T-INT-13`·`pages/settings/SettingsNotificationsPage.tsx` 참고).
  */
 export interface Notification {
   id: NotificationId
@@ -38,8 +39,10 @@ export interface Notification {
 }
 
 /**
- * 설정 화면 한 벌 — 채널 토글 요약과 유형 × 채널 매트릭스. `channels`는 `settings`에서
- * 파생한 요약이라 서버가 그대로 내려주는 값을 다시 계산하지 않고 그대로 쓴다.
+ * 설정 화면 한 벌 — 채널 토글 요약과 유형 × 채널 매트릭스.
+ *
+ * **서버에서 오지 않는다.** 지금은 화면이 고정 정책(인앱만 동작)을 보여 주는 데만 쓴다.
+ * 수신 설정(`REQ-NTF-009`)이 MVP2로 들어오면 이 모양이 응답 타입이 될 것으로 본다.
  */
 export interface NotificationSettings {
   channels: NotificationChannelSummary[]
@@ -50,7 +53,7 @@ export interface NotificationChannelSummary {
   channel: NotificationChannel
   /** 유형 하나라도 이 채널을 쓰면 true. */
   enabled: boolean
-  /** false면 저장은 되지만 실제로 발송되지 않는다(MVP1은 IN_APP만 supported). 화면이 토글을 잠근다. */
+  /** false면 아직 발송 어댑터가 없는 채널이다(MVP1은 IN_APP만 supported). 화면이 흐리게 표시한다. */
   supported: boolean
 }
 

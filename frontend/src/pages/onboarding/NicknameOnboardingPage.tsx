@@ -4,7 +4,7 @@ import { completeRegistration } from '../../features/auth/api/completeRegistrati
 import { fetchCurrentMember } from '../../features/member/api/fetchCurrentMember'
 import { useAuthStore } from '../../shared/stores/authStore'
 import { routes } from '../../shared/config/routes'
-import { Button, Card } from '../../shared/ui'
+import { Button, Card, FieldLabel, LogoMark, TextInput } from '../../shared/ui'
 
 interface LocationState {
   registrationToken?: string
@@ -49,25 +49,26 @@ export function NicknameOnboardingPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-bg to-bg-alt p-6">
-      <Card className="flex w-[420px] flex-col gap-[22px] px-10 py-11 text-center shadow-card">
+      <Card className="flex w-[420px] max-w-full flex-col items-center gap-[22px] rounded-lg px-10 py-11 text-center shadow-[0_8px_30px_rgba(16,24,40,0.06)]">
+        <LogoMark size={44} radius={11} />
         <div>
           <h1 className="font-display text-lg font-bold text-text">닉네임을 정해주세요</h1>
           <p className="mt-1 text-xs text-text-tertiary">
             팀원들에게 표시될 이름입니다. 나중에 설정에서 바꿀 수 있어요.
           </p>
         </div>
-        <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-          <label className="flex flex-col gap-2 text-left">
-            <span className="text-xs font-bold text-text">닉네임</span>
-            <input
-              className="rounded-sm border border-border-strong px-3 py-[9px] text-[13px] text-text"
+        <form className="flex w-full flex-col gap-3" onSubmit={handleSubmit}>
+          <div className="text-left">
+            <FieldLabel required>닉네임</FieldLabel>
+            <TextInput
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               maxLength={100}
               autoFocus
               required
+              placeholder="팀원에게 보일 이름"
             />
-          </label>
+          </div>
           {errorMessage && <p className="text-xs text-danger">{errorMessage}</p>}
           <Button
             type="submit"
