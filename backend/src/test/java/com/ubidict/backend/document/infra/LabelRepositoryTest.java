@@ -64,6 +64,46 @@ class LabelRepositoryTest extends RepositoryTestSupport {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    /**
+     * D-94. 유니크 제약이 대소문자를 무시하는 것은 collation(utf8mb4_0900_ai_ci) 때문이다 — 컬럼에 적혀 있지 않고
+     * MySQL 8의 서버 기본값에서 온다. 그래서 더더욱 테스트로 못 박는다. LabelAppender의 사전 판정이 이 기준과
+     * 어긋나면 그대로 500이 되기 때문이다(Y-36).
+     */
+    @DisplayName("대소문자만 다른 이름도 같은 워크스페이스에서는 유니크 제약에 걸린다.")
+    @Test
+    void save_nameIsDuplicatedIgnoringCase() {
+        // given
+        labelRepository.save(
+                LabelFixture.label().workspaceId(workspaceId).name("api").build());
+        em.flush();
+
+        // when & then
+        assertThatThrownBy(() -> {
+                    labelRepository.save(LabelFixture.label()
+                            .workspaceId(workspaceId)
+                            .name("API")
+                            .build());
+                    em.flush();
+                })
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @DisplayName("이름 조회도 대소문자를 구분하지 않는다.")
+    @Test
+    void findAllByWorkspaceIdAndNameIn_ignoresCase() {
+        // given
+        labelRepository.save(
+                LabelFixture.label().workspaceId(workspaceId).name("api").build());
+        em.flush();
+        em.clear();
+
+        // when
+        List<Label> labels = labelRepository.findAllByWorkspaceIdAndNameIn(workspaceId, List.of("API"));
+
+        // then
+        assertThat(labels).extracting(Label::getName).containsExactly("api");
+    }
+
     @DisplayName("워크스페이스가 다르면 같은 이름의 라벨이 허용된다.")
     @Test
     void save_nameIsReusedAcrossWorkspaces() {

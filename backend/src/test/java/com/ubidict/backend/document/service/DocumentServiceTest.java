@@ -251,6 +251,45 @@ class DocumentServiceTest extends IntegrationTestSupport {
                 .hasSize(1);
     }
 
+    /**
+     * Y-36의 재현 케이스. 고치기 전에는 uk_label_workspace_name 위반이 세션을 rollback-only로 만들어
+     * 문서 생성 전체가 COMMON_INTERNAL_ERROR(500)로 죽었다 — 본문 길이와는 무관한 실패였다.
+     */
+    @DisplayName("대소문자만 다른 라벨을 붙여도 문서가 만들어지고 라벨은 재사용된다.")
+    @Test
+    void create_labelIsReusedIgnoringCase() {
+        // given
+        create("첫 문서", "본문", List.of("api"));
+
+        // when
+        DocumentResult result = create("둘째 문서", "본문", List.of("API"));
+
+        // then
+        assertThat(result.labels()).containsExactly("api");
+        assertThat(labelRepository.findAllByWorkspaceIdOrderByNameAsc(workspaceId))
+                .hasSize(1);
+    }
+
+    @DisplayName("라벨 수정에서도 대소문자만 다른 이름은 기존 라벨을 재사용한다.")
+    @Test
+    void update_labelIsReusedIgnoringCase() {
+        // given
+        create("첫 문서", "본문", List.of("api"));
+        DocumentResult target = create("둘째 문서", "본문", List.of());
+
+        // when
+        documentService.update(
+                new UpdateDocumentCommand(workspaceId, target.documentId(), "둘째 문서", List.of("Api"), OWNER_ID));
+
+        // then
+        assertThat(documentService
+                        .read(workspaceId, target.documentId(), OWNER_ID)
+                        .labels())
+                .containsExactly("api");
+        assertThat(labelRepository.findAllByWorkspaceIdOrderByNameAsc(workspaceId))
+                .hasSize(1);
+    }
+
     @DisplayName("라벨이 6개면 예외가 발생한다.")
     @Test
     void create_labelLimitIsExceeded() {
@@ -262,6 +301,24 @@ class DocumentServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(DocumentErrorCode.DOCUMENT_LABEL_LIMIT_EXCEEDED);
+    }
+
+    /**
+     * 필터 JPQL은 l.name = :labelName 한 줄이고 대소문자 무관은 DB collation이 해 준다.
+     * 코드에 드러나지 않는 동작이라 여기서 못 박는다.
+     */
+    @DisplayName("라벨 필터는 대소문자를 구분하지 않는다.")
+    @Test
+    void readAll_filterByLabelIgnoringCase() {
+        // given
+        create("설계 문서", "본문", List.of("api"));
+        create("정산 문서", "본문", List.of("정산"));
+
+        // when
+        List<DocumentSummaryResult> results = documentService.readAll(workspaceId, OWNER_ID, "API");
+
+        // then
+        assertThat(results).extracting(DocumentSummaryResult::title).containsExactly("설계 문서");
     }
 
     @DisplayName("라벨 필터는 해당 라벨이 붙은 문서만 준다.")

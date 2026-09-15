@@ -17,6 +17,7 @@ import {
 import { routes } from '../../shared/config/routes'
 import { useDocuments } from '../../features/document/hooks/useDocuments'
 import { useLabels } from '../../features/document/hooks/useLabels'
+import { isSameLabelName } from '../../features/document/model/labelName'
 
 type ViewMode = 'list' | 'card'
 
@@ -37,7 +38,8 @@ export function DocumentListPage() {
   const visibleDocuments = useMemo(() => {
     const needle = keyword.trim().toLowerCase()
     return (documents ?? []).filter((doc) => {
-      const matchesLabel = labelFilter === '' || (doc.labels ?? []).includes(labelFilter)
+      const matchesLabel =
+        labelFilter === '' || (doc.labels ?? []).some((label) => isSameLabelName(label, labelFilter))
       const matchesKeyword = needle === '' || doc.title.toLowerCase().includes(needle)
       return matchesLabel && matchesKeyword
     })
