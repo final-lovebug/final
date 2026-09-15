@@ -34,9 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 띄운다(member 도메인의 컨트롤러 테스트들과 동일한 이유).
  */
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(WorkspaceController.class)
-class WorkspaceControllerTest {
+class WorkspaceControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long WORKSPACE_ID = 10L;
@@ -44,11 +42,7 @@ class WorkspaceControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private WorkspaceService workspaceService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

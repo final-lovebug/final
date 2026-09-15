@@ -28,9 +28,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(DraftDocumentController.class)
-class DraftDocumentControllerTest {
+class DraftDocumentControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long DRAFT_DOCUMENT_ID = 100L;
@@ -38,11 +36,7 @@ class DraftDocumentControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private DraftDocumentService draftDocumentService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

@@ -35,9 +35,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(10L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(DictionaryController.class)
-class DictionaryControllerTest {
+class DictionaryControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     @Test
     @DisplayName("현재 확정본의 용어 목록을 페이지 구조로 응답한다.")
@@ -73,15 +71,11 @@ class DictionaryControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private DictionaryService dictionaryService;
 
     /**
      * addFilters=false로 Security 필터 체인은 우회하지만 SecurityConfig가 이 슬라이스에 함께
      * 로드되므로, JwtAuthenticationFilter가 요구하는 JwtProvider를 mock으로 채워 컨텍스트를 띄운다.
      */
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

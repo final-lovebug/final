@@ -9,6 +9,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -27,6 +29,11 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
+@Table(
+        uniqueConstraints = {
+            @UniqueConstraint(columnNames = {"workspace_id", "version_no"}),
+            @UniqueConstraint(columnNames = {"workspace_id", "active_flag"})
+        })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Dictionary extends BaseEntity {
 
@@ -43,6 +50,14 @@ public class Dictionary extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private DictionaryStatus status;
+
+    /** ACTIVE 사전집을 워크스페이스당 하나만 허용하는 스키마 생성용 generated column. */
+    @Column(
+            name = "active_flag",
+            insertable = false,
+            updatable = false,
+            columnDefinition = "integer generated always as (case when status = 'ACTIVE' then 1 else null end)")
+    private Integer activeFlag;
 
     @Column(nullable = false, updatable = false)
     private Long createdBy;

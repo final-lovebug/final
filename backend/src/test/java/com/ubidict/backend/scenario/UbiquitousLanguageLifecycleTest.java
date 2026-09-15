@@ -159,11 +159,11 @@ class UbiquitousLanguageLifecycleTest extends IntegrationTestSupport {
         DictionaryResult active = dictionaryService.readActive(workspaceId, OWNER_ID, defaultQuery());
         assertThat(active.status()).isEqualTo(DictionaryStatus.ACTIVE);
         // 초안에 남아 있는 후보어 전부가 실린다 — 판정으로 걸러내지 않는다(D-88). 빼고 싶은 후보어는
-        // 초안에서 삭제한다. 인프로세스 대역은 추출 결과를 빈 목록으로 돌려주므로(D-74) 손으로 등록한
-        // 하나만 남는다 — 대역이 후보어를 돌려주게 되면 그것들도 함께 실리며 이 기대값이 늘어난다.
+        // 초안에서 삭제한다. 인프로세스 추출 대역은 테스트용 고정 후보어를 반환하므로
+        // 첫 사전집에는 인프로세스 추출 대역이 반환한 고정 후보어도 함께 실린다.
         assertThat(active.terms().content())
                 .extracting(TermResult::preferredForm)
-                .containsExactly("결제수단");
+                .containsExactly("결제", "결제수단", "주문");
         assertThat(waitForDictionaryDraftStatus(draftDictionaryId, DraftDictionaryStatus.REVISED))
                 .isEqualTo(DraftDictionaryStatus.REVISED);
     }
