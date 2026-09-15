@@ -1,13 +1,8 @@
 name: ubidict-py Deploy
 
-# 경로는 저장소 루트 기준이다 — ubidicExtractor/ 를 일반 디렉터리로 편입하면서 루트
-# .github/workflows/ 로 옮겼다. `run:` 스텝은 defaults.run.working-directory 를 타지만
-# action 입력(task-definition·codedeploy-appspec)은 루트 기준이라 접두사가 붙는다.
-#
-# main에 ubidicExtractor/ubidict-py/ 변경이 들어가면: 이미지 빌드 → ECR 푸시 → ECS 태스크
-# 정의 등록 → CodeDeploy 블루/그린 배포. `ubidict-py-ci.yml`(lint+test)이
-# 이 워크플로보다 먼저 통과해야 한다는 보장은 없다 — 필요하면 나중에
-# `workflow_run`으로 체이닝한다(지금은 최소 구성).
+# 하는 일: 이미지 빌드 → ECR 푸시 → ECS 태스크 정의 등록 → CodeDeploy 블루/그린 배포.
+# `ubidict-py-ci.yml`(lint+test)이 이 워크플로보다 먼저 통과해야 한다는 보장은 없다 —
+# 필요하면 나중에 `workflow_run`으로 체이닝한다(지금은 최소 구성).
 #
 # **이 워크플로는 아직 실제로 성공할 수 없다** — 참조하는 AWS 리소스(ECS
 # 클러스터/서비스, CodeDeploy 애플리케이션/배포 그룹, ECR 리포지토리, IAM
@@ -15,13 +10,24 @@ name: ubidict-py Deploy
 # "실제 ECS/IAM/RDS 프로비저닝은 범위 밖" 참고 — Terraform/CDK는 별도
 # 작업이다). 아래 env/secrets 자리가 전부 실제 값으로 채워지고 인프라가
 # 만들어진 뒤에야 동작한다. 코드만 미리 준비해두는 것.
+#
+# **그래서 자동 트리거를 두지 않는다.** 원래 `push`(main + ubidict-py 변경)로 돌게 돼 있었고
+# 독립 저장소에서는 실패해도 눈에 띄지 않았지만, 이 저장소로 편입된 뒤에는 main 에 워커
+# 변경이 들어갈 때마다 빨간 실패가 찍힌다 — 인프라가 없어서 확정적으로 실패하는 것이라
+# 신호가 되지 못하고 다른 실패를 가린다. 수동 실행(workflow_dispatch)만 남긴다.
+#
+# 인프라가 준비되면 아래를 되살린다(경로는 저장소 루트 기준으로 이미 맞춰 뒀다).
+#
+#   push:
+#     branches: [main]
+#     paths:
+#       - "ubidicExtractor/ubidict-py/**"
+#       - ".github/workflows/ubidict-py-deploy.yml"
+#
+# 경로 규칙: `run:` 스텝은 defaults.run.working-directory 를 타지만 action
+# 입력(task-definition·codedeploy-appspec)은 루트 기준이라 접두사가 붙는다.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "ubidicExtractor/ubidict-py/**"
-      - ".github/workflows/ubidict-py-deploy.yml"
-  workflow_dispatch: {}  # 인프라 준비되면 수동으로 먼저 시험 실행할 수 있게
+  workflow_dispatch: {}
 
 permissions:
   id-token: write   # AWS OIDC (아래 role-to-assume) — 장기 액세스 키를 시크릿에 안 둔다
