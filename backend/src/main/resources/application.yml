@@ -26,6 +26,8 @@ spring:
             scope:
               - openid
               - email
+  profiles:
+    active: dev
 
 app:
   messaging:

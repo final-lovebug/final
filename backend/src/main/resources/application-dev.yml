@@ -17,14 +17,9 @@ spring:
         # prod 는 기본값(fail)을 유지한다 — 이름을 틀린 채 새 큐가 조용히 생기는 사고를 막는다.
         queue-not-found-strategy: create
 
-  datasource:
-    url: "${DB_URL}"
-    username: "${DB_USERNAME}"
-    password: "${DB_PASSWORD}"
-  data:
-    redis:
-      host: "${REDIS_HOST}"
-      port: "${REDIS_PORT}"
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
 
 management:
   endpoint:
