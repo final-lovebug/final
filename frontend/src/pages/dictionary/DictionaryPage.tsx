@@ -71,10 +71,12 @@ export function DictionaryPage() {
   const { dictionary, terms } = data
   const isArchived = dictionary.status === 'ARCHIVED'
 
+  // 개정안 행의 변경 유형은 `추가`(신규)와 `승계`(이전 버전에서 넘어옴) 둘이다(`D-89`).
+  // 판정을 걷어낸 뒤 「정의 수정」은 판별할 수 없게 됐다 — 활성 사전집과 값을 비교해야
+  // 알 수 있고 목록 응답에 정의가 없다(`D-41`). 그래서 세는 축도 그 둘로 바꿨다.
   const addedCount = pendingRevision?.rows.filter((row) => row.change === '추가').length ?? 0
-  const changedCount =
-    pendingRevision?.rows.filter((row) => row.change === '정의 수정').length ?? 0
-  const pendingCount = addedCount + changedCount
+  const carriedOverCount = pendingRevision?.rows.filter((row) => row.change === '승계').length ?? 0
+  const pendingCount = pendingRevision?.rows.length ?? 0
 
   function handleExport() {
     const rows = [
@@ -139,8 +141,8 @@ export function DictionaryPage() {
         <>
           <Banner className="mb-2 flex items-center justify-between gap-3">
             <span>
-              사전집 개정안에서 승인 대기 중인 변경 {pendingCount}건 — 용어 추가 {addedCount} ·
-              정의 수정 {changedCount}
+              사전집 개정안에서 승인 대기 중인 용어 {pendingCount}건 — 신규 {addedCount} ·
+              승계 {carriedOverCount}
             </span>
             <Link
               to={routes.dictionaryRevision(workspaceId, CURRENT_DICTIONARY_REVISION_ID)}

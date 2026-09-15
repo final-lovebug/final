@@ -5,9 +5,7 @@ import type { CandidateTerm } from './types'
 export interface CandidateTermListItem extends CandidateTerm {
   /** 같은 개념으로 묶인 표기들. words[0]이 CandidateTerm.form과 같다(백엔드 variantForms). */
   words: string[]
-  /** 등록자(createdBy) 표시 이름. 해석 못 하면 "—". */
-  ownerName: string
-  /** words 중 표준어로 고른 것. 없으면 words[0]을 기본값으로 쓴다(화면에서 fallback 처리). */
+  /** words 중 대표어로 고른 것. 없으면 words[0]을 기본값으로 쓴다(화면에서 fallback 처리). */
   selectedWord?: string
 }
 
