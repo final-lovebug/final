@@ -25,6 +25,7 @@
 | `D-82`~`D-85` | **프론트 디자인 정합 세션(2026-09-14)이 확정한 결정** | 전역 | 이 문서 3-7절 |
 | `D-86`~`D-89` | **사전집 초안 단일 페이지 전환 세션(2026-09-15)이 확정한 결정** | 전역 | 이 문서 3-8절 |
 | `D-90`~`D-91` | **페이징 규격 정합 세션(2026-09-15)이 확정한 결정** | 전역 | 이 문서 3-9절 |
+| `D-92`~`D-98` | **관측성 도입 세션(2026-09-15)이 확정한 결정** | 전역 | 이 문서 3-10절 |
 | `R-1`~`R-24` | **큰 흐름이 뒤집은 기존 결정** | 전역 | 이 문서 4절. 문서 수정이 구현보다 앞선다 |
 | `R-25`~`R-30` | **AI 워커 전환이 뒤집은 결정** | 전역 | 이 문서 4-4절 |
 | `F-1`~`F-6` | 뒤집힘이 만든 새 과제 | 전역 | 이 문서 5절 |
@@ -36,7 +37,7 @@
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다.
 
-**새 결정 ID는 `D-92`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
+**새 결정 ID는 `D-99`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
 
 ### `D-1`~`D-18` 색인 — 이 문서 밖에 정의된 결정
 
@@ -328,6 +329,31 @@
 
 ---
 
+## 3-10. 관측성 도입 세션이 확정한 결정 (`D-92`~`D-98`)
+
+2026-09-15. **배포된 백엔드는 관측이 불가능했다.** 관측 인프라가 반쯤 들어와 있다가 끊겨 있었다 — `build.gradle`의 `spring-boot-starter-opentelemetry`가 주석 처리돼 런타임 전송이 0인데 `compose.yaml`과 `TestcontainersConfiguration`에는 `grafana/otel-lgtm` 컨테이너가 떠 있고, `backend/CLAUDE.md`는 「관측 — Actuator, Micrometer, OpenTelemetry / Grafana LGTM」이라 적고 있었다. 여기에 더해 **재배포 한 번에 로그가 증발한다** — `start_container.sh`가 `json-file` 드라이버로 인스턴스 로컬에만 남기는데 CodeDeploy가 `docker rm -f spring`으로 컨테이너를 갈아끼운다. 장애 원인이 배포와 함께 사라지는 상태였다.
+
+| ID | 확정 내용 | 해소 |
+| --- | --- | --- |
+| **D-92** | **앱이 Grafana Cloud로 OTLP를 직접 보낸다. 수집기 사이드카(Alloy 등)를 두지 않는다.** 사이드카는 배치 버퍼·재시도 큐·호스트 메트릭을 주지만 배포 대상이 t4g.small(2 GiB)이고 spring 컨테이너가 이미 `--memory 1600m`을 쓴다 — 수집기 몫 200 MB와 부트스트랩 스크립트·CI 검증까지 배포 경로에 얹는 값이 그 이득보다 크다. 배치·재시도는 OTel SDK의 `BatchSpanProcessor`·`BatchLogRecordProcessor`가 프로세스 안에서 하므로 **완전히 잃는 것은 호스트 메트릭과 「앱이 토큰을 갖지 않는다」는 성질 둘**이다(후자는 `D-95`의 대가 항목에서 다시 다룬다) | 「런타임 전송 0」 |
+| **D-93** | **트레이스·메트릭·로그 세 신호를 모두 보낸다. 앱 로그는 OTLP로 직행하고 파일 appender를 두지 않는다.** `docs/LOG.md` 「컨테이너로 운영하면 애플리케이션은 stdout에만 남기고 롤링은 플랫폼 수집기에 맡긴다」를 그대로 따른다. **`CONSOLE` appender는 유지한다** — OTLP가 끊겼을 때와 기동 중 죽었을 때 `docker logs`가 마지막 방어선이다. 도커 로그 자체를 긁어 보내는 경로는 두지 않는다 | 재배포 시 로그 증발 |
+| **D-94** | **Grafana Cloud로는 `prod`에서만 보낸다. 로컬·테스트는 지금 구성된 LGTM으로 계속 보낸다.** 엔드포인트와 자격증명을 `application-prod.yml`에만 두는 것이 이 구분의 전부다 — 로컬은 `spring-boot-docker-compose`의 OTLP 커넥션 디테일이, 테스트는 `@ServiceConnection LgtmStackContainer`가 엔드포인트를 자동 주입하므로 **어느 설정 파일에도 수집기 주소를 적지 않는다.** `backend/compose.yaml`이 LGTM 호스트 포트를 고정하지 않는 이유가 이것이고, 그 구성을 그대로 둔다 | `NFR-INF-001`과의 충돌 회피 |
+| **D-95** | **자격증명은 Parameter Store `/lovebug/otel/` 이하에 둔다.** `/lovebug/otel/auth`(`instanceID:token` 원문), `/lovebug/otel/endpoint`, 그리고 선택 킬 스위치 `/lovebug/otel/enabled`(없으면 켠 것으로 본다). `prod`의 `spring.config.import: aws-parameterstore:/lovebug/`가 이미 경로 하위를 끌어오므로 **인스턴스 역할에 권한을 더할 필요가 없다** — 경로를 옮기지 않고 앱을 경로에 맞춘 이유다. Grafana Cloud OTLP는 `Authorization: Basic base64(instanceID:token)`을 요구하는데 YAML 플레이스홀더로는 base64를 만들 수 없으므로 **`EnvironmentPostProcessor`가 `otel.auth`를 읽어 `otel.auth-header`를 파생**한다 | 「토큰을 어디에 두는가」 |
+| **D-96** | **`traceId`는 Micrometer Tracing이 MDC에 넣는 값을 그대로 쓴다. 별도 `TraceIdFilter`를 만들지 않는다** — 둘을 다 만들면 ID가 둘 공존해 로그와 트레이스가 오히려 끊긴다. `ErrorResponse`에 `traceId` 한 필드를 더해 응답 → 로그 → 트레이스를 한 ID로 잇는다. **익스포터를 꺼도 이 값은 살아 있다** — Boot 4의 `OpenTelemetryTracingAutoConfiguration`에는 `@ConditionalOnEnabled*Export`가 없어 `Tracer` 빈이 전송 여부와 무관하게 만들어진다. 따라서 local·dev·test에서도 `traceId`가 실린다 | **`X-08` 해소.** `docs/LOG.md` 「Trace ID와 MDC」 갱신 |
+| **D-97** | **actuator 노출을 `health`·`info`로 좁히고 `env`·`configprops`는 `exclude`로 영구 차단한다.** `exclude`가 `include`를 이기므로 나중에 누가 노출 목록을 넓혀도 그 둘은 닫힌 채 남는다. `/actuator/prometheus`는 `local`·`dev`만 연다(`app.security.actuator.permit-all`). **`/actuator/health`·`/actuator/health/**`·`/actuator/info`는 반드시 `permitAll`로 남긴다** — `deploy/scripts/validate.sh`의 readiness 폴링이 여기를 친다. 나머지를 인증으로 막을 때 **`isAuthenticated()`를 직접 쓰지 않는다** — 익명 인증 토큰도 `true`라 무인증이 통과한다 | `/actuator/**` 전 경로 무인증 공개(`SecurityConfig`) |
+| **D-98** | **관측은 기동 조건이 아니다.** 자격증명·엔드포인트가 없거나 수집기가 죽어 있어도 앱은 뜨고 요청을 처리한다. `${otel.auth-header:}`에 빈 기본값을 두는 것, 수집기가 내려가도 서비스가 계속되는 것을 검증 항목에 두는 것이 이 결정의 표현이다. 또한 **OTLP 익스포터 로거를 `ERROR`로 낮춘다** — export 실패 WARN이 다시 로그 레코드가 되어 export되는 되먹임을 끊어야 한다 | 관측 도입이 가용성을 낮추지 않게 |
+
+> **`D-92`+`D-95`가 함께 남기는 대가 — Grafana Cloud 쓰기 토큰이 애플리케이션 `Environment`에 평문으로 상주한다.**
+>
+> - `prod`의 `spring.config.import: aws-parameterstore:/lovebug/`가 경로 하위를 통째로 프로퍼티로 끌어오므로, 앱이 뜨는 순간 `/lovebug/otel/auth`가 `otel.auth`가 된다. **`D-92`(직행)를 택한 이상 앱은 이 값의 유일한 사용자이기도 하다** — 사이드카를 뒀다면 앱은 토큰을 갖지 않았을 것이다.
+> - **완화책은 둘뿐이고 해소가 아니다.** `management.endpoints.web.exposure.exclude: env,configprops`(`D-97`)가 첫 자물쇠, `SecurityConfig`의 경로 축소가 두 번째다. `Environment`를 읽는 경로는 그 밖에도 있다 — 힙 덤프, 프로퍼티를 찍는 예외 로그, 디버깅용 코드. `include: health,info`라 `/actuator/heapdump`가 애초에 노출되지 않는 것이 그나마의 위안이다.
+> - **유출 시 영향 범위는 Grafana Cloud 쓰기 전용이다**(`metrics:write`·`logs:write`·`traces:write`). 대시보드 조회나 데이터 열람은 안 된다. 그래도 가짜 텔레메트리로 무료 한도를 태우거나 알림을 오염시킬 수는 있다.
+> - **토큰을 로테이션하면 위험도 리셋된다.** 앱은 다음 배포에 새 값을 읽는다.
+>
+> **이번 범위에서 닫히지 않는 것** — `NFR-INF-008`(Spring → 메시징 → FastAPI 3단 추적)은 워커 구간 `traceparent` 전파가 빠져 **미충족으로 남는다.** `LlmJobRequest`에 `traceparent`를 싣는 호환 변경이 남은 일이며, 그때 `docs/AI_CONTRACT.md`를 함께 고친다. `NFR-CMN-001`(p95 1초)은 **측정 수단이 생겼을 뿐**이므로 완료로 올리지 않는다.
+
+---
+
 ## 4. 뒤집힌 기존 결정 (`R-1`~`R-30`)
 
 모두 기존 문서에 「확정」으로 적혀 있던 것이다. 루트 `CLAUDE.md`의 "결정이 바뀌면 코드보다 문서를 먼저 갱신한다"에 따라 **`T-DOC-1`(9절)이 모든 구현보다 앞선다.**
@@ -412,7 +438,7 @@
 | **X-05** | `REQ-UPD-002` 「거절 사유를 기록하고 동일 지점의 재알림을 억제」 ↔ 같은 구조 | `REQUIREMENTS.md` / `DOMAIN.md` | **제안**: `anchor` 기반 억제는 본문이 바뀌면 위치가 어긋나므로, 거절된 `(originTerm, suggestionTerm)` 쌍을 **문서 단위**로 억제한다. `DD-*` 태스크에서 확정 | 제안 |
 | **X-06** | `REQ-IDX-001`~`003`·`NFR-IDX-001` 역인덱스 ↔ `DOMAIN.md`에 해당 엔티티가 없다 | `REQUIREMENTS.md` / `DOMAIN.md` | MVP1에서 제외하고 MVP2로 내린다 | 해소(`D-29`) |
 | **X-07** | `REQ-EXT-002` pgvector, `NFR-INF-001`·`NFR-INF-004` PostgreSQL ↔ 실제 MySQL 8.4 | `REQUIREMENTS.md` / `backend/CLAUDE.md` | 벡터를 MVP1에서 배제하고 MySQL을 유지한다 | 해소(`D-23`) |
-| **X-08** | `NFR-CMN-003` 「에러 포맷 code·message·**traceId**」 ↔ 2필드(`{code, message}`) | `REQUIREMENTS.md` / `EXCEPTION.md`·`API.md`·`ErrorResponse` | **제안**: `LOG.md`가 이미 「에러 응답에 trace id 포함」과 MDC 규약을 갖고 있으므로 `ErrorResponse`에 `traceId`를 더한다. `T-INT-3`(인증·공통 설정)과 함께 처리 | 제안 |
+| **X-08** | `NFR-CMN-003` 「에러 포맷 code·message·**traceId**」 ↔ 2필드(`{code, message}`) | `REQUIREMENTS.md` / `EXCEPTION.md`·`API.md`·`ErrorResponse` | `ErrorResponse`에 `traceId`를 한 필드로 더한다. 값의 출처는 **Micrometer Tracing이 MDC에 넣는 `traceId`**이며 별도 필터를 만들지 않는다. 담당은 `T-INT-3` → **`T-INT-23`(관측성 도입)**으로 옮겼다 — 추적 기반이 그쪽에서 생기므로 나눌 수 없다 | 해소(`D-96`) |
 | **X-09** | `API.md` 공통 규칙은 검증 실패 코드를 `INVALID_INPUT`이라 하는데, 같은 문서 에러 표와 구현은 `COMMON_INVALID_REQUEST`다 | `API.md` «공통 규칙» / 같은 문서의 각 도메인 에러 표, `CommonErrorCode` | 구현이 정답이다. `T-DOC-1`에서 공통 규칙 문구를 `COMMON_INVALID_REQUEST`로 고친다 | 제안 |
 | **X-10** | `REQ-WS-001`의 「태그·설명·공개여부」와 `REQ-WS-006`의 「설명(도메인 소개)」 ↔ `Workspace`에 `description`이 없다 | `REQUIREMENTS.md` 비고 / `DOMAIN.md` `Workspace` 표 | 양쪽 비고가 「모델 미정의 — 필요해지면 `DOMAIN.md`에 먼저 추가」로 이미 처리했다. **모델에 넣지 않고 근거만 기록**한다 | 제안 |
 | **X-11** | `DOMAIN.md` «모델 반영 필요(미확정)» 3건 — 참여자 권한 변경 주체 / 참여자 삭제 방식(`leftAt`) / 알림 설정 모델 | `DOMAIN.md` «모델 반영 필요(미확정)» 블록 | 권한 변경 주체는 `WS-1`, 삭제 방식은 `WS-2`에서 확정한다. **알림 설정 모델은 워크스페이스 단위로 확정됐다(`D-50`)** | 해소(`D-50`) |
@@ -516,12 +542,12 @@
 
 ## 10. 남은 결정 대기
 
-**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건은 `D-33`~`D-36`으로, 도메인 Phase 3~4가 드러낸 것은 `D-38`~`D-43`으로 확정했다. 2026-09-13 마무리 통합이 드러낸 3건도 `D-44`~`D-46`으로, Notification 도메인 세션이 확정한 8건은 `D-47`~`D-54`로, RevisionLog 도메인 세션이 확정한 7건은 `D-55`~`D-61`로, 2026-09-14 FE↔BE 통합(트랙 A) 세션이 드러낸 4건은 `D-62`~`D-65`로 확정했다. AI 워커 전환 세션이 확정한 13건은 `D-66`~`D-78`이고, 추출·대조 결과 화면 세션(`T-INT-17`)이 확정한 3건은 `D-79`~`D-81`, 프론트 디자인 정합 세션이 확정한 4건은 `D-82`~`D-85`, 사전집 초안 단일 페이지 전환 세션이 확정한 4건은 `D-86`~`D-89`, 페이징 규격 정합 세션이 확정한 2건은 `D-90`~`D-91`이다.
+**없다.** 2026-09-10에 전건 확정했고, 2026-09-12에 드러난 4건은 `D-33`~`D-36`으로, 도메인 Phase 3~4가 드러낸 것은 `D-38`~`D-43`으로 확정했다. 2026-09-13 마무리 통합이 드러낸 3건도 `D-44`~`D-46`으로, Notification 도메인 세션이 확정한 8건은 `D-47`~`D-54`로, RevisionLog 도메인 세션이 확정한 7건은 `D-55`~`D-61`로, 2026-09-14 FE↔BE 통합(트랙 A) 세션이 드러낸 4건은 `D-62`~`D-65`로 확정했다. AI 워커 전환 세션이 확정한 13건은 `D-66`~`D-78`이고, 추출·대조 결과 화면 세션(`T-INT-17`)이 확정한 3건은 `D-79`~`D-81`, 프론트 디자인 정합 세션이 확정한 4건은 `D-82`~`D-85`, 사전집 초안 단일 페이지 전환 세션이 확정한 4건은 `D-86`~`D-89`, 페이징 규격 정합 세션이 확정한 2건은 `D-90`~`D-91`, 관측성 도입 세션이 확정한 7건은 `D-92`~`D-98`이다.
 
-`상태` 칸이 `제안`인 항목(`X-04`·`X-05`·`X-08`~`X-14`·`X-17`, `Y-22`)과 `기록`인 항목(`Y-24`~`Y-27`)은 **결정이 필요한 것이 아니라 담당 태스크에서 형태를 정하는 것**이다. 설계 방향은 이미 정해져 있다.
+`상태` 칸이 `제안`인 항목(`X-04`·`X-05`·`X-09`~`X-14`·`X-17`, `Y-22`)과 `기록`인 항목(`Y-24`~`Y-27`)은 **결정이 필요한 것이 아니라 담당 태스크에서 형태를 정하는 것**이다. 설계 방향은 이미 정해져 있다.
 
 ~~**남은 예외는 둘이다.** **`D-35`의 실제 LLM 연동**은…~~ **절반 해소.** LLM 연동의 **백엔드 쪽 경계**는 AI 워커 전환 세션이 `D-66`~`D-78`로 확정했다(2026-09-14) — 의존성(LocalStack Testcontainers)과 인프라 변경(compose LocalStack), 콜백 인증 방식을 모두 사전 승인받았다. **모델 호출과 프롬프트 설계는 여전히 이 저장소 밖이며** FastAPI 워커를 만드는 시점에 합의한다.
 
-**`X-08`(`ErrorResponse.traceId`)**은 마무리 통합 세션에서 범위 밖으로 두기로 했으므로 `NFR-CMN-003`이 계속 미충족이며 담당 태스크를 다시 정해야 한다. **`NFR-INF-008`이 이번에 실제 3단 경로(Spring → SQS → FastAPI)를 갖게 되면서 우선순위가 올라갔다.**
+~~**`X-08`(`ErrorResponse.traceId`)**은 마무리 통합 세션에서 범위 밖으로 두기로 했으므로 `NFR-CMN-003`이 계속 미충족이며 담당 태스크를 다시 정해야 한다.~~ **해소** — `T-INT-23`(관측성 도입)이 담당을 이어받아 `D-96`으로 닫았다. **`NFR-INF-008`은 여전히 미충족이다** — 3단 경로의 앱 구간까지는 이어졌으나 워커 구간 `traceparent` 전파가 남았다(`D-92`~`D-98` 아래 주석).
 
-새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-92`부터 붙인다.
+새 결정이 필요해지면 루트 `CLAUDE.md`에 따라 **임의로 확정하지 않고 질문한 뒤** 이 문서에 먼저 반영한다. ID는 `D-99`부터 붙인다.
