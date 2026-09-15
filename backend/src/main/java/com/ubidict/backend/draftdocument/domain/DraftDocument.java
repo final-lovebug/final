@@ -10,10 +10,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** 사전집 대조 결과를 사람이 교정하는 문서 초안. */
 @Getter
@@ -42,7 +43,7 @@ public class DraftDocument extends BaseEntity {
     @Column(updatable = false)
     private Integer dictionaryVersionNo;
 
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     @Column(nullable = false)
     private String draftBody;
 

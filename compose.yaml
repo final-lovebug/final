@@ -162,7 +162,6 @@ services:
 #      # - dev  : 뒤에 와서 충돌 키를 이긴다 — app.ai.dispatch.mode가 sqs로 남아 LocalStack
 #      #          경로를 타고, 시크릿을 Parameter Store가 아니라 환경변수로 받는다.
 #      - 'SPRING_PROFILES_ACTIVE=local,dev'
-#      - 'SPRING_FLYWAY_ENABLED=false'
 #      #
 #      # 접속 정보는 환경변수로만 주입한다. application.yml에는 적지 않는다.
 #      # 변수 이름은 application-dev.yml이 선언한 것을 그대로 쓴다(SPRING_DATASOURCE_*가 아니다).

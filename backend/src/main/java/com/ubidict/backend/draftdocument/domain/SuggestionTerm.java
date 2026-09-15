@@ -12,10 +12,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Getter
@@ -43,7 +44,7 @@ public class SuggestionTerm extends BaseEntity {
 
     private Long handledBy;
 
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String rejectReason;
 
     @Column(nullable = false, updatable = false)

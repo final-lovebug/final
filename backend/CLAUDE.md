@@ -55,6 +55,31 @@
 - 800 - 899: revisionlog 도메인
 - 900 - 999: 공통 / 사후 정리
 
+### 스키마 ↔ 엔티티 정합 규칙
+
+**스키마의 주인은 Flyway 하나다**(`D-106`). 마이그레이션과 엔티티 매핑이 어긋나면
+**엔티티를 고친다.** `ddl-auto`는 모든 프로파일에서 `validate`이고(`D-107`) 어느
+환경에서도 엔티티가 스키마를 만들지 않는다.
+
+**순서는 SQL 먼저, 엔티티 나중이다.** 어긋나면 `SchemaValidationTest`가 `check`에서
+실패한다 — MySQL 컨테이너 위에서 Flyway가 만든 스키마를 `validate`로 검증하는
+테스트이며, 이 조합을 재현하는 유일한 테스트다(`D-108`). 나머지 테스트 지원 클래스는
+전부 `create-drop` + Flyway off라 드리프트를 잡지 못한다.
+
+MySQL에서 반복해서 어긋나는 지점은 아래와 같다(`D-109`).
+
+| 컬럼 | 매핑 | 비고 |
+| --- | --- | --- |
+| `text` | `@JdbcTypeCode(SqlTypes.LONGVARCHAR)` | **`@Lob`을 쓰지 않는다** — `longtext`를 기대해 검증이 깨진다 |
+| `longtext` | `@Lob` 또는 `@JdbcTypeCode(SqlTypes.LONG32VARCHAR)` | 정말 4GB 대역이 필요할 때만 |
+| `varchar(n)` | `@Column(length = n)` | 길이 숫자가 SQL과 같아야 한다 |
+| enum 컬럼 | `@Enumerated(EnumType.STRING)` + `@Column(length = n)` | SQL은 `varchar(n)` |
+| generated column | `columnDefinition` 첫 단어 = SQL 타입명, 필드 타입(또는 `@JdbcTypeCode`) = JDBC 타입 코드 | **둘 다** 맞춰야 통과한다 |
+
+> ⚠️ **`validate`가 보는 것은 컬럼의 존재와 타입까지다.** `nullable`·기본값·인덱스·
+> 유니크 제약·외래키·collation은 검증 범위 밖이라 **마이그레이션 리뷰가 유일한
+> 방어선이다.**
+
 ---
 
 ## 개발 명령어
