@@ -21,3 +21,5 @@ compose.override.yml
 # 배포 번들 생성 산출물
 deploy/IMAGE_TAG
 /.aws/
+/AGENTS.md
+/backend/.env
