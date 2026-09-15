@@ -381,20 +381,36 @@ class DocumentServiceTest extends IntegrationTestSupport {
                 .isEqualTo(DocumentErrorCode.DOCUMENT_DRAFT_IN_PROGRESS);
     }
 
-    @DisplayName("REGULAR는 문서를 삭제할 수 없다.")
+    @DisplayName("REGULAR도 문서를 삭제할 수 있다.")
     @Test
-    void delete_permissionIsBelowAdmin() {
+    void delete_byRegular() {
+        // given
+        DocumentResult created = create(TITLE, "본문", List.of());
+
+        // when
+        documentService.delete(workspaceId, created.documentId(), REGULAR_ID);
+
+        // then
+        assertThatThrownBy(() -> documentService.read(workspaceId, created.documentId(), OWNER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(DocumentErrorCode.DOCUMENT_NOT_FOUND);
+    }
+
+    @DisplayName("참여자가 아니면 문서를 삭제할 수 없다.")
+    @Test
+    void delete_memberIsNotParticipant() {
         // given
         DocumentResult created = create(TITLE, "본문", List.of());
 
         // when & then
-        assertThatThrownBy(() -> documentService.delete(workspaceId, created.documentId(), REGULAR_ID))
+        assertThatThrownBy(() -> documentService.delete(workspaceId, created.documentId(), STRANGER_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(WorkspaceErrorCode.WORKSPACE_ADMIN_REQUIRED);
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
     }
 
-    @DisplayName("ADMIN 이상이 삭제하면 이후 조회에서 사라진다.")
+    @DisplayName("참여자가 삭제하면 이후 조회에서 사라진다.")
     @Test
     void delete() {
         // given

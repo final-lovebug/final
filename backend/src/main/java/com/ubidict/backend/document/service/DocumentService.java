@@ -176,9 +176,12 @@ public class DocumentService {
         return resultVersionNo;
     }
 
+    /**
+     * 참여자면 누구나 지울 수 있다. 소프트 삭제라 버전 행이 남고 되돌릴 여지가 있어 권한을 ADMIN으로 묶지 않는다.
+     */
     @Transactional
     public void delete(Long workspaceId, Long documentId, Long memberId) {
-        workspaceAccessValidator.validateAtLeast(workspaceId, memberId, Permission.ADMIN);
+        workspaceAccessValidator.validateParticipant(workspaceId, memberId);
 
         Document document = documentReader.read(documentId, workspaceId);
         documentRemover.remove(document);
