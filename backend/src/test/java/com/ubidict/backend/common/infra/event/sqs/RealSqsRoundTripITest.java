@@ -12,7 +12,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.messaging.Message;
 import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.regions.Region;

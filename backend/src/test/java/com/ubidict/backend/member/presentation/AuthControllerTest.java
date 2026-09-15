@@ -11,30 +11,18 @@ import static org.mockito.Mockito.verify;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.exception.AuthErrorCode;
-import com.ubidict.backend.member.infra.security.JwtProvider;
-import com.ubidict.backend.member.infra.security.OAuthExchangeCodeRedisRepository;
 import com.ubidict.backend.member.presentation.dto.CompleteRegistrationRequest;
 import com.ubidict.backend.member.presentation.dto.OAuthExchangeRequest;
-import com.ubidict.backend.member.service.LogoutService;
-import com.ubidict.backend.member.service.MemberOAuthLoginService;
-import com.ubidict.backend.member.service.TokenReissueService;
 import com.ubidict.backend.member.service.model.LoginSucceeded;
 import com.ubidict.backend.member.service.model.RegistrationRequired;
 import com.ubidict.backend.member.service.model.TokenPairResult;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
-import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -48,11 +36,6 @@ class AuthControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-
-
-
-
 
     @BeforeEach
     void setUp() {
@@ -235,5 +218,4 @@ class AuthControllerTest extends com.ubidict.backend.support.ControllerTest {
 
         verify(logoutService, never()).logout(any());
     }
-
 }

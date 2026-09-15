@@ -9,7 +9,6 @@ import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.draftdocument.domain.*;
 import com.ubidict.backend.draftdocument.service.SuggestionTermService;
 import com.ubidict.backend.draftdocument.service.model.*;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -17,7 +16,6 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.*;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
@@ -25,10 +23,9 @@ class SuggestionTermControllerTest extends com.ubidict.backend.support.Controlle
 
     @Autowired
     private SuggestionTermService service;
+
     @Autowired
     MockMvc mvc;
-
-
 
     @BeforeEach
     void setup() {

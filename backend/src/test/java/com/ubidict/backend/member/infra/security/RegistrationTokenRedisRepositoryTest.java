@@ -7,7 +7,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
 @Disabled("Redis 외부 저장소 테스트는 인메모리 대역 테스트로 대체한다.")
 class RegistrationTokenRedisRepositoryTest {
