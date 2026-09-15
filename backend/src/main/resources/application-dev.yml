@@ -4,6 +4,11 @@
 # 그래서 spring.config.import 가 없고 spring.cloud.aws.parameterstore.enabled 도 기본값(false)을 그대로 쓴다.
 # 값은 저장소에 두지 않고 ${VAR} 참조만 남긴다(루트 CLAUDE.md 「시크릿은 환경변수 또는 AWS 파라미터 스토어로 주입한다」).
 spring:
+  flyway:
+    # V560은 V900이 이미 적용된 기존 개발 DB에 뒤늦게 추가된 마이그레이션이다.
+    # 개발 환경에서만 기존 DB를 초기화하지 않고 누락된 스키마 변경을 적용한다.
+    # 운영은 기본값(false)을 유지해 번호 순서가 어긋난 마이그레이션을 조용히 적용하지 않는다.
+    out-of-order: true
   # LocalStack 으로 SQS 경로를 실제 메시지로 검증한다(D-74). 엔드포인트만 갈아끼우면
   # prod 와 같은 코드가 돈다(NFR-INF-005) — LocalStack 은 자격증명 값을 보지 않는다.
   cloud:
