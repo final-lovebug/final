@@ -122,16 +122,32 @@
       실제로 파라미터를 넣어 경로→프로퍼티 매핑과 **EPP가 Parameter Store 뒤에 도는 것**을 본다.
       순서가 뒤집히면 예외 없이 아무것도 하지 않는다
 
+> ⚠️ **수집기를 없애도 메트릭만은 조용히 계속 두드린다.** 트레이스·로그는 엔드포인트가 없으면
+> `*ConnectionDetails` 빈이 없어 익스포터도 안 생기지만, 메트릭은 `OtlpMeterRegistry`가 그대로
+> 만들어져 Micrometer 기본 주소(`http://localhost:4318/v1/metrics`)로 60초마다 붙으려 한다
+> (`OtlpPropertyBindingTest`가 이 비대칭을 못 박아 두었다). 실패 로그는 되먹임 차단 때문에
+> 눌려 있어 보이지 않는다. **해롭지는 않지만 `backend/compose.yaml`의 LGTM을 영구히 빼지 않는
+> 이유다.** 수집기 없이 돌려야 한다면 `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED=false`를 준다.
+
 > **테스트에서는 텔레메트리가 LGTM으로 나가지 않는다.** `spring-boot-starter-opentelemetry-test`가
 > `@SpringBootTest`마다 `management.tracing.export.enabled=false`를 꽂는다(메트릭도 같다). 켜려면
 > `@AutoConfigureObservability`나 `spring.test.tracing.export=true`가 필요하다. **로컬 LGTM으로
 > 실제 신호를 보내는 것은 `bootRun`뿐이다** — 아래 수동 확인이 그래서 남는다.
 
 - [x] `./gradlew spotlessApply && ./gradlew check`
+- [x] 로컬 — **추적 컨텍스트가 실제로 돈다**(2026-09-15, `bootRun`). 잘못된 토큰으로 로그인을
+      시도하니 로그에 `[{traceId}-{spanId}]`가 붙었다. **수집기가 없어도 이 값이 있다**는 것이
+      함께 확인된 셈이라 `D-96`의 「익스포터를 꺼도 `Tracer`는 만들어진다」가 실물로 증명됐다
+- [x] 로컬 — **수집기를 아예 두지 않아도 서비스가 계속된다**(2026-09-15). `backend/compose.yaml`에서
+      `grafana-lgtm`을 빼고도 같은 형태로 응답·로그가 나왔다
+- [ ] 로컬 — **에러 응답 본문의 `traceId`가 같은 로그의 값과 일치하는지.** 위에서 본 것은 로그뿐이다.
+      `X-08`이 실제로 닫혔는지는 응답 JSON을 봐야 한다
+- [ ] 로컬 — **수집기가 있는데 죽어 있을 때**(`D-98`). 위 확인은 「수집기가 없는」 경로라
+      트레이스·로그 익스포터가 아예 만들어지지 않는다. 되먹임 차단이 듣는지는 LGTM을 **띄웠다가
+      내려야** 확인된다
 - [ ] 로컬 — `bootRun`으로 Tempo·Loki·Prometheus 3신호 확인. **에러 응답의 `traceId`로 트레이스가
       조회되고 Loki 로그의 `trace_id`가 같은 값인지**까지 본다. 배치 플러시에 수 초 걸리므로
       즉시 조회하면 안 나온다
-- [ ] 로컬 — **LGTM을 내린 채로도 서비스가 계속되는지**(`D-98`). export 실패 로그가 쌓이지 않는지
 - [x] `grep -r "grafana.net" backend/src`가 0건 — 로컬·테스트 경로에 Cloud 주소가 없다
 - [ ] 배포 — `/lovebug/otel/enabled=false`로 먼저 배포해 **설정 변경만 단독 검증**
 - [ ] 배포 — `true`로 바꾸고 재배포. Grafana Cloud에서 3신호, `docker logs spring`에 EPP의
