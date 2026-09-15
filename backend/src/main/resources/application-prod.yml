@@ -48,7 +48,13 @@ app:
     secret: ${jwt.secret}
   oauth:
     # 프론트엔드 주소가 미확정이라 파라미터로 빼둔다 - 값이 정해지면 파라미터만 교체한다.
+    # 지금 프론트는 https://ubidic.site 이므로 /lovebug/oauth/frontend-redirect-uri 에는
+    # https://ubidic.site/oauth/callback 이 들어가야 한다(라우트는 frontend/src/app/router.tsx).
     frontend-redirect-uri: ${oauth.frontend-redirect-uri}
+  cors:
+    # 운영 프론트 도메인. refresh token 이 쿠키 기반이라 "*" 를 쓸 수 없고 origin 을 명시한다.
+    # origin 은 스킴+호스트까지만이며 경로·후행 슬래시를 붙이면 매칭되지 않는다.
+    allowed-origins: "${CORS_ALLOWED_ORIGINS:https://ubidic.site,https://www.ubidic.site}"
 
 management:
   endpoint:
