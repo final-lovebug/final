@@ -17,7 +17,8 @@ interface DraftDocumentApiResponse {
 }
 
 /**
- * 문서 리뷰 요청 생성(`POST /api/draft-documents/{draftDocumentId}/review-request`).
+ * 문서 리뷰 요청 생성. **두 단계다** — 교정 완료(`examine-completion`)로 초안을 EXAMINED 로
+ * 올린 뒤 리뷰 요청(`review-request`)을 만든다.
  *
  * **documentId로는 부를 수 없다** — 리뷰 대상은 문서가 아니라 그 문서의 초안이다. 화면은
  * documentId만 알고 있어 `GET /api/draft-documents?documentId=`로 초안을 먼저 찾는다.
@@ -36,6 +37,13 @@ export async function requestDocumentReview(
   if (!draft) {
     throw new Error('이 문서에는 리뷰를 요청할 초안이 없습니다.')
   }
+
+  // **교정 완료를 먼저 부른다.** 백엔드는 초안이 EXAMINED 일 때만 리뷰 요청을 받는다
+  // (DraftReviewRequestService.requestDocumentReview -> validateExaminedForReview). 이 호출이
+  // 빠져 있어 「검토 완료 · 리뷰 요청」이 개정안을 만들지 못했다. 상태만의 문제가 아니다 —
+  // 교정 결과를 합친 본문이 draftBody 로 확정되는 것도 이 시점이라, 건너뛰면 개정안에
+  // 교정 전 원본이 실린다. 사전집 경로(submitDictionaryRevision)와 같은 순서다.
+  await httpClient.post(`/api/draft-documents/${draft.draftDocumentId}/examine-completion`)
 
   const created = await httpClient.post<ReviewRequestApiResponse>(
     `/api/draft-documents/${draft.draftDocumentId}/review-request`,
