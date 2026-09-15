@@ -3,7 +3,6 @@ package com.ubidict.backend.member.infra;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.ubidict.backend.common.infra.persistence.JpaAuditingConfig;
 import com.ubidict.backend.member.domain.Member;
 import com.ubidict.backend.member.domain.MemberStatus;
 import com.ubidict.backend.member.domain.OAuthProvider;
@@ -12,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -25,8 +23,8 @@ import org.springframework.dao.DataIntegrityViolationException;
  * 아니라서(일반 {@code @Component}) 명시적으로 {@code @Import}한다 — 안 그러면
  * {@code EncryptedStringConverter}가 인스턴스를 못 찾아 {@code IllegalStateException}이 난다.
  */
-@Import({JpaAuditingConfig.class, MySqlContainerConfiguration.class, MemberFieldEncryptor.class})
-@AutoConfigureTestDatabase(replace = Replace.NONE)
+@Import(MemberFieldEncryptor.class)
+@AutoConfigureTestDatabase
 @DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false"})
 class MemberRepositoryTest {
 

@@ -7,11 +7,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
-import com.ubidict.backend.workspace.service.WorkspaceService;
 import com.ubidict.backend.workspace.service.model.CreateWorkspaceCommand;
 import com.ubidict.backend.workspace.service.model.WorkspaceResult;
 import io.restassured.http.ContentType;
@@ -22,10 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -34,21 +29,13 @@ import org.springframework.test.web.servlet.MockMvc;
  * 띄운다(member 도메인의 컨트롤러 테스트들과 동일한 이유).
  */
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(WorkspaceController.class)
-class WorkspaceControllerTest {
+class WorkspaceControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long WORKSPACE_ID = 10L;
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private WorkspaceService workspaceService;
-
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

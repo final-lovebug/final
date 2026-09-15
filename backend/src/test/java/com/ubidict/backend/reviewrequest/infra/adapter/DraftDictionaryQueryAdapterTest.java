@@ -70,15 +70,16 @@ class DraftDictionaryQueryAdapterTest extends RepositoryTestSupport {
                 .isNull();
     }
 
-    @DisplayName("등재 승인과 유지 항목만 통합 목록에 실린다.")
+    @DisplayName("초안에 남아 있는 모든 후보어가 판정 상태와 무관하게 통합 목록에 실린다.")
     @Test
-    void readFinalTerms_publishedStatusesOnly() {
+    void readFinalTerms_allRemainingCandidates() {
+        // docs/plan/DRAFT_PLAN.md — 초안 화면에서 판정을 걷어냈으므로 상태로 거르지 않는다.
+        // 예전 규칙(REGISTRATION_APPROVED·KEPT만)을 그대로 두면 새 후보어가 전부 PENDING 이라
+        // 발행 목록이 항상 비어 버린다.
         Long draftId = saveDraft();
         saveCandidate(draftId, "등재어", CandidateTermStatus.REGISTRATION_APPROVED);
         candidateTermRepository.save(CandidateTerm.createExisting(draftId, 100L, "유지어", "유지 정의", "Kept", 2L));
-        saveCandidate(draftId, "기각어", CandidateTermStatus.REJECTED);
         saveCandidate(draftId, "미처리어", CandidateTermStatus.PENDING);
-        saveCandidate(draftId, "편입어", CandidateTermStatus.MERGED_AS_SYNONYM);
         em.flush();
         em.clear();
 
@@ -86,7 +87,24 @@ class DraftDictionaryQueryAdapterTest extends RepositoryTestSupport {
 
         assertThat(terms)
                 .extracting(NewTermSnapshot::preferredForm, NewTermSnapshot::englishName, NewTermSnapshot::definition)
-                .containsExactly(tuple("등재어", "Approved", "정의"), tuple("유지어", "Kept", "유지 정의"));
+                .containsExactly(
+                        tuple("등재어", "Approved", "정의"), tuple("미처리어", "Approved", "정의"), tuple("유지어", "Kept", "유지 정의"));
+    }
+
+    @DisplayName("삭제한 후보어는 통합 목록에서 빠진다.")
+    @Test
+    void readFinalTerms_excludesDeleted() {
+        // 빼고 싶은 후보어는 판정이 아니라 삭제로 뺀다(소프트 삭제).
+        Long draftId = saveDraft();
+        saveCandidate(draftId, "남길어", CandidateTermStatus.PENDING);
+        CandidateTerm removed = saveCandidateEntity(draftId, "지울어", CandidateTermStatus.PENDING);
+        removed.delete();
+        em.flush();
+        em.clear();
+
+        assertThat(adapter.readFinalTerms(draftId))
+                .extracting(NewTermSnapshot::preferredForm)
+                .containsExactly("남길어");
     }
 
     @DisplayName("다른 초안의 후보어는 실리지 않는다.")
@@ -108,9 +126,13 @@ class DraftDictionaryQueryAdapterTest extends RepositoryTestSupport {
     }
 
     private void saveCandidate(Long draftDictionaryId, String form, CandidateTermStatus status) {
+        saveCandidateEntity(draftDictionaryId, form, status);
+    }
+
+    private CandidateTerm saveCandidateEntity(Long draftDictionaryId, String form, CandidateTermStatus status) {
         CandidateTerm candidate =
                 CandidateTerm.create(draftDictionaryId, form, "정의", "Approved", List.of(10L), 3, List.of("문맥"), 2L);
         ReflectionTestUtils.setField(candidate, "status", status);
-        candidateTermRepository.save(candidate);
+        return candidateTermRepository.save(candidate);
     }
 }

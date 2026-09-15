@@ -3,7 +3,7 @@ import type { CandidateTermListItem } from '../model/fixtures'
 import type { CandidateTermType } from '../model/types'
 import type { WorkspaceId } from '../../../shared/types/ids'
 import {
-  findExaminingDraftDictionaryId,
+  findOngoingDraftDictionaryId,
   toListItem,
   type CandidateTermApiResponse,
 } from './candidateTermApi'
@@ -12,8 +12,6 @@ export interface CreateCandidateTermInput {
   workspaceId: WorkspaceId
   form: string
   type: CandidateTermType
-  /** 등록자 표시 이름. 등록자는 요청자 본인이라 조회 없이 화면 값을 그대로 쓴다. */
-  ownerName: string
 }
 
 /**
@@ -27,7 +25,7 @@ export interface CreateCandidateTermInput {
 export async function createCandidateTerm(
   input: CreateCandidateTermInput,
 ): Promise<CandidateTermListItem> {
-  const draftDictionaryId = await findExaminingDraftDictionaryId(input.workspaceId)
+  const draftDictionaryId = await findOngoingDraftDictionaryId(input.workspaceId)
   if (draftDictionaryId === null) {
     throw new Error('교정 중인 사전 초안이 없습니다. 먼저 용어 추출을 실행해 주세요.')
   }
@@ -43,5 +41,5 @@ export async function createCandidateTerm(
       type: input.type,
     },
   )
-  return toListItem(response, input.ownerName)
+  return toListItem(response)
 }

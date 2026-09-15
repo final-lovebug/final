@@ -71,7 +71,7 @@ class RevisePublishIntegrationTest extends IntegrationTestSupport {
         var document = documentService.create(
                 new CreateDocumentCommand(workspace.getId(), "정책", "기존 본문", List.of(), OWNER_ID));
         DraftDocument draft = draftDocumentRepository.save(
-                DraftDocument.create(document.documentId(), 1, "개정 본문", OWNER_ID, OWNER_ID));
+                DraftDocument.create(document.documentId(), 1, 1, "개정 본문", OWNER_ID, OWNER_ID));
         ReviewRequest request = reviewRequestRepository.save(
                 ReviewRequest.create(workspace.getId(), ReviewRequestType.DOCUMENT, "리뷰", null, OWNER_ID, OWNER_ID));
         RevisionDocument revision = revisionDocumentRepository.save(

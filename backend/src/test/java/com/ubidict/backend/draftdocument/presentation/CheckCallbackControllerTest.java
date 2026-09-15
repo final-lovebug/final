@@ -13,7 +13,6 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.infra.port.CheckSuggestion;
 import com.ubidict.backend.draftdocument.service.DraftDocumentCheckCallbackService;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.util.List;
@@ -21,9 +20,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -32,20 +28,15 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p><b>{@code @WithLoginMember}가 없다.</b> 이 엔드포인트는 인증 주체 없이 동작해야 하므로 principal을 주입하지 않는 것 자체가 검증이다
  * (D-69).
  */
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(CheckCallbackController.class)
-class CheckCallbackControllerTest {
+class CheckCallbackControllerTest extends com.ubidict.backend.support.ControllerTest {
+
+    @Autowired
+    private DraftDocumentCheckCallbackService callbackService;
 
     private static final String REQUEST_ID = "0d5c6f6e-0000-4000-8000-000000000001";
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private DraftDocumentCheckCallbackService callbackService;
-
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

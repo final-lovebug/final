@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>사전집 개정안 리뷰 — UI 목업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* frontend/src/index.css 의 @theme 토큰을 그대로 옮겼다. 실제 화면과 같은 색·라운드·폰트다. */
+:root {
+  --bg: #f7f7f9; --bg-alt: #efeff6; --surface: #fff; --surface-muted: #fafafb;
+  --border: #e6e7eb; --border-strong: #e1e3e7; --border-soft: #f1f2f4; --border-faint: #f5f6f7;
+  --text: #14161a; --text-2: #4b5058; --text-3: #6b7080; --text-4: #9aa0ac; --text-faint: #b0b4bc; --text-disabled: #d8dae0;
+  --accent: #5b57f2; --accent-strong: #4a46e0; --accent-bg: #f0eefe; --accent-bg-strong: #f8f7fe; --accent-border: #dbd7fc;
+  --danger: #b3261e; --danger-bg: #fdecec; --danger-border: #f6c9c7;
+  --warn: #92590b; --warn-bg: #fff3dc; --warn-border: #f6dda8;
+  --success: #1f7a4d; --success-bg: #e8f6ee; --success-border: #c8ecda;
+  --neutral: #6b7080; --neutral-bg: #f1f2f4;
+  --r-lg: 16px; --r-md: 12px; --r-sm: 8px; --r-xs: 6px; --r-pill: 999px;
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --shadow-card: 0 1px 2px rgba(16,24,40,.04);
+  --shadow-pop: 0 14px 40px rgba(16,24,40,.14);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 13px; -webkit-font-smoothing: antialiased; }
+h1, h2, .display { font-family: var(--font-display); }
+button { font-family: inherit; }
+
+/* ── 목업 전용 크롬 ─────────────────────────────── */
+.mock-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 24px; background: #14161a; color: #fff; font-size: 11.5px; }
+.mock-bar b { font-family: var(--font-display); font-size: 12.5px; }
+.mock-bar .sep { flex: 1; }
+.mock-toggle { display: inline-flex; border: 1px solid #3a3d45; border-radius: var(--r-pill); overflow: hidden; }
+.mock-toggle button { border: 0; background: transparent; color: #b0b4bc; padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; }
+.mock-toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.legend { margin: 0; padding: 12px 24px; background: var(--accent-bg-strong); border-bottom: 1px solid var(--accent-border); font-size: 11.5px; color: var(--text-2); line-height: 1.7; }
+.legend b { color: var(--accent-strong); }
+.legend ol { margin: 6px 0 0; padding-left: 18px; }
+
+.page { padding: 26px 32px 60px; }
+
+/* ── 프리미티브 (shared/ui 이식) ──────────────────── */
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.spacer { flex: 1; }
+.title { font-size: 18px; font-weight: 700; margin: 0; }
+
+.pill { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; border: 1px solid; font-weight: 600; border-radius: var(--r-xs); padding: 3px 9px; font-size: 11px; }
+.pill.accent { border-color: var(--accent-border); background: var(--accent-bg); color: var(--accent-strong); }
+.pill.success { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
+.pill.warn { border-color: var(--warn-border); background: var(--warn-bg); color: var(--warn); }
+.pill.neutral { border-color: var(--border-strong); background: var(--neutral-bg); color: var(--text-3); }
+.pill.outline { border-color: var(--border-strong); background: var(--surface); color: var(--text-2); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; border-radius: var(--r-sm); border: 1px solid transparent; font-weight: 600; cursor: pointer; padding: 9px 18px; font-size: 13px; }
+.btn.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-strong); }
+.btn.outline { border-color: var(--border-strong); background: var(--surface); color: var(--text); }
+.btn.outline:hover { background: var(--bg); }
+.btn.sm { padding: 6px 12px; font-size: 12px; }
+.btn:disabled { border-color: var(--border-soft); background: var(--bg); color: var(--text-faint); cursor: not-allowed; }
+
+.card { border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-md); box-shadow: var(--shadow-card); }
+.meta { font-size: 11px; color: var(--text-4); }
+.section-head { display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--border-soft); padding: 13px 18px; }
+.section-head h2 { margin: 0; font-size: 14px; font-weight: 700; }
+
+.twocol { display: flex; gap: 16px; align-items: flex-start; }
+.colflex { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.thread { width: 360px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 16px; }
+
+table { width: 100%; border-collapse: collapse; }
+th { border-bottom: 1px solid var(--border-soft); padding: 11px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-4); }
+td { border-bottom: 1px solid var(--border-faint); padding: 12px 16px; color: var(--text-2); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--surface-muted); }
+tbody tr[aria-selected="true"] { background: var(--accent-bg-strong); box-shadow: inset 3px 0 0 var(--accent); }
+td.term { font-weight: 700; color: var(--text); }
+td.has-comment { font-weight: 600; color: var(--warn); }
+td.no-comment { color: var(--text-4); }
+
+.avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-pill); font-weight: 700; flex-shrink: 0; }
+.avatar.s28 { width: 28px; height: 28px; font-size: 11.5px; }
+.avatar.s22 { width: 22px; height: 22px; font-size: 10px; }
+.avatar.accent { background: var(--accent-bg); color: var(--accent-strong); }
+.avatar.warn { background: var(--warn-bg); color: var(--warn); }
+.avatar.success { background: var(--success-bg); color: var(--success); }
+.avatar.neutral { background: var(--neutral-bg); color: var(--text-3); }
+
+/* 리뷰어 패널 */
+.panel-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-soft); padding: 11px 14px; }
+.panel-head > span { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.reviewer-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-faint); padding: 9px 14px; font-size: 12.5px; }
+.reviewer-row:last-of-type { border-bottom: 0; }
+.reviewer-row .name { font-weight: 600; }
+.verdict { margin-left: auto; font-size: 11px; font-weight: 700; }
+.verdict.approved { color: var(--success); }
+.verdict.changes { color: var(--warn); }
+.verdict.waiting { color: var(--text-4); font-weight: 600; }
+.panel-foot { border-top: 1px solid var(--border-soft); padding: 9px 12px; font-size: 10.5px; line-height: 1.6; color: var(--text-4); }
+
+/* 코멘트 카드 */
+.comment { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 14px; }
+.comment.pending { border-style: dashed; background: var(--surface-muted); }
+.comment-head { margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.comment-head .name { font-size: 12.5px; font-weight: 700; }
+.comment-head .time { font-size: 10.5px; color: var(--text-4); margin-left: auto; }
+.comment-body { margin: 0; white-space: pre-wrap; font-size: 12.5px; line-height: 1.6; color: var(--text-2); }
+.comment-body.empty { color: var(--text-4); font-style: italic; }
+
+/* ── 리뷰 섹션 (가운데, 표 아래) ──────────────────── */
+/* 묶음 = 그 사람. 묶음 본문이 곧 「최신 리뷰」다 — 안에 박스를 한 겹 더 두지 않는다. */
+.reviewer-group { border-bottom: 1px solid var(--border-soft); padding: 16px 18px; }
+.reviewer-group:last-child { border-bottom: 0; }
+.group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.group-head .name { font-size: 13.5px; font-weight: 700; }
+.group-head .time { margin-left: auto; font-size: 10.5px; color: var(--text-4); }
+
+.entry-body { margin: 0; font-size: 13px; line-height: 1.65; color: var(--text-2); white-space: pre-wrap; }
+.entry-body.empty { color: var(--text-4); font-style: italic; font-size: 12.5px; }
+
+.entry-items { margin-top: 12px; border-top: 1px solid var(--border-faint); padding-top: 11px; display: flex; flex-direction: column; gap: 9px; }
+.entry-items .label { font-size: 10.5px; font-weight: 700; color: var(--text-4); letter-spacing: .02em; }
+.item-line { display: flex; gap: 8px; align-items: flex-start; }
+.item-line .arrow { color: var(--text-disabled); font-size: 12px; line-height: 1.6; }
+.item-line .body { font-size: 12.5px; line-height: 1.6; color: var(--text-2); }
+.item-line .body .pill { margin-right: 6px; vertical-align: 1px; }
+.item-line .body .pill:hover { border-color: var(--accent-border); background: var(--accent-bg); color: var(--accent-strong); cursor: pointer; }
+
+/* 대체된 이전 리뷰 — 기본으로 접혀 있다 */
+.prev { margin-top: 12px; }
+.prev > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
+  font-size: 11px; font-weight: 600; color: var(--text-3); border: 1px solid var(--border-strong);
+  background: var(--surface-muted); border-radius: var(--r-pill); padding: 4px 11px; user-select: none; }
+.prev > summary::-webkit-details-marker { display: none; }
+.prev > summary:hover { border-color: var(--accent-border); background: var(--accent-bg-strong); color: var(--accent-strong); }
+.prev > summary .caret { transition: transform .12s ease; display: inline-block; font-size: 9px; }
+.prev[open] > summary .caret { transform: rotate(90deg); }
+.prev-list { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.review-entry { border: 1px dashed var(--border-strong); border-radius: var(--r-md); background: var(--surface-muted); padding: 13px 15px; opacity: .78; }
+.entry-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 9px; }
+.entry-head .time { margin-left: auto; font-size: 10.5px; color: var(--text-4); }
+
+.group-empty { margin: 0; font-size: 12px; color: var(--text-4); }
+
+/* 작성 박스 */
+textarea { width: 100%; resize: vertical; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-muted); padding: 10px 12px; font-family: inherit; font-size: 12.5px; line-height: 1.6; color: var(--text); }
+textarea:focus { outline: 2px solid var(--accent-border); border-color: var(--accent); }
+.compose { display: flex; flex-direction: column; gap: 8px; }
+.compose .btn { align-self: flex-end; }
+
+/* 팝오버 */
+.pop-anchor { position: relative; }
+.popover { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 360px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow-pop); text-align: left; }
+.popover[hidden] { display: none; }
+.pop-head { border-bottom: 1px solid var(--border-soft); padding: 12px 14px; font-family: var(--font-display); font-size: 13.5px; font-weight: 700; }
+.pop-body { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+.field-label { display: block; margin-bottom: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-2); }
+.field-label .optional { font-weight: 500; color: var(--text-4); }
+.field-label .req { color: var(--danger); }
+.radio-row { display: flex; gap: 9px; width: 100%; cursor: pointer; border: 1px solid transparent; border-radius: var(--r-sm); padding: 9px 10px; text-align: left; background: transparent; }
+.radio-row:hover { background: var(--bg); }
+.radio-row[aria-checked="true"] { border-color: var(--accent-border); background: var(--accent-bg-strong); }
+.dot { margin-top: 2px; width: 14px; height: 14px; border-radius: var(--r-pill); border: 1.5px solid var(--border-strong); flex-shrink: 0; display: inline-block; }
+.radio-row[aria-checked="true"] .dot { border-color: var(--accent); border-width: 4px; }
+.radio-row .t { display: block; font-size: 12.5px; font-weight: 700; }
+.radio-row .d { display: block; margin-top: 2px; font-size: 11px; line-height: 1.55; color: var(--text-3); }
+.pop-foot { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--border-soft); padding: 12px 14px; }
+
+.note { margin: 0; font-size: 10.5px; line-height: 1.6; color: var(--text-4); }
+.callout { margin-top: 8px; border: 1px dashed var(--accent-border); border-radius: var(--r-sm); background: var(--accent-bg-strong); padding: 8px 10px; font-size: 10.5px; line-height: 1.6; color: var(--accent-strong); }
+
+@media (max-width: 1080px) {
+  .twocol { flex-direction: column; }
+  .thread { width: 100%; position: static; }
+  .page { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+
+<div class="mock-bar">
+  <b>목업</b> 사전집 개정안 리뷰 화면 — <code>/workspaces/1/dictionary/revisions/current</code>
+  <span class="sep"></span>
+  <span style="color:#9aa0ac">보는 사람</span>
+  <span class="mock-toggle">
+    <button type="button" id="asReviewer" aria-pressed="true">이검토 (리뷰어)</button>
+    <button type="button" id="asRequester" aria-pressed="false">박작성 (요청자)</button>
+  </span>
+</div>
+
+<p class="legend">
+  <b>이 목업이 보여주는 네 가지 변경점</b>
+  <ol>
+    <li><b>같은 사람이 여러 번 리뷰 → 마지막 것만 유효.</b> 가운데 <b>리뷰</b> 섹션은 사람 하나당 묶음 하나이고 <b>보이는 것이 최신 리뷰</b>다. 김리뷰의 옛 「변경 요청」은 <b>「대체된 이전 리뷰 1건」 토글 안에 접혀</b> 있다 — 펴서 볼 수는 있지만 정족수에는 최신 「승인」만 센다.</li>
+    <li><b>전체 코멘트가 보인다.</b> 묶음 본문이 곧 <b>전체 코멘트</b>이고, 그 아래 용어별 코멘트가 딸려 붙는다.</li>
+    <li><b>요청자는 본인 리뷰 불가.</b> 위 토글을 「박작성(요청자)」으로 바꾸면 「리뷰 마무리」가 잠긴다. 서버도 403으로 거절한다.</li>
+    <li><b>코멘트 없이도 리뷰된다.</b> 이검토의 카드가 <b>「코멘트 없이 승인했습니다」</b>로 남는다 — 지금은 제출해도 화면에 흔적이 없어 안 된 것처럼 보였다.</li>
+  </ol>
+</p>
+
+<div class="page">
+
+  <!-- ── 툴바 ─────────────────────────────── -->
+  <div class="toolbar">
+    <h1 class="title">사전집 개정안 — r3 → r4</h1>
+    <span class="pill accent">APPROVED</span>
+    <span class="spacer"></span>
+
+    <div class="pop-anchor">
+      <button type="button" class="btn primary" id="finishBtn">리뷰 마무리 (코멘트 1) ▾</button>
+
+      <div class="popover" id="popover" hidden>
+        <div class="pop-head">리뷰 마무리</div>
+        <div class="pop-body">
+          <div>
+            <label class="field-label" for="summary">전체 코멘트 <span class="optional">(선택)</span></label>
+            <textarea id="summary" rows="3" placeholder="남길 말이 있으면 적습니다. 용어별 코멘트는 표에서 따로 답니다."></textarea>
+            <div class="callout">비워 두고 제출해도 됩니다 — 리뷰 목록에 「코멘트 없이 승인했습니다」로 남습니다.</div>
+          </div>
+          <div>
+            <span class="field-label">판정 <span class="req">*</span></span>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <button type="button" class="radio-row" role="radio" aria-checked="true" data-verdict="APPROVED">
+                <span class="dot"></span>
+                <span><span class="t">승인</span><span class="d">이대로 발행해도 좋다는 뜻입니다. 정족수에 포함됩니다.</span></span>
+              </button>
+              <button type="button" class="radio-row" role="radio" aria-checked="false" data-verdict="CHANGES_REQUESTED">
+                <span class="dot"></span>
+                <span><span class="t">변경 요청</span><span class="d">요청자가 초안을 고쳐 다시 올려야 합니다.</span></span>
+              </button>
+            </div>
+            <p class="note" style="margin-top:7px">이미 리뷰를 냈더라도 다시 낼 수 있습니다 — <b>마지막 판정만</b> 집계됩니다.</p>
+          </div>
+        </div>
+        <div class="pop-foot">
+          <span class="note">용어별 코멘트 1건이 함께 제출됩니다</span>
+          <button type="button" class="btn primary sm" style="margin-left:auto">리뷰 제출</button>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" class="btn primary">반영 · r4 발행</button>
+  </div>
+
+  <p class="meta" style="margin:0 0 16px">승인 2 · 변경요청 0 · 필요 정족수 2</p>
+
+  <!-- ── 본문 2단 ───────────────────────────── -->
+  <div class="twocol">
+
+    <!-- ══ 가운데: 용어 표 + 리뷰 ══════════════ -->
+    <div class="colflex">
+
+      <div class="card" style="overflow:hidden">
+        <table>
+          <thead>
+            <tr><th>용어</th><th>변경</th><th>코멘트</th></tr>
+          </thead>
+          <tbody id="termRows">
+            <tr data-term="멱등성" aria-selected="true">
+              <td class="term">멱등성</td><td><span class="pill accent">추가</span></td><td class="has-comment">💬 2개</td>
+            </tr>
+            <tr data-term="재시도 백오프" aria-selected="false">
+              <td class="term">재시도 백오프</td><td><span class="pill accent">추가</span></td><td class="has-comment">💬 1개</td>
+            </tr>
+            <tr data-term="개정안" aria-selected="false">
+              <td class="term">개정안</td><td><span class="pill neutral">승계</span></td><td class="has-comment">💬 1개 (미제출 포함)</td>
+            </tr>
+            <tr data-term="워크스페이스" aria-selected="false">
+              <td class="term">워크스페이스</td><td><span class="pill neutral">승계</span></td><td class="no-comment">—</td>
+            </tr>
+            <tr data-term="사전집" aria-selected="false">
+              <td class="term">사전집</td><td><span class="pill neutral">승계</span></td><td class="no-comment">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── 리뷰 섹션 ──────────────────────── -->
+      <div class="card" style="overflow:hidden">
+        <div class="section-head">
+          <h2>리뷰</h2>
+          <span class="pill neutral">3건 · 2명</span>
+          <span class="spacer"></span>
+          <span class="meta">최신 리뷰만 정족수에 셉니다</span>
+        </div>
+
+        <!-- 김리뷰 — 묶음 본문이 곧 최신 리뷰다. 이전 리뷰는 접혀 있다. -->
+        <div class="reviewer-group">
+          <div class="group-head">
+            <span class="avatar s28 accent">김</span>
+            <span class="name">김리뷰</span>
+            <span class="pill success">✓ 승인</span>
+            <span class="time">3시간 전</span>
+          </div>
+
+          <p class="entry-body">고친 내용 확인했습니다. 「멱등성」 정의가 메시지 처리까지 덮게 바뀌었고 표기도 통일됐습니다. 이대로 발행해도 좋습니다.</p>
+
+          <div class="entry-items">
+            <span class="label">용어 코멘트 2</span>
+            <div class="item-line">
+              <span class="arrow">↳</span>
+              <span class="body"><span class="pill outline term-link" data-term="멱등성">멱등성</span>정의 수정 확인했습니다.</span>
+            </div>
+            <div class="item-line">
+              <span class="arrow">↳</span>
+              <span class="body"><span class="pill outline term-link" data-term="재시도 백오프">재시도 백오프</span>「백오프 재시도」로 쓰던 문서들이 있었는데 통일한 점 좋습니다.</span>
+            </div>
+          </div>
+
+          <details class="prev">
+            <summary><span class="caret">▶</span> 대체된 이전 리뷰 1건</summary>
+            <div class="prev-list">
+              <div class="review-entry">
+                <div class="entry-head">
+                  <span class="pill warn">↻ 변경 요청</span>
+                  <span class="pill neutral">대체됨</span>
+                  <span class="time">2일 전</span>
+                </div>
+                <p class="entry-body">전반적으로 방향은 좋습니다. 다만 「멱등성」 정의가 문서마다 다르게 쓰이고 있어서, 이 사전집이 기준을 못 잡으면 의미가 없습니다.</p>
+                <div class="entry-items">
+                  <span class="label">용어 코멘트 1</span>
+                  <div class="item-line">
+                    <span class="arrow">↳</span>
+                    <span class="body"><span class="pill outline term-link" data-term="멱등성">멱등성</span>정의가 API 요청 한정으로 읽힙니다. 메시지 처리·재시도 맥락까지 포함해 주세요.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- 이검토 — 코멘트 없는 승인 -->
+        <div class="reviewer-group">
+          <div class="group-head">
+            <span class="avatar s28 warn">이</span>
+            <span class="name">이검토</span>
+            <span class="pill success">✓ 승인</span>
+            <span class="time">어제</span>
+          </div>
+          <p class="entry-body empty">코멘트 없이 승인했습니다.</p>
+        </div>
+
+        <!-- 최참여 — 미제출 -->
+        <div class="reviewer-group">
+          <div class="group-head">
+            <span class="avatar s28 success">최</span>
+            <span class="name">최참여</span>
+            <span class="pill neutral">대기</span>
+          </div>
+          <p class="group-empty">아직 리뷰를 제출하지 않았습니다.</p>
+        </div>
+      </div>
+
+      <p class="note">사람 하나당 묶음 하나이고, <b>묶음에 바로 보이는 것이 그 사람의 최신 리뷰</b>입니다. 이전 리뷰는 같은 사람의 더 최신 리뷰로 대체되어 <b>정족수에 세지 않으므로</b> 접어 두고, 필요할 때만 펴서 봅니다. 용어 Pill을 누르면 우측이 그 용어로 바뀝니다.</p>
+    </div>
+
+    <!-- ══ 우측: 리뷰어 + 용어 코멘트 ══════════ -->
+    <div class="thread">
+
+      <div class="card">
+        <div class="panel-head"><span>리뷰어 3</span><span style="color:var(--text-4);font-size:13px">⚙</span></div>
+
+        <div class="reviewer-row">
+          <span class="avatar s22 accent">김</span><span class="name">김리뷰</span>
+          <span class="verdict approved">✓ 승인</span>
+        </div>
+        <div class="reviewer-row" style="background:var(--accent-bg-strong)">
+          <span class="avatar s22 warn">이</span><span class="name">이검토</span>
+          <span class="verdict approved">✓ 승인</span>
+        </div>
+        <div class="reviewer-row">
+          <span class="avatar s22 success">최</span><span class="name">최참여</span>
+          <span class="verdict waiting">대기</span>
+        </div>
+
+        <p class="panel-foot">
+          판정은 <b>그 사람이 마지막으로 낸 리뷰</b>입니다. 지정은 <b>알림 대상</b>을 정하는 것이고
+          검토 자격을 정하는 것이 아닙니다 — 지정되지 않은 참여자도 검토할 수 있습니다.
+        </p>
+      </div>
+
+      <p style="margin:4px 0 0;font-size:12.5px;font-weight:700">
+        <span id="selectedTerm">멱등성</span> · 코멘트 <span class="meta" style="font-weight:600" id="termCount">2</span>
+      </p>
+
+      <div id="termComments" style="display:flex;flex-direction:column;gap:10px"></div>
+
+      <div class="compose">
+        <textarea rows="2" placeholder="댓글 남기기… (리뷰 마무리 할 때 함께 제출됩니다)"></textarea>
+        <button type="button" class="btn primary sm">담기</button>
+      </div>
+
+      <p class="note">선택한 용어에 달린 코멘트를 <b>시간순</b>으로 보여 줍니다. 각 코멘트에 그 리뷰의 판정이 함께 붙습니다.</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── 용어별 코멘트 (선택한 용어의 리뷰들을 순서대로) ──────────
+const TERM_COMMENTS = {
+  '멱등성': [
+    { who: '김리뷰', tone: 'accent', verdict: 'changes', time: '2일 전',
+      text: '정의가 API 요청 한정으로 읽힙니다. 메시지 처리·재시도 맥락까지 포함해 주세요.' },
+    { who: '김리뷰', tone: 'accent', verdict: 'approved', time: '3시간 전',
+      text: '정의 수정 확인했습니다.' },
+  ],
+  '재시도 백오프': [
+    { who: '김리뷰', tone: 'accent', verdict: 'approved', time: '3시간 전',
+      text: '「백오프 재시도」로 쓰던 문서들이 있었는데 「재시도 백오프」로 통일한 점 좋습니다.' },
+  ],
+  '개정안': [
+    { who: '이검토', tone: 'warn', verdict: null, time: '미제출', pending: true,
+      text: '예시 문장을 하나 붙이면 더 명확할 것 같습니다.' },
+  ],
+  '워크스페이스': [],
+  '사전집': [],
+};
+const VERDICT_PILL = {
+  approved: '<span class="pill success">✓ 승인</span>',
+  changes: '<span class="pill warn">↻ 변경 요청</span>',
+};
+
+function renderTerm(term) {
+  document.getElementById('selectedTerm').textContent = term;
+  const list = TERM_COMMENTS[term] || [];
+  document.getElementById('termCount').textContent = String(list.length);
+  const box = document.getElementById('termComments');
+  box.innerHTML = list.length === 0
+    ? '<p class="note" style="padding:4px 0">아직 코멘트가 없습니다.</p>'
+    : list.map((c) => `
+      <div class="comment${c.pending ? ' pending' : ''}">
+        <div class="comment-head">
+          <span class="avatar s22 ${c.tone}">${c.who.charAt(0)}</span>
+          <span class="name">${c.who}</span>
+          ${c.verdict ? VERDICT_PILL[c.verdict] : ''}
+          <span class="time">${c.time}</span>
+        </div>
+        <p class="comment-body">${c.text}</p>
+      </div>`).join('');
+}
+
+// ── 용어 행 선택 ───────────────────────────────
+document.getElementById('termRows').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr');
+  if (!tr) return;
+  selectTerm(tr.dataset.term);
+});
+
+// ── 리뷰 섹션의 용어 Pill → 우측 전환 ───────────
+document.querySelectorAll('.term-link').forEach((el) => {
+  el.addEventListener('click', () => selectTerm(el.dataset.term));
+});
+
+function selectTerm(term) {
+  document.querySelectorAll('#termRows tr').forEach((r) =>
+    r.setAttribute('aria-selected', String(r.dataset.term === term)));
+  renderTerm(term);
+}
+renderTerm('멱등성');
+
+// ── 리뷰 마무리 팝오버 ────────────────────────────
+const finishBtn = document.getElementById('finishBtn');
+const popover = document.getElementById('popover');
+finishBtn.addEventListener('click', () => { popover.hidden = !popover.hidden; });
+document.addEventListener('mousedown', (e) => {
+  if (!popover.hidden && !e.target.closest('.pop-anchor')) popover.hidden = true;
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') popover.hidden = true; });
+
+popover.querySelectorAll('.radio-row').forEach((row) => {
+  row.addEventListener('click', () => {
+    popover.querySelectorAll('.radio-row').forEach((r) =>
+      r.setAttribute('aria-checked', String(r === row)));
+  });
+});
+
+// ── 시점 토글: 요청자면 리뷰 제출이 잠긴다 ──────────
+const asReviewer = document.getElementById('asReviewer');
+const asRequester = document.getElementById('asRequester');
+function setViewer(isRequester) {
+  asReviewer.setAttribute('aria-pressed', String(!isRequester));
+  asRequester.setAttribute('aria-pressed', String(isRequester));
+  finishBtn.disabled = isRequester;
+  finishBtn.title = isRequester ? '본인이 올린 요청은 본인이 검토할 수 없습니다' : '';
+  finishBtn.textContent = isRequester ? '리뷰 마무리 ▾' : '리뷰 마무리 (코멘트 1) ▾';
+  if (isRequester) popover.hidden = true;
+}
+asReviewer.addEventListener('click', () => setViewer(false));
+asRequester.addEventListener('click', () => setViewer(true));
+</script>
+</body>
+</html>

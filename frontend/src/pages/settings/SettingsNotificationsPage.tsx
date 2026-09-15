@@ -1,75 +1,48 @@
-import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Banner, Card, DataTable, Pill, Td, Th, Toggle, Tr } from '../../shared/ui'
+import { cx } from '../../shared/lib/cx'
 import type { NotificationChannel } from '../../shared/types/common'
-import { Button, Card, Pill } from '../../shared/ui'
-import { useNotificationSettings } from '../../features/notification/hooks/useNotificationSettings'
-import { useUpdateNotificationSettings } from '../../features/notification/hooks/useUpdateNotificationSettings'
 import {
   NOTIFICATION_CHANNEL_DISPLAY_META,
+  NOTIFICATION_CHANNEL_SUMMARY_FIXTURES,
   NOTIFICATION_TYPE_LABEL,
+  NOTIFICATION_TYPE_SETTING_FIXTURES,
 } from '../../features/notification/model/fixtures'
-import type { NotificationType } from '../../features/notification/model/types'
 
 const CHANNEL_COLUMNS: NotificationChannel[] = ['IN_APP', 'EMAIL', 'SLACK']
 
-// docs/API.md "알림 설정 조회/수정" 이식. 서버는 유형(NotificationType) × 채널 매트릭스로
-// 저장하고, 상단 채널 요약(channels)은 그 매트릭스에서 파생한 값이라 여기서 따로 편집하지
-// 않는다 — 실제로 켜고 끄는 지점은 매트릭스 체크박스뿐이다(D-47). EMAIL·SLACK은 MVP2라
-// supported가 false로 내려와 체크박스를 잠근다.
+// ui/main.js renderSettingsNotif() 이식.
+//
+// **읽기 전용 화면이다(2026-09-14 정정).** 알림 "설정"에는 대응하는 백엔드가 없다 —
+// `D-54`가 MVP1에서 채널 개념(`NotificationChannel`·채널 어댑터·`NotificationSetting`
+// 엔티티·서비스·컨트롤러·테이블)을 전부 걷어냈다. MVP1의 전달 수단은 인앱 하나뿐이고
+// 인앱은 DB에 행이 있는 것이 곧 전달이라, 고를 채널이 없어 설정 화면이 의미가 없었다.
+// `REQ-NTF-009`(수신 설정)는 MVP2로 내려가 대기 상태다.
+//
+// 그래서 저장 버튼과 편집 가능한 체크박스를 없앴다 — 조회할 API도 저장할 API도 없는데
+// 눌리는 버튼을 두면 "저장했다"는 거짓말이 된다. 대신 **지금 실제로 어떻게 동작하는지**
+// (전 유형 인앱 발송, 나머지 채널 미지원)를 그대로 보여준다. 여기 쓰는 상수는 서버 응답이
+// 아니라 그 고정 정책을 적어 둔 것이다.
 export function SettingsNotificationsPage() {
-  const { workspaceId = '' } = useParams<{ workspaceId: string }>()
-  const { data, isLoading } = useNotificationSettings(workspaceId)
-  const updateSettings = useUpdateNotificationSettings(workspaceId)
-
-  // { [type]: Set<channel> } — 저장 전까지의 편집 상태. 서버 응답이 오면 한 번 채운다.
-  const [draft, setDraft] = useState<Record<NotificationType, Set<NotificationChannel>> | null>(null)
-
-  useEffect(() => {
-    if (!data) return
-    setDraft(
-      Object.fromEntries(
-        data.settings.map((setting) => [setting.type, new Set(setting.channels)]),
-      ) as Record<NotificationType, Set<NotificationChannel>>,
-    )
-  }, [data])
-
-  function toggle(type: NotificationType, channel: NotificationChannel) {
-    setDraft((prev) => {
-      if (!prev) return prev
-      const next = { ...prev, [type]: new Set(prev[type]) }
-      if (next[type].has(channel)) {
-        next[type].delete(channel)
-      } else {
-        next[type].add(channel)
-      }
-      return next
-    })
-  }
-
-  function handleSave() {
-    if (!draft) return
-    updateSettings.mutate({
-      settings: (Object.entries(draft) as [NotificationType, Set<NotificationChannel>][]).map(
-        ([type, channels]) => ({ type, channels: [...channels] }),
-      ),
-    })
-  }
-
-  if (isLoading || !data || !draft) {
-    return <p className="text-sm text-text-tertiary">불러오는 중…</p>
-  }
-
   return (
     <div className="flex max-w-[720px] flex-col gap-[22px]">
+      <Banner className="leading-[1.7]">
+        지금은 <strong>인앱 알림만</strong> 동작하고, 유형별로 켜고 끄는 설정은 아직
+        없습니다(MVP2). 알림은 헤더 벨에서 확인합니다 — 이 화면은 현재 동작을 보여주는
+        읽기 전용입니다.
+      </Banner>
+
       <Card className="px-[22px] py-[6px]">
-        {data.channels.map((summary, idx) => {
+        {NOTIFICATION_CHANNEL_SUMMARY_FIXTURES.map((summary, index) => {
           const meta = NOTIFICATION_CHANNEL_DISPLAY_META[summary.channel]
           return (
             <div
               key={summary.channel}
-              className={`flex items-center justify-between py-4 ${
-                idx < data.channels.length - 1 ? 'border-b border-border-soft' : ''
-              } ${summary.supported ? '' : 'opacity-60'}`}
+              className={cx(
+                'flex items-center justify-between py-4',
+                index < NOTIFICATION_CHANNEL_SUMMARY_FIXTURES.length - 1 &&
+                  'border-b border-border-soft',
+                !summary.supported && 'opacity-60',
+              )}
             >
               <div>
                 <div className="flex items-center gap-2 text-[13.5px] font-bold">
@@ -80,18 +53,12 @@ export function SettingsNotificationsPage() {
                   <p className="mt-[2px] text-[11.5px] text-text-quaternary">{meta.desc}</p>
                 )}
               </div>
-              <span
-                className={`inline-block h-[22px] w-[38px] shrink-0 rounded-[11px] ${
-                  summary.enabled ? 'bg-accent' : 'bg-border-strong'
-                }`}
-                title="아래 표에서 유형별로 켜고 끕니다"
-              />
+              <Toggle on={summary.enabled} label={`${meta.name} 사용 여부(변경 불가)`} />
             </div>
           )
         })}
-        <div
-          className="flex items-center justify-between border-t border-border-soft py-4 opacity-60"
-        >
+
+        <div className="flex items-center justify-between border-t border-border-soft py-4 opacity-60">
           <div>
             <div className="flex items-center gap-2 text-[13.5px] font-bold">
               웹 push
@@ -101,76 +68,61 @@ export function SettingsNotificationsPage() {
               브라우저를 닫아도 받습니다. 브라우저 알림 권한이 필요합니다
             </p>
           </div>
-          <span className="inline-block h-[22px] w-[38px] shrink-0 cursor-not-allowed rounded-[11px] bg-border-strong" />
+          <Toggle on={false} label="웹 push(미지원)" />
         </div>
       </Card>
 
-      <div className="rounded-sm bg-neutral-bg p-3 text-[12.5px] text-text-secondary">
+      <Banner tone="neutral">
         카카오톡은 지원하지 않습니다 — 알림톡 발신에 사업자등록증과 템플릿 심사가 필요합니다.
-      </div>
+      </Banner>
 
       <Card className="p-5">
-        <table className="w-full border-collapse text-xs">
+        <DataTable className="text-xs">
           <thead>
             <tr>
-              <th className="border-b border-border-soft px-2 py-2 text-left text-text-quaternary">
-                트리거
-              </th>
+              <Th className="px-2 py-2">트리거</Th>
               {CHANNEL_COLUMNS.map((channel) => {
-                const supported = data.channels.find((c) => c.channel === channel)?.supported
+                const supported = NOTIFICATION_CHANNEL_SUMMARY_FIXTURES.find(
+                  (summary) => summary.channel === channel,
+                )?.supported
                 return (
-                  <th
+                  <Th
                     key={channel}
-                    className={`border-b border-border-soft px-2 py-2 text-center text-text-quaternary ${
-                      supported ? '' : 'opacity-50'
-                    }`}
+                    className={cx('px-2 py-2 text-center', !supported && 'opacity-50')}
                   >
                     {NOTIFICATION_CHANNEL_DISPLAY_META[channel].name}
-                  </th>
+                  </Th>
                 )
               })}
             </tr>
           </thead>
           <tbody>
-            {data.settings.map((setting) => (
-              <tr key={setting.type}>
-                <td className="border-b border-border-faint px-2 py-2 text-text-secondary">
-                  {NOTIFICATION_TYPE_LABEL[setting.type]}
-                </td>
+            {NOTIFICATION_TYPE_SETTING_FIXTURES.map((setting) => (
+              <Tr key={setting.type}>
+                <Td className="px-2 py-2">{NOTIFICATION_TYPE_LABEL[setting.type]}</Td>
                 {CHANNEL_COLUMNS.map((channel) => {
-                  const supported =
-                    data.channels.find((c) => c.channel === channel)?.supported ?? false
-                  const checked = draft[setting.type]?.has(channel) ?? false
+                  const on = setting.channels.includes(channel)
                   return (
-                    <td
+                    <Td
                       key={channel}
-                      className="border-b border-border-faint px-2 py-2 text-center"
+                      className={cx(
+                        'px-2 py-2 text-center',
+                        on ? 'font-bold text-success' : 'opacity-30',
+                      )}
                     >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={!supported}
-                        onChange={() => toggle(setting.type, channel)}
-                        className={supported ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}
-                      />
-                    </td>
+                      {on ? '✓' : '–'}
+                    </Td>
                   )
                 })}
-              </tr>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
         <p className="mt-[10px] text-[11.5px] leading-[1.7] text-text-tertiary">
-          채널이 비어 있는 유형은 알림 자체를 만들지 않습니다. EMAIL·SLACK은 아직 발송
-          어댑터가 없어(MVP2) 체크는 저장되지만 실제로 보내지지 않습니다.
+          재검사 등급 리비전에서, 그 용어를 실제로 쓰는 문서의 작성자에게만 보냅니다. 용어
+          추가만 있는 리비전은 보내지 않습니다.
         </p>
       </Card>
-
-      <div className="flex justify-end">
-        <Button variant="primary" onClick={handleSave} disabled={updateSettings.isPending}>
-          {updateSettings.isPending ? '저장 중…' : '저장'}
-        </Button>
-      </div>
     </div>
   )
 }

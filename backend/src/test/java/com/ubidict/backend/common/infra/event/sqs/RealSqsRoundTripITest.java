@@ -9,9 +9,9 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.messaging.Message;
 import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.regions.Region;
@@ -49,10 +49,7 @@ import tools.jackson.databind.ObjectMapper;
  *
  * <p><b>메시지를 소비한다.</b> 받은 메시지는 큐에서 지워진다. 운영 큐를 가리키지 않도록 주의한다.
  */
-@EnabledIfEnvironmentVariable(
-        named = "SQS_IT_QUEUE",
-        matches = ".+",
-        disabledReason = "실제 AWS를 치는 테스트다. SQS_IT_QUEUE를 줘야 실행된다.")
+@Disabled("SQS 외부 왕복은 테스트 범위에서 제외하고 인메모리 이벤트 테스트로 검증한다.")
 class RealSqsRoundTripITest {
 
     private static final String QUEUE = System.getenv("SQS_IT_QUEUE");

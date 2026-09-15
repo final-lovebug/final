@@ -15,13 +15,11 @@ import static org.mockito.BDDMockito.willThrow;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.document.exception.DocumentErrorCode;
-import com.ubidict.backend.document.service.DocumentService;
 import com.ubidict.backend.document.service.model.CreateDocumentCommand;
 import com.ubidict.backend.document.service.model.DocumentResult;
 import com.ubidict.backend.document.service.model.DocumentSummaryResult;
 import com.ubidict.backend.document.service.model.DocumentVersionResult;
 import com.ubidict.backend.document.service.model.DocumentVersionSummaryResult;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -31,16 +29,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(DocumentController.class)
-class DocumentControllerTest {
+class DocumentControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long WORKSPACE_ID = 10L;
@@ -49,16 +42,10 @@ class DocumentControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private DocumentService documentService;
-
     /**
      * addFilters=false로 Security 필터 체인은 우회하지만 SecurityConfig가 이 슬라이스에 함께
      * 로드되므로, JwtAuthenticationFilter가 요구하는 JwtProvider를 mock으로 채워 컨텍스트를 띄운다.
      */
-    @MockitoBean
-    private JwtProvider jwtProvider;
-
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);

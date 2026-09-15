@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RequestMapping("/api")
 public class CandidateTermController {
+    // 판정 엔드포인트의 현재 상태는 아래 「사용 안 함」 주석 블록을 읽는다.
+
     private final CandidateTermService service;
 
     @PostMapping("/draft-dictionaries/{id}/candidate-terms")
@@ -60,6 +62,19 @@ public class CandidateTermController {
         service.delete(id, memberId);
         return ResponseEntity.noContent().build();
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 아래 판정 5종(등재 승인·동의어 편입·거절·보류·일괄)은 **사용 안 함**이다.
+    //
+    // `docs/plan/DRAFT_PLAN.md` 가 사전집 초안을 단일 페이지로 바꾸면서 후보어별 판정을
+    // 화면에서 걷어냈다. 준비 여부는 이제 판정 상태가 아니라 「모든 후보어가 대표어와 정의를
+    // 가졌는가」로 판단하고(`DraftDictionaryReviewReadinessValidator`), 발행 목록도 상태로
+    // 거르지 않는다(`DraftDictionaryQueryAdapter.readFinalTerms`).
+    //
+    // **지우지 않고 남기는 이유** — 이미 판정이 기록된 초안의 데이터가 DB에 있고,
+    // `CandidateTermStatus` 를 함께 걷어내면 그 행들을 읽을 수 없게 된다. 새 초안·리뷰 요청
+    // 경로는 이 엔드포인트들을 호출하지 않으며, 프런트에도 호출부가 없다.
+    // ────────────────────────────────────────────────────────────────────────
 
     @PostMapping("/candidate-terms/{id}/registration-approval")
     public ResponseEntity<CandidateTermResponse> approve(

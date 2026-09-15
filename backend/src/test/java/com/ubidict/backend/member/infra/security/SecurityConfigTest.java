@@ -44,6 +44,12 @@ import org.springframework.web.bind.annotation.RestController;
 @WebMvcTest(controllers = SecurityConfigTest.TestController.class)
 class SecurityConfigTest {
 
+    @MockitoBean
+    private OAuthExchangeCodeRedisRepository oAuthExchangeCodeRedisRepository;
+
+    @MockitoBean
+    private RedisOAuth2AuthorizationRequestRepository redisOAuth2AuthorizationRequestRepository;
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -52,9 +58,6 @@ class SecurityConfigTest {
 
     @Autowired
     private JwtProperties jwtProperties;
-
-    @MockitoBean
-    private OAuthExchangeCodeRedisRepository oAuthExchangeCodeRedisRepository;
 
     @BeforeEach
     void setUp() {

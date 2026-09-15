@@ -9,11 +9,8 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.service.PageResult;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionaryStatus;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
-import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
-import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -22,28 +19,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(2L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(DraftDictionaryController.class)
-class DraftDictionaryControllerTest {
+class DraftDictionaryControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 2L;
     private static final Long DRAFT_DICTIONARY_ID = 100L;
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private DraftDictionaryService draftDictionaryService;
-
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {
@@ -93,26 +79,6 @@ class DraftDictionaryControllerTest {
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("EXAMINED"));
-    }
-
-    @DisplayName("초안의 상태별 교정 진행률을 응답한다.")
-    @Test
-    void readExamineProgress() {
-        given(draftDictionaryService.readExamineProgress(DRAFT_DICTIONARY_ID, MEMBER_ID))
-                .willReturn(new ExamineProgressResult(7, 1, 1, 1, 1, 1, 1));
-
-        RestAssuredMockMvc.given()
-                .when()
-                .get("/api/draft-dictionaries/{draftDictionaryId}/examine-progress", DRAFT_DICTIONARY_ID)
-                .then()
-                .statusCode(HttpStatus.OK.value())
-                .body("total", equalTo(7))
-                .body("pending", equalTo(1))
-                .body("kept", equalTo(1))
-                .body("approved", equalTo(1))
-                .body("merged", equalTo(1))
-                .body("rejected", equalTo(1))
-                .body("onHold", equalTo(1));
     }
 
     private static DraftDictionaryResult draftDictionaryResult() {

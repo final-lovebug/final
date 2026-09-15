@@ -13,11 +13,13 @@ import com.ubidict.backend.draftdocument.implement.DraftDocumentEventPublisher;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentWriter;
 import com.ubidict.backend.draftdocument.implement.SuggestionTermWriter;
 import com.ubidict.backend.draftdocument.infra.port.CheckSuggestion;
+import com.ubidict.backend.draftdocument.infra.port.DictionaryTermQueryPort;
 import com.ubidict.backend.draftdocument.infra.port.DocumentQueryPort;
 import com.ubidict.backend.draftdocument.infra.port.DocumentSnapshot;
 import com.ubidict.backend.draftdocument.service.model.CheckJobResult;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ public class DraftDocumentCheckExecutionService {
 
     private final CheckJobReader checkJobReader;
     private final DocumentQueryPort documentQueryPort;
+    private final DictionaryTermQueryPort dictionaryTermQueryPort;
     private final DraftDocumentWriter draftDocumentWriter;
     private final SuggestionTermWriter suggestionTermWriter;
     private final DraftDocumentCreationPolicyValidator creationPolicyValidator;
@@ -89,12 +92,25 @@ public class DraftDocumentCheckExecutionService {
             checkJob.fail("대조하는 동안 문서가 새 버전으로 바뀌었습니다.");
             return;
         }
-        creationPolicyValidator.validate(document.documentId(), document.workspaceId());
+        creationPolicyValidator.validate(document.documentId());
         checkSuggestionValidator.validate(document.body(), suggestions);
+
+        // 대조에 쓴 사전집 버전을 초안에 새긴다(D-93). 사전집 초안이 함께 진행될 수 있으므로,
+        // 교정이 끝날 무렵 활성 버전이 올라가 있어도 발행본은 이 번호를 기준으로 삼아야 한다.
+        OptionalInt dictionaryVersionNo = dictionaryTermQueryPort.activeVersionNo(document.workspaceId());
+        if (dictionaryVersionNo.isEmpty()) {
+            log.warn(
+                    "[DraftDocumentCheckExecutionService.complete] Active dictionary is gone. checkJobId={}, workspaceId={}",
+                    checkJobId,
+                    document.workspaceId());
+            checkJob.fail("기준으로 삼을 활성 사전집이 없습니다.");
+            return;
+        }
 
         DraftDocument draftDocument = draftDocumentWriter.append(
                 document.documentId(),
                 document.currentVersionNo(),
+                dictionaryVersionNo.getAsInt(),
                 document.body(),
                 checkJob.getRequestedBy(),
                 checkJob.getRequestedBy());

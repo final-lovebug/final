@@ -67,7 +67,7 @@ class SqsLlmJobRequestSenderTest {
         SqsTemplate sqsTemplate = mock(SqsTemplate.class);
         SqsLlmJobRequestSender sender = sender(sqsTemplate);
 
-        sender.send(LlmJobRequest.documentCheck(REQUEST_ID, 40L, 20L, 10L, 3, LlmMode.STUB));
+        sender.send(LlmJobRequest.documentCheck(REQUEST_ID, 40L, 20L, 10L, 3, LlmMode.MOCK));
 
         String body = body(capture(sqsTemplate));
         System.out.println("LLM 요청 큐로 나가는 메시지 >>> " + body);
@@ -77,7 +77,7 @@ class SqsLlmJobRequestSenderTest {
                 .contains("\"jobId\":40")
                 .contains("\"documentId\":10")
                 .contains("\"documentVersionNo\":3")
-                .contains("\"mode\":\"STUB\"");
+                .contains("\"mode\":\"MOCK\"");
     }
 
     @DisplayName("발행 어댑터는 app.ai.dispatch.mode 로 배타 선택된다. 도메인 이벤트 축과 무관하다.")

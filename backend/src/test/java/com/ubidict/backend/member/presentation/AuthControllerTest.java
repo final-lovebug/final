@@ -11,30 +11,18 @@ import static org.mockito.Mockito.verify;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.exception.AuthErrorCode;
-import com.ubidict.backend.member.infra.security.JwtProvider;
-import com.ubidict.backend.member.infra.security.OAuthExchangeCodeRedisRepository;
 import com.ubidict.backend.member.presentation.dto.CompleteRegistrationRequest;
 import com.ubidict.backend.member.presentation.dto.OAuthExchangeRequest;
-import com.ubidict.backend.member.service.LogoutService;
-import com.ubidict.backend.member.service.MemberOAuthLoginService;
-import com.ubidict.backend.member.service.TokenReissueService;
 import com.ubidict.backend.member.service.model.LoginSucceeded;
 import com.ubidict.backend.member.service.model.RegistrationRequired;
 import com.ubidict.backend.member.service.model.TokenPairResult;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
-import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -44,28 +32,10 @@ import org.springframework.test.web.servlet.MockMvc;
  *
  * <p>RefreshTokenCookieProvider는 실제 구현을 그대로 써서 Set-Cookie 헤더 형식까지 검증한다.
  */
-@Import(AuthControllerTest.CookieProviderConfig.class)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(AuthController.class)
-class AuthControllerTest {
+class AuthControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private MemberOAuthLoginService memberOAuthLoginService;
-
-    @MockitoBean
-    private TokenReissueService tokenReissueService;
-
-    @MockitoBean
-    private LogoutService logoutService;
-
-    @MockitoBean
-    private JwtProvider jwtProvider;
-
-    @MockitoBean
-    private OAuthExchangeCodeRedisRepository oAuthExchangeCodeRedisRepository;
 
     @BeforeEach
     void setUp() {
@@ -247,14 +217,5 @@ class AuthControllerTest {
         RestAssuredMockMvc.given().when().post("/api/auth/logout").then().statusCode(HttpStatus.NO_CONTENT.value());
 
         verify(logoutService, never()).logout(any());
-    }
-
-    @TestConfiguration
-    static class CookieProviderConfig {
-
-        @Bean
-        RefreshTokenCookieProvider refreshTokenCookieProvider() {
-            return new RefreshTokenCookieProvider(Duration.ofDays(7), true);
-        }
     }
 }

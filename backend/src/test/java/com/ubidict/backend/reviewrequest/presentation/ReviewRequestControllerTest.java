@@ -5,9 +5,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.willThrow;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
-import com.ubidict.backend.reviewrequest.service.ReviewRequestService;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -15,28 +13,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(ReviewRequestController.class)
-class ReviewRequestControllerTest {
+class ReviewRequestControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long REVIEW_REQUEST_ID = 100L;
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private ReviewRequestService reviewRequestService;
-
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

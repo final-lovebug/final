@@ -9,8 +9,6 @@ export interface UpdateCandidateTermInput {
   selectedWord?: string
   proposedDefinition?: string
   type?: CandidateTermType
-  /** 목록에서 이미 해석해 둔 등록자 이름. 응답에 이름이 없어 그대로 되돌려준다. */
-  ownerName?: string
 }
 
 // 실제 백엔드 연동(`PATCH /api/candidate-terms/{candidateTermId}`). 넘긴 필드만 바뀐다.
@@ -28,5 +26,5 @@ export async function updateCandidateTerm(
       type: input.type,
     },
   )
-  return toListItem(response, input.ownerName ?? '—')
+  return toListItem(response)
 }

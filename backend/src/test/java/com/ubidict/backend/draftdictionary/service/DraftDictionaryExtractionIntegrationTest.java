@@ -9,6 +9,7 @@ import com.ubidict.backend.document.infra.DocumentRepository;
 import com.ubidict.backend.document.infra.DocumentVersionRepository;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJob;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJobStatus;
+import com.ubidict.backend.draftdictionary.infra.CandidateTermRepository;
 import com.ubidict.backend.draftdictionary.infra.DraftDictionaryRepository;
 import com.ubidict.backend.draftdictionary.infra.ExtractionJobRepository;
 import com.ubidict.backend.draftdictionary.service.model.CreateExtractionJobCommand;
@@ -26,7 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * 워커가 없는 환경의 기본 경로. 인프로세스 대역이 빈 결과로 작업을 끝낸다(D-74).
+ * 워커가 없는 환경의 기본 경로. 인프로세스 대역이 목 후보어로 작업을 끝낸다(D-74).
  *
  * <p>실제 큐를 거치는 왕복은 {@code DraftDictionaryExtractionWorkerRoundTripTest}가 본다.
  */
@@ -42,6 +43,9 @@ class DraftDictionaryExtractionIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private DraftDictionaryRepository draftDictionaryRepository;
+
+    @Autowired
+    private CandidateTermRepository candidateTermRepository;
 
     @Autowired
     private WorkspaceRepository workspaceRepository;
@@ -87,6 +91,10 @@ class DraftDictionaryExtractionIntegrationTest extends IntegrationTestSupport {
         assertThat(draftDictionaryRepository.findByIdAndDeletedAtIsNull(
                         job(requested.extractionJobId()).getDraftDictionaryId()))
                 .isPresent();
+        assertThat(candidateTermRepository.findAllByDraftDictionaryIdAndDeletedAtIsNull(
+                        job(requested.extractionJobId()).getDraftDictionaryId()))
+                .extracting(candidate -> candidate.getForm())
+                .containsExactlyInAnyOrder("결제", "주문");
     }
 
     private ExtractionJob job(Long extractionJobId) {

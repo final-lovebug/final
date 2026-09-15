@@ -11,9 +11,10 @@ services:
     ports:
       - '4566:4566'
   grafana-lgtm:
-    image: 'grafana/otel-lgtm:latest'
+    image: 'grafana/otel-lgtm:0.32.1'
     ports:
-      - '3000:3000'
+      # 루트 통합 Compose의 Grafana UI와 공존할 수 있도록 host 포트는 Docker가 배정한다.
+      - '3000'
       - '4317'
       - '4318'
   mysql:
@@ -26,6 +27,6 @@ services:
     ports:
       - '3306'
   redis:
-    image: 'redis:latest'
+    image: 'redis:8.2-alpine'
     ports:
       - '6379'

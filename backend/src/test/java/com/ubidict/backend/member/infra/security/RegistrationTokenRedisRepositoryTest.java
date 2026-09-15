@@ -4,33 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.ubidict.backend.member.domain.OAuthProvider;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
+@Disabled("Redis 외부 저장소 테스트는 인메모리 대역 테스트로 대체한다.")
 class RegistrationTokenRedisRepositoryTest {
-
-    @Container
-    private static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:latest")).withExposedPorts(6379);
 
     private RegistrationTokenRedisRepository registrationTokenRedisRepository;
 
     @BeforeEach
     void setUp() {
-        LettuceConnectionFactory connectionFactory =
-                new LettuceConnectionFactory(redis.getHost(), redis.getMappedPort(6379));
-        connectionFactory.afterPropertiesSet();
-        StringRedisTemplate redisTemplate = new StringRedisTemplate(connectionFactory);
-        redisTemplate.afterPropertiesSet();
-
-        registrationTokenRedisRepository = new RegistrationTokenRedisRepository(redisTemplate);
+        registrationTokenRedisRepository = new RegistrationTokenRedisRepository(null);
     }
 
     @DisplayName("등록 토큰을 저장하면 조회와 동시에 지워진다(1회용).")

@@ -6,9 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
-import com.ubidict.backend.reviewrequest.service.ReexamineService;
 import com.ubidict.backend.reviewrequest.service.model.ReexamineResult;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
@@ -19,25 +17,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(2L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(ReexamineController.class)
-class ReexamineControllerTest {
+class ReexamineControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private ReexamineService reexamineService;
-
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

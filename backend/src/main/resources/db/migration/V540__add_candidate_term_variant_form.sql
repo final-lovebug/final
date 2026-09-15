@@ -1,1 +1,0 @@
-create table candidate_term_variant_form (candidate_term_id bigint not null, variant_form varchar(200) not null, constraint fk_candidate_term_variant_form foreign key(candidate_term_id) references candidate_term(id));

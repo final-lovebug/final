@@ -13,16 +13,20 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Getter
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"draft_dictionary_id", "form"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CandidateTerm extends BaseEntity {
     @Id
@@ -41,7 +45,7 @@ public class CandidateTerm extends BaseEntity {
 
     private Long handledBy;
 
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String rejectReason;
 
     private Long mergeTargetTermId;
@@ -55,7 +59,7 @@ public class CandidateTerm extends BaseEntity {
     private String proposedDefinition;
     private String proposedEnglishName;
 
-    @Column(nullable = false)
+    @Column
     private Integer occurrenceCount;
 
     @Enumerated(EnumType.STRING)
@@ -183,7 +187,9 @@ public class CandidateTerm extends BaseEntity {
                 draftDictionaryId, form, definition, english, List.of(), 1, List.of(), List.of(), createdBy);
         candidate.origin = CandidateTermOrigin.EXISTING;
         candidate.sourceTermId = sourceTermId;
-        candidate.occurrenceCount = null;
+        // 기존 사전 용어는 추출 출현 횟수가 없지만 DB 컬럼은 NOT NULL이다.
+        // 0은 "이번 추출에서 발견되지 않음"을 표현하며 최소 출현 횟수 필터에서도 제외된다.
+        candidate.occurrenceCount = 0;
         candidate.status = CandidateTermStatus.KEPT;
         return candidate;
     }
@@ -232,35 +238,11 @@ public class CandidateTerm extends BaseEntity {
         mergeTargetTermId = null;
     }
 
-    public boolean isPending() {
-        return status == CandidateTermStatus.PENDING;
-    }
-
-    public boolean isDecided() {
-        return status != CandidateTermStatus.PENDING;
-    }
-
-    public boolean isRegistrationApproved() {
-        return status == CandidateTermStatus.REGISTRATION_APPROVED;
-    }
-
-    public boolean isMergedAsSynonym() {
-        return status == CandidateTermStatus.MERGED_AS_SYNONYM;
-    }
-
-    public boolean isRejected() {
-        return status == CandidateTermStatus.REJECTED;
-    }
-
-    public boolean isKept() {
-        return status == CandidateTermStatus.KEPT;
-    }
-
-    public boolean isOnHold() {
-        return status == CandidateTermStatus.ON_HOLD;
-    }
-
-    public boolean isPublished() {
-        return isRegistrationApproved() || isKept();
-    }
+    // 판정 상태를 읽던 술어 8종(isPending·isDecided·isRegistrationApproved·isMergedAsSynonym
+    // ·isRejected·isKept·isOnHold·isPublished)은 **제거했다**(docs/plan/DRAFT_PLAN.md).
+    // 준비 조건과 발행 목록이 판정 상태를 보지 않게 되면서 호출부가 0곳이 됐다 —
+    // 마지막 소비자였던 사전 초안 교정 진행률(examine-progress)도 함께 지웠다.
+    //
+    // status 필드와 CandidateTermStatus 는 남아 있다. 이미 판정이 기록된 초안 행을 읽어야
+    // 하기 때문이며(그 이유는 enum javadoc 에 있다), 상태가 필요하면 getStatus() 로 읽는다.
 }

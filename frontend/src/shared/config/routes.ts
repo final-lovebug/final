@@ -10,27 +10,30 @@ export const routes = {
   documents: (workspaceId: string) => `/workspaces/${workspaceId}/documents`,
   documentDrafts: (workspaceId: string) =>
     `/workspaces/${workspaceId}/documents/drafts`,
-  documentReviewRequests: (workspaceId: string) =>
-    `/workspaces/${workspaceId}/documents/reviews`,
+  documentRevisions: (workspaceId: string) =>
+    `/workspaces/${workspaceId}/documents/revisions`,
   documentUpload: (workspaceId: string) =>
     `/workspaces/${workspaceId}/documents/upload`,
   documentDetail: (workspaceId: string, documentId: string) =>
     `/workspaces/${workspaceId}/documents/${documentId}`,
   documentHistory: (workspaceId: string, documentId: string) =>
     `/workspaces/${workspaceId}/documents/${documentId}/history`,
-  termExtraction: (workspaceId: string, documentId: string) =>
-    `/workspaces/${workspaceId}/documents/${documentId}/extract`,
-  documentReview: (workspaceId: string, documentId: string) =>
-    `/workspaces/${workspaceId}/documents/${documentId}/review`,
-  documentReviewThread: (
+  documentDraft: (workspaceId: string, documentId: string) =>
+    `/workspaces/${workspaceId}/documents/${documentId}/draft`,
+  documentRevision: (
     workspaceId: string,
     documentId: string,
-    reviewId: string,
-  ) => `/workspaces/${workspaceId}/documents/${documentId}/review/${reviewId}`,
+    reviewRequestId: string,
+  ) =>
+    `/workspaces/${workspaceId}/documents/${documentId}/revisions/${reviewRequestId}`,
 
   dictionary: (workspaceId: string) => `/workspaces/${workspaceId}/dictionary`,
   dictionaryDraft: (workspaceId: string) =>
     `/workspaces/${workspaceId}/dictionary/draft`,
+  // 용어 추출은 문서 하나가 아니라 워크스페이스의 최종본 전체를 대상으로 한다
+  // (ui/main.js도 사전집 그룹에 뒀다) — 문서 스코프 경로에서 옮겼다.
+  termExtraction: (workspaceId: string) =>
+    `/workspaces/${workspaceId}/dictionary/extract`,
   dictionaryHistory: (workspaceId: string) =>
     `/workspaces/${workspaceId}/dictionary/history`,
   dictionaryRevision: (workspaceId: string, revisionId: string) =>

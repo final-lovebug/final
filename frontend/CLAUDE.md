@@ -52,56 +52,67 @@ npm run preview
 
 ---
 
-## 백엔드 연동 상태 (2026-09-10 기준)
+## 백엔드 연동 상태 (2026-09-14 기준)
 
-이번 1차 프론트엔드 구축(fe-task.md Phase 1~6)은 **백엔드 실 연동 없이 전부 목데이터로
-만들어졌다** (`frontend/docs/SPEC.md` "백엔드 연동 범위" 참고). 그 사이 백엔드에는 실제로
-아래 도메인이 구현됐다 — 실 연동을 시작한다면 이 셋부터가 가장 준비돼 있다.
+**목데이터는 전부 걷어냈다.** 1차 구축(fe-task.md Phase 1~6)은 `fixtures.ts` + `delay()`로만
+만들어졌지만, 트랙 A(`T-INT-9`~`T-INT-16`)·`T-INT-17`·디자인 정합 작업을 거쳐 **모든 화면이
+실 API를 쓴다.** `features/*/model/fixtures.ts`에 남은 것은 목데이터가 아니라 **뷰 타입**
+(여러 엔드포인트를 화면이 쓰는 모양으로 합친 것)과 고정 정책 상수뿐이다.
 
-| 도메인 | 엔드포인트 | 상태 |
+### 대응 백엔드가 없어 화면이 「읽기 전용」인 곳
+
+억지로 목업을 만들지 않고, 지금 실제로 어떻게 동작하는지를 보여주기로 한 자리들이다.
+
+| 화면 | 없는 것 | 화면이 하는 일 |
 | --- | --- | --- |
-| Auth | `POST /api/auth/oauth/google/exchange`, `POST /api/auth/refresh`, `POST /api/auth/logout` | 구현 완료 |
-| Member | `GET/PATCH/DELETE /api/members/me`, `POST /api/members`(테스트용) | 구현 완료 |
-| Workspace | `POST/GET /api/workspaces`, `GET/PATCH/DELETE /api/workspaces/{id}` | 구현 완료. **단, 인증 연동 전이라 `memberId`를 쿼리 파라미터로 받는 임시 방식**(백엔드가 실제 인증 연동을 마치면 제거될 예정) |
+| 설정 › 알림 | 알림 설정 조회·저장 API 전부(`D-54`가 MVP1에서 채널 개념을 제거) | 고정 정책(전 유형 인앱 발송)을 읽기 전용으로 표시 |
+| 설정 › 승인 규칙 | 「승인 무효화」·「작성자도 리뷰어」 토글에 해당하는 `RuleSet` 필드 | 잠근 채 "변경 불가" 사유 표기. 정족수 둘만 실제로 저장 |
+| 설정 › 라벨 | 라벨 생성·이름변경·삭제 API(문서 생성/수정의 `labels`로만 생긴다) | 목록 + 문서 수(문서 목록에서 집계) + 문서 업로드로 안내 |
+| 사전집 용어 「정의」 칸 | 목록 응답에 `definition`이 없다(`D-41`, 단건 조회도 없음) | "—" 표시 |
+| 문서 「최종 수정자」 칸 | 문서 응답에 최종 수정자 필드가 없다 | "—" 표시 |
+| 개정 이력 타임라인 | `revisionlog` 도메인에 presentation 패키지가 없다(REST 미노출) | 버전 목록 + 버전별 용어로 **직접 만든다**(diff 포함) |
+| 문서 버전 비교 | 백엔드가 본문 diff를 만들지 않는다(`D-61`) | 버전 단건 조회로 본문을 받아 화면에서 계산(`model/textDiff.ts`) |
 
-문서(document)·용어 추출·사전집(dictionary)·리뷰(review)·알림(notification) 도메인은
-아직 API 엔드포인트 자체가 없다. 정확한 요청/응답 필드는 `docs/API.md`를 기준으로 한다
-(2026-09-10 기준 실제 구현과 일치 확인됨).
+### 목록 조회는 `fetchAllPages`로 부른다 (`D-90`)
 
-### 로컬 백엔드로 실제 연동을 테스트할 때 알아야 할 것
+백엔드 페이징 규격은 **`size` 최대 100**이고 초과하면 `400 COMMON_INVALID_REQUEST`다
+(`docs/API.md` 「페이징·정렬 규격」). 화면에 페이징 UI가 없어 「한 번에 전부」가 필요할 때
+**`size`를 키우지 말고** `shared/api/fetchAllPages.ts`를 쓴다.
+
+```ts
+const documents = await fetchAllPages<DocumentListApiItem>((page, size) =>
+  httpClient.get<Page<DocumentListApiItem>>(
+    `/api/workspaces/${workspaceId}/documents?page=${page}&size=${size}&sort=createdAt,desc`,
+  ),
+)
+```
+
+- 페이지 응답이 다른 객체 안에 있으면(`DictionaryResponse.terms` 등) `fetchAllPagesWith`를
+  쓴다 — 감싼 객체의 메타데이터가 필요하므로 첫 페이지 응답을 함께 돌려준다.
+- **`page`·`size`를 호출부에 직접 박지 않는다.** 한 번 그러면 상한을 넘겨 400이 나거나
+  상한에 닿아 조용히 잘린다 — 실제로 둘 다 일어났다(`D-90`).
+- **예외는 `size=1`로 `totalElements`나 최신 1건만 읽는 호출**이다. 개수·최신 하나가 목적이라
+  전부 읽을 이유가 없다(워크스페이스 개요의 문서 수, 최신 초안 조회).
+- 목록을 일부만 읽으면 **그 목록으로 계산하는 상태도 함께 틀린다.** 사전집 초안이 후보어를
+  앞 20건만 읽어 리뷰 요청 준비 여부를 잘못 판정하던 것이 그 예다.
+
+### 로컬 백엔드로 연동을 테스트할 때
 
 - 백엔드는 `./gradlew bootRun --args='--spring.profiles.active=local'`로 **8080 포트**에서
-  실행한다 (`backend/CLAUDE.md` 참고). `local` 프로파일 없이 띄우면 refresh 토큰 쿠키의
-  `Secure` 플래그가 `true`로 고정돼 `http://localhost`에서 쿠키가 동작하지 않는다.
-- **백엔드에 CORS 설정이 아직 없다.** 프론트 dev 서버(예: `localhost:5173`)에서
-  `http://localhost:8080/api/**`를 직접 호출하면 브라우저가 막는다. 실 연동 전에 다음 중
-  하나가 필요하다.
-  - 백엔드에 `CorsConfigurationSource` 추가 — refresh 토큰이 쿠키 기반이라
-    `Access-Control-Allow-Origin: *`는 못 쓰고, 프론트 origin을 명시하면서
-    `Access-Control-Allow-Credentials: true`도 같이 켜야 한다.
-  - 또는 프론트 dev 서버에 프록시 설정 (`vite.config.ts`의 `server.proxy`로 `/api` →
-    `http://localhost:8080`), 이 경우 브라우저 입장에서는 같은 origin이라 CORS 자체가 필요 없다.
-- 백엔드 env `OAUTH_FRONTEND_REDIRECT_URI`(기본값 `http://localhost:3000/oauth/callback`)는
-  CORS 허용 목록이 아니라 **"Google 로그인 성공 후 리다이렉트할 프론트 주소"**다. 실제 프론트
-  개발 서버 주소/콜백 라우트가 정해지면 백엔드 팀에 알려 이 값을 맞춰야 한다 (지금 이 저장소
-  라우터에는 `/oauth/callback` 라우트가 아직 없다 — 아래 체크리스트 참고).
-- 로컬 전용 `POST /api/auth/dev/login` `{ memberId }` (local 프로파일에서만 존재)로 Google
-  OAuth 없이 바로 토큰을 받을 수 있다 — 프론트 개발 중 로그인 흐름을 매번 타지 않아도 된다.
-
-### 실 연동을 시작할 때 처음 할 일 (체크리스트)
-
-1. 백엔드 CORS 또는 프론트 dev 프록시 중 하나를 정하고 적용
-2. `OAUTH_FRONTEND_REDIRECT_URI`와 맞는 콜백 라우트(예: `/oauth/callback`)를 라우터에 추가 —
-   쿼리의 `code`를 받아 `POST /api/auth/oauth/google/exchange` 호출
-3. `src/shared/stores/authStore.ts`의 `loginAsMock()`을 실제 토큰 교환 로직으로 교체,
-   accessToken은 지금처럼 메모리(Zustand)에만 보관(localStorage 금지 — XSS 노출 방지)
-4. `src/shared/api/httpClient.ts`(아직 없음)를 신설해 `Authorization` 헤더 부착과
-   `AUTH_TOKEN_EXPIRED` 시 `/api/auth/refresh` 자동 재시도를 공통 처리
-5. `features/workspace/api`, `features/member/api`(아직 없음, 이번엔 설정 화면에서 멤버 목록만
-   목업으로 조회)의 목업 함수들을 실제 `fetch` 호출로 교체 — 반환 타입을 그대로 유지하면
-   `hooks`/`components`는 손댈 필요가 없다(`frontend/docs/ARCHITECTURE.md` 의존성 규칙)
-6. `Workspace.myPermission`(OWNER/ADMIN/REGULAR)이 실제로 내려오기 시작하므로, 지금 목업에
-   없던 권한 기반 UI 분기(예: ADMIN 이상만 용어 추출·워크스페이스 설정 가능)를 추가
+  실행한다(`backend/CLAUDE.md`). `local` 프로파일 없이 띄우면 refresh 토큰 쿠키의 `Secure`
+  플래그가 `true`로 고정돼 `http://localhost`에서 쿠키가 동작하지 않는다.
+- **CORS는 백엔드에 이미 있다** — `app.cors.allowed-origins` 기본값이
+  `http://localhost:5173`(Vite dev 서버)이다. 프론트 주소를 바꾸면 그 환경변수도 함께 바꾼다.
+  refresh 토큰이 쿠키 기반이라 `*`는 쓸 수 없다.
+- 프론트가 부를 백엔드 주소는 `VITE_API_BASE_URL`이며, 없으면 `http://localhost:8080`이다
+  (`.env.local.example` 참고).
+- `OAUTH_FRONTEND_REDIRECT_URI`는 Google 로그인 성공 후 서버가 되돌려보낼 프론트 주소다 —
+  이 저장소의 콜백 라우트는 `/oauth/callback`이다.
+- 추출·대조는 **외부 FastAPI 워커**가 실행한다(`D-66`). 워커가 없는 환경
+  (`app.ai.dispatch.mode=in-process`, 로컬 기본값)에서는 대역이 돌아간다. **추출 대역은 고정
+  후보어 2건("결제"·"주문")을 돌려주고**(`InProcessExtractionWorker`), 대조 대역은 빈 결과로
+  끝낸다 — "성공했는데 제안 0건"이 후자에서는 정상이며 화면이 그 문구를 갖고 있다.
+  이미 사전집에 있는 표기가 다시 나오면 후보어로 더하지 않고 승계분을 그대로 둔다(`D-91`).
 
 ---
 

@@ -5,10 +5,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import com.ubidict.backend.workspace.domain.Permission;
-import com.ubidict.backend.workspace.service.ParticipantService;
 import com.ubidict.backend.workspace.service.model.ChangePermissionCommand;
 import com.ubidict.backend.workspace.service.model.ParticipantResult;
 import com.ubidict.backend.workspace.service.model.RemoveParticipantCommand;
@@ -21,15 +19,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(ParticipantController.class)
-class ParticipantControllerTest {
+class ParticipantControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long WORKSPACE_ID = 10L;
     private static final Long PARTICIPANT_ID = 2L;
@@ -37,12 +30,6 @@ class ParticipantControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private ParticipantService participantService;
-
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

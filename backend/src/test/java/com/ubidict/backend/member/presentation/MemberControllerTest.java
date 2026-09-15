@@ -11,11 +11,8 @@ import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.domain.MemberStatus;
 import com.ubidict.backend.member.domain.OAuthProvider;
 import com.ubidict.backend.member.exception.MemberErrorCode;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.member.presentation.dto.CreateMemberRequest;
 import com.ubidict.backend.member.presentation.dto.UpdateMemberRequest;
-import com.ubidict.backend.member.service.MemberDirectory;
-import com.ubidict.backend.member.service.MemberService;
 import com.ubidict.backend.member.service.model.MemberResult;
 import com.ubidict.backend.member.service.model.MemberSummary;
 import com.ubidict.backend.member.service.model.UpdateMemberCommand;
@@ -29,12 +26,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -45,23 +39,12 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>필터가 우회되므로 {@code /me} 엔드포인트가 쓰는 {@code @AuthenticationPrincipal}을 위해
  * SecurityContext에 인증 정보(회원 id=1L)를 직접 채운다.
  */
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(MemberController.class)
-class MemberControllerTest {
+class MemberControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MY_MEMBER_ID = 1L;
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private MemberService memberService;
-
-    @MockitoBean
-    private MemberDirectory memberDirectory;
-
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

@@ -10,8 +10,11 @@ import com.ubidict.backend.document.fixture.DocumentFixture;
 import com.ubidict.backend.document.fixture.DocumentVersionFixture;
 import com.ubidict.backend.document.infra.DocumentRepository;
 import com.ubidict.backend.document.infra.DocumentVersionRepository;
+import com.ubidict.backend.draftdictionary.fixture.DraftDictionaryFixture;
+import com.ubidict.backend.draftdictionary.infra.DraftDictionaryRepository;
 import com.ubidict.backend.draftdocument.domain.CheckJob;
 import com.ubidict.backend.draftdocument.domain.CheckJobStatus;
+import com.ubidict.backend.draftdocument.domain.DraftDocument;
 import com.ubidict.backend.draftdocument.infra.CheckJobRepository;
 import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import com.ubidict.backend.draftdocument.service.model.CheckJobResult;
@@ -60,6 +63,9 @@ class DraftDocumentCheckIntegrationTest extends IntegrationTestSupport {
     @Autowired
     private DictionaryRepository dictionaryRepository;
 
+    @Autowired
+    private DraftDictionaryRepository draftDictionaryRepository;
+
     @DisplayName("대조 요청 트랜잭션이 커밋되면 비동기로 초안을 만들고 작업을 완료한다.")
     @Test
     void request_completesAfterCommit() {
@@ -76,6 +82,30 @@ class DraftDocumentCheckIntegrationTest extends IntegrationTestSupport {
         assertThat(draftDocumentRepository.findByIdAndDeletedAtIsNull(
                         job(requested.checkJobId()).getDraftDocumentId()))
                 .isPresent();
+    }
+
+    @DisplayName("사전집 초안이 진행 중이어도 문서를 갱신할 수 있고, 대조에 쓴 사전집 버전이 초안에 남는다(D-93).")
+    @Test
+    void request_allowedWhileDraftDictionaryIsOngoing() {
+        Long documentId = saveCheckTarget();
+        Long workspaceId = documentRepository
+                .findByIdAndDeletedAtIsNull(documentId)
+                .orElseThrow()
+                .getWorkspaceId();
+        draftDictionaryRepository.save(DraftDictionaryFixture.draftDictionary()
+                .workspaceId(workspaceId)
+                .createdBy(MEMBER_ID)
+                .build());
+
+        CheckJobResult requested = checkService.request(new CreateCheckJobCommand(documentId, MEMBER_ID));
+
+        AsyncWaits.awaitInProcess()
+                .untilAsserted(() ->
+                        assertThat(job(requested.checkJobId()).getStatus()).isEqualTo(CheckJobStatus.SUCCEEDED));
+        DraftDocument draftDocument = draftDocumentRepository
+                .findByIdAndDeletedAtIsNull(job(requested.checkJobId()).getDraftDocumentId())
+                .orElseThrow();
+        assertThat(draftDocument.getDictionaryVersionNo()).isEqualTo(1);
     }
 
     private Long saveCheckTarget() {

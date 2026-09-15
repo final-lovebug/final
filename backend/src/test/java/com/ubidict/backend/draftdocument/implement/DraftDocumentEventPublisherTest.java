@@ -19,7 +19,7 @@ class DraftDocumentEventPublisherTest {
     @DisplayName("문서 초안을 생성하면 생성 이벤트를 발행한다.")
     @Test
     void publishCreated() {
-        DraftDocument draftDocument = DraftDocument.create(10L, 1, "본문", 1L, 1L);
+        DraftDocument draftDocument = DraftDocument.create(10L, 1, 1, "본문", 1L, 1L);
 
         publisher.publishCreated(draftDocument);
 
@@ -29,7 +29,7 @@ class DraftDocumentEventPublisherTest {
     @DisplayName("문서 초안 교정을 완료하면 교정완료 이벤트를 발행한다.")
     @Test
     void publishExamined() {
-        DraftDocument draftDocument = DraftDocument.create(10L, 1, "본문", 1L, 1L);
+        DraftDocument draftDocument = DraftDocument.create(10L, 1, 1, "본문", 1L, 1L);
 
         publisher.publishExamined(draftDocument);
 

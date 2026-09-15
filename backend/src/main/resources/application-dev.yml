@@ -4,6 +4,13 @@
 # 그래서 spring.config.import 가 없고 spring.cloud.aws.parameterstore.enabled 도 기본값(false)을 그대로 쓴다.
 # 값은 저장소에 두지 않고 ${VAR} 참조만 남긴다(루트 CLAUDE.md 「시크릿은 환경변수 또는 AWS 파라미터 스토어로 주입한다」).
 spring:
+  flyway:
+    # 도메인별 버전 대역(backend/CLAUDE.md)을 쓰므로 낮은 번호가 뒤늦게 합류하는 일이 정상적으로 생긴다
+    # — 두 사람이 서로 다른 도메인에서 마이그레이션을 만들고 낮은 대역 쪽이 나중에 머지되는 경우다.
+    # 이때 기본값(false)이면 검증이 「Detected resolved migration not applied to database」로 기동을 막는다.
+    # 개발 환경에서만 기존 DB를 초기화하지 않고 그 마이그레이션을 적용한다.
+    # 운영은 기본값(false)을 유지해 번호 순서가 어긋난 마이그레이션을 조용히 적용하지 않는다.
+    out-of-order: true
   # LocalStack 으로 SQS 경로를 실제 메시지로 검증한다(D-74). 엔드포인트만 갈아끼우면
   # prod 와 같은 코드가 돈다(NFR-INF-005) — LocalStack 은 자격증명 값을 보지 않는다.
   cloud:
@@ -16,24 +23,37 @@ spring:
         # 큐가 없으면 만든다. 초기화 스크립트와 리스너 기동의 순서 경합을 없앤다(D-78).
         # prod 는 기본값(fail)을 유지한다 — 이름을 틀린 채 새 큐가 조용히 생기는 사고를 막는다.
         queue-not-found-strategy: create
-
-  datasource:
-    url: "${DB_URL}"
-    username: "${DB_USERNAME}"
-    password: "${DB_PASSWORD}"
-  data:
-    redis:
-      host: "${REDIS_HOST}"
-      port: "${REDIS_PORT}"
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
 
 management:
   endpoint:
     health:
       show-details: always
-      probes:
-        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  opentelemetry:
+    resource-attributes:
+      deployment.environment.name: dev
 
 app:
   ai:
     dispatch:
+      # 추출·대조 요청을 인프로세스 대역이 아니라 LocalStack SQS 큐로 보낸다.
       mode: sqs
+    # 워커가 실제 모델을 부를지 정하는 축이다(D-71). 위의 dispatch.mode 와 이름이 같지만
+    # 다른 축이다 — dispatch 는 「어떻게 보낼지」, 이것은 「워커가 무엇을 할지」다.
+    # 요청 메시지에 실려 나가고 백엔드는 이 값으로 분기하지 않는다.
+    #
+    # dev 는 mock 이 기본이다(D-86) — Spring → LocalStack → FastAPI → Spring 왕복을
+    # 비용 없이 확인하려면 결과에 데이터가 있어야 한다. stub 은 빈 결과라 「성공했지만
+    # 후보어 0건」과 실패를 구분할 수 없어 화면까지 흐르는지 볼 수 없다.
+    mode: ${AI_MODE:mock}
+
+  security:
+    actuator:
+      # 개발 서버도 /actuator/prometheus 를 연다(D-97). prod 는 기본값(false)으로 닫힌다.
+      permit-all: true

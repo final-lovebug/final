@@ -7,49 +7,29 @@ import static org.mockito.BDDMockito.given;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.exception.MemberErrorCode;
-import com.ubidict.backend.member.infra.security.JwtProvider;
-import com.ubidict.backend.member.infra.security.OAuthExchangeCodeRedisRepository;
 import com.ubidict.backend.member.presentation.dto.DevLoginRequest;
 import com.ubidict.backend.member.service.DevLoginService;
 import com.ubidict.backend.member.service.model.TokenPairResult;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
-import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * {@code local} 프로필에서만 {@link DevAuthController} 빈이 등록되므로 {@code @ActiveProfiles("local")}가
- * 필요하다 — 이 프로필이 없으면 이 테스트는 물론 실제 배포 환경에서도 이 컨트롤러 자체가 존재하지 않는다.
+ * 로컬 전용 개발 로그인 컨트롤러를 테스트 프로필에서도 명시적으로 가져온다.
  */
-@ActiveProfiles("local")
-@Import(DevAuthControllerTest.CookieProviderConfig.class)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(DevAuthController.class)
-class DevAuthControllerTest {
+@Import(DevAuthControllerTest.DevAuthControllerConfiguration.class)
+class DevAuthControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private DevLoginService devLoginService;
-
-    @MockitoBean
-    private JwtProvider jwtProvider;
-
-    @MockitoBean
-    private OAuthExchangeCodeRedisRepository oAuthExchangeCodeRedisRepository;
 
     @BeforeEach
     void setUp() {
@@ -106,12 +86,13 @@ class DevAuthControllerTest {
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
     }
 
-    @TestConfiguration
-    static class CookieProviderConfig {
+    @TestConfiguration(proxyBeanMethods = false)
+    static class DevAuthControllerConfiguration {
 
         @Bean
-        RefreshTokenCookieProvider refreshTokenCookieProvider() {
-            return new RefreshTokenCookieProvider(Duration.ofDays(7), true);
+        DevAuthController devAuthController(
+                DevLoginService devLoginService, RefreshTokenCookieProvider refreshTokenCookieProvider) {
+            return new DevAuthController(devLoginService, refreshTokenCookieProvider);
         }
     }
 }

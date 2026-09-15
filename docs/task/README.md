@@ -41,23 +41,41 @@
 | ID | 제목 | 트랙 | 의존 | 상태 | 담당자 |
 |---|---|---|---|---|---|
 | [T-INT-6](T-INT-6-notification-principal.md) | NotificationController 인증 주체 전환 | B | 없음 | **완료**(코드상 이미 전환돼 있었음 — 2026-09-14 확인) | |
-| [T-INT-7](T-INT-7-sqs-contract.md) | SQS 작업 큐 계약 문서화 | B | 없음 | 대기 | |
-| [T-INT-8](T-INT-8-sqs-adapter.md) | 추출·대조 real 어댑터(SQS) | B | T-INT-7 | 대기 | |
+| [T-INT-7](T-INT-7-sqs-contract.md) | SQS 작업 큐 계약 문서화 | B | 없음 | **완료(대체됨)** — `WLSH-166` AI 워커 전환이 `D-66`~`D-78`로 다른 모양으로 끝냈다 | WLSH-166 |
+| [T-INT-8](T-INT-8-sqs-adapter.md) | 추출·대조 real 어댑터(SQS) | B | T-INT-7 | **완료(대체됨)** — 포트·스텁 제거 + 공용 발행 포트 + HTTP 콜백으로 구현·테스트 완료 | WLSH-166 |
 | [T-INT-9](T-INT-9-workspace.md) | workspace 실연동 | A | 없음 | **코드 작성 완료**(QA 대기, 2026-09-14) | |
-| [T-INT-10](T-INT-10-document.md) | document 실연동(제안 클러스터 보류) | A | T-INT-18(완료) | **범위 내 완료**(작성자 이름 보강까지, QA 대기) / 제안 클러스터 4개는 별도 세션 | WLSH-171 |
+| [T-INT-10](T-INT-10-document.md) | document 실연동 | A | T-INT-18(완료) | **완료**(QA 대기) — 보류였던 제안 클러스터 4개는 `T-INT-17`에서 해소 | WLSH-171 |
 | [T-INT-11](T-INT-11-dictionary.md) | dictionary 실연동 | A | T-INT-20(완료) | **코드 작성 완료**(후보어 포함, QA 대기, 2026-09-14) | WLSH-171 |
 | [T-INT-12](T-INT-12-review.md) | review(리뷰 요청) 실연동 | A | 없음 | **코드 작성 완료**(QA 대기, 2026-09-14) | WLSH-171 |
 | [T-INT-13](T-INT-13-notification.md) | notification 실연동 | A | 없음 | **목록·읽음처리 코드 완료**(QA 대기) / 설정 화면은 보류(`D-54`) | WLSH-171 |
 | [T-INT-14](T-INT-14-member.md) | member 잔여 실연동 | A | T-INT-18(완료) | **완료**(2026-09-14) | |
 | [T-INT-15](T-INT-15-auth-guard.md) | 인증 가드(`RequireAuth`) 점검 | A | 없음 | **완료**(2026-09-14, 주석 정정만) | |
 | [T-INT-16](T-INT-16-env-config.md) | 프론트 환경설정 정리 | A | 없음 | **완료**(2026-09-14) | |
-| [T-INT-17](T-INT-17-extraction-ui.md) | 추출/대조 결과 화면 | B | T-INT-8 | 대기 | |
+| [T-INT-17](T-INT-17-extraction-ui.md) | 추출/대조 결과 화면 | B | T-INT-8(완료) | **코드 작성 완료**(QA 대기, 2026-09-14). T-INT-10이 보류한 제안 클러스터 4개도 함께 해소 | |
 | [T-INT-18](T-INT-18-participant-member-info.md) | 회원 배치/단건 조회 API 신설(백엔드) | B | 없음 | **완료**(2026-09-14) | |
 | [T-INT-20](T-INT-20-draft-dictionary-lookup.md) | 워크스페이스의 진행 중 사전 초안 조회(백엔드) | B | 없음 | **완료**(2026-09-14) | |
+| [T-INT-21](T-INT-21-design-alignment.md) | 프론트 디자인 정합(`ui/` 기준) + 잔여 API 연동 | A | 트랙 A·T-INT-17 | **코드 작성 완료**(QA 대기, 2026-09-14) | |
+| [T-INT-22](T-INT-22-dictionary-draft-single-page.md) | 사전집 초안 단일 페이지 전환(백엔드+프런트) | A | T-INT-21 | **코드 작성 완료**(컨테이너 테스트 미검증 — Docker 디스크 부족, 2026-09-15) | |
+| [T-INT-23](T-INT-23-observability.md) | OpenTelemetry 관측성 도입(Grafana Cloud) | B | 없음 | **진행중**(2026-09-15) | WLSH-173 |
+| [T-INT-24](T-INT-24-flyway-schema-alignment.md) | Flyway 재도입과 스키마 ↔ 엔티티 정합 | B | 없음 | **진행중**(2026-09-16) — 1~3단계. `prod` 재개는 분리 | |
 
 **트랙 A**(프론트 목업 제거, T-INT-9~16)는 서로 완전히 독립이라 몇 명이 동시에 붙어도
 된다. **트랙 B**(SQS↔FastAPI 실연동)는 T-INT-7 → T-INT-8 → T-INT-17 순서로 이어진다.
 T-INT-6은 트랙 B로 분류돼 있지만 다른 태스크와 무관하게 아무 때나 처리 가능한 잡일이다.
+
+> **`T-INT-23`(관측성)이 `X-08`의 담당을 이어받았다.** 「`ErrorResponse.traceId`는 `T-INT-3`에서」라고
+> 적힌 문서들이 아직 있는데 그 태스크는 범위 밖으로 뒀었다 — 추적 기반이 `T-INT-23`에서 생기므로
+> 나눌 수 없어 함께 처리한다(`docs/plan/CONFLICTS.md` `D-96`).
+>
+> **2026-09-14 기준 대기 태스크는 없다.** `T-INT-21`(디자인 정합)까지 코드 작성이 끝났고
+> 남은 것은 수동 QA뿐이다. 트랙 B의 T-INT-7·T-INT-8은 같은 날 진행된
+> **AI 워커 전환 세션**(`WLSH-166`, PR #62)이 `D-66`~`D-78`로 설계를 다시 잡으면서 다른
+> 모양으로 이미 끝나 있었고(각 파일에 대조표를 남겼다), 마지막 남은 T-INT-17을 그 위에서
+> 마쳤다. 남은 것은 **수동 QA**와 **저장소 밖의 FastAPI 워커 구현**뿐이다.
+>
+> **ID 충돌 주의** — 이 표의 `T-INT-6`(NotificationController)과
+> `docs/plan/EXECUTION_ORDER.md`의 `T-INT-6`(AI 워커 전환)은 **서로 다른 태스크다.**
+> 두 문서가 같은 접두사를 각자 매기고 있으니 인용할 때 출처를 함께 적는다.
 
 우선순위는 **트랙 A(프론트-백엔드 연동)를 먼저** 끝내는 쪽으로 두되, 사람이 나뉘면 트랙
 B를 동시에 진행해도 무방하다(파일이 겹치지 않는다).

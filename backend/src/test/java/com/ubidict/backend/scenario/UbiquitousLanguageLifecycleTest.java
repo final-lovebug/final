@@ -12,7 +12,6 @@ import com.ubidict.backend.dictionary.service.model.TermResult;
 import com.ubidict.backend.document.service.DocumentService;
 import com.ubidict.backend.document.service.model.CreateDocumentCommand;
 import com.ubidict.backend.document.service.model.DocumentResult;
-import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionaryStatus;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJob;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJobStatus;
@@ -24,11 +23,9 @@ import com.ubidict.backend.draftdictionary.service.DraftDictionaryExtractionServ
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
 import com.ubidict.backend.draftdictionary.service.model.AddCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.CreateExtractionJobCommand;
-import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import com.ubidict.backend.draftdocument.domain.CheckJob;
 import com.ubidict.backend.draftdocument.domain.CheckJobStatus;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
-import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.infra.CheckJobRepository;
 import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import com.ubidict.backend.draftdocument.service.DraftDocumentCheckService;
@@ -160,9 +157,12 @@ class UbiquitousLanguageLifecycleTest extends IntegrationTestSupport {
         assertThat(versionNo).isEqualTo(1);
         DictionaryResult active = dictionaryService.readActive(workspaceId, OWNER_ID, defaultQuery());
         assertThat(active.status()).isEqualTo(DictionaryStatus.ACTIVE);
+        // 초안에 남아 있는 후보어 전부가 실린다 — 판정으로 걸러내지 않는다(D-88). 빼고 싶은 후보어는
+        // 초안에서 삭제한다. 인프로세스 추출 대역은 테스트용 고정 후보어를 반환하므로
+        // 첫 사전집에는 인프로세스 추출 대역이 반환한 고정 후보어도 함께 실린다.
         assertThat(active.terms().content())
                 .extracting(TermResult::preferredForm)
-                .containsExactly("결제수단");
+                .containsExactly("결제", "결제수단", "주문");
         assertThat(waitForDictionaryDraftStatus(draftDictionaryId, DraftDictionaryStatus.REVISED))
                 .isEqualTo(DraftDictionaryStatus.REVISED);
     }
@@ -210,19 +210,23 @@ class UbiquitousLanguageLifecycleTest extends IntegrationTestSupport {
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_EXISTS);
     }
 
-    @DisplayName("갱신을 거친 문서는 다시 추출 대상이 되고, 그 사전 초안이 진행 중이면 문서 대조 접수가 막힌다.")
+    @DisplayName("갱신을 거친 문서는 다시 추출 대상이 되고, 그 사전 초안이 진행 중이어도 문서 대조 접수는 열려 있다.")
     @Test
-    void documentCheckIsBlockedByOngoingDictionaryDraft() throws InterruptedException {
+    void documentCheckIsAllowedWhileDictionaryDraftIsOngoing() throws InterruptedException {
         // given — 사전집 v1 이후에는 갱신을 거쳐 기준 버전이 맞춰진 문서만 추출 대상이다(G-12)
         publishFirstDictionary();
         realignDocument();
         extractTerms(List.of(documentId));
 
-        // when & then
-        assertThatThrownBy(() -> checkService.request(new CreateCheckJobCommand(documentId, OWNER_ID)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_ALREADY_EXISTS);
+        // when — 사전집 초안이 진행 중이어도 갱신을 접수할 수 있다(D-93)
+        Long draftDocumentId = checkDocument(documentId);
+
+        // then — 그 초안은 대조에 쓴 사전집 버전(v1)을 들고 있고, 발행본이 그 버전을 따른다
+        assertThat(draftDocumentRepository
+                        .findByIdAndDeletedAtIsNull(draftDocumentId)
+                        .orElseThrow()
+                        .getDictionaryVersionNo())
+                .isEqualTo(1);
     }
 
     /** 링크 복사 초대(inviteeEmail = null)는 특정 대상이 없으므로 수락 시점의 회원으로만 참여를 검사한다(D-39). */
@@ -300,13 +304,10 @@ class UbiquitousLanguageLifecycleTest extends IntegrationTestSupport {
     }
 
     /** 추출 워커가 빈 결과를 주므로 등재할 용어는 교정 중에 손으로 넣는다(REQ-DIC-004의 구현 자리). */
+    /** 판정은 발행 목록에 영향을 주지 않으므로(D-88) 등록만 한다. */
     private void registerTerm(Long draftDictionaryId, String form, String definition) {
-        Long candidateTermId = candidateTermService
-                .add(new AddCandidateTermCommand(
-                        draftDictionaryId, form, definition, null, List.of(documentId), 1, List.of("문맥"), OWNER_ID))
-                .candidateTermId();
-        candidateTermService.decide(new DecideCandidateTermCommand(
-                candidateTermId, OWNER_ID, CandidateTermStatus.REGISTRATION_APPROVED, null, null));
+        candidateTermService.add(new AddCandidateTermCommand(
+                draftDictionaryId, form, definition, null, List.of(documentId), 1, List.of("문맥"), OWNER_ID));
     }
 
     private DraftDictionaryStatus waitForDictionaryDraftStatus(Long draftDictionaryId, DraftDictionaryStatus expected)

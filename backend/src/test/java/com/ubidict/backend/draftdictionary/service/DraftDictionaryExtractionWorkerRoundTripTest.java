@@ -27,6 +27,7 @@ import com.ubidict.backend.workspace.infra.ParticipantRepository;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +49,7 @@ import org.springframework.test.context.TestPropertySource;
             // expireStale()을 직접 부르는 테스트에만 영향을 준다.
             "app.ai.timeout.job=PT0S"
         })
+@Disabled("SQS 왕복은 인메모리 워커 테스트로 대체한다.")
 class DraftDictionaryExtractionWorkerRoundTripTest extends IntegrationTestSupport {
 
     private static final Long MEMBER_ID = 7L;

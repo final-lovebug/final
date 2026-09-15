@@ -16,12 +16,13 @@ import type {
 export type DictionaryStatus = 'ACTIVE' | 'ARCHIVED' // 활성중 / 보관중
 
 export interface Dictionary {
-  /** 실 API(`GET /api/workspaces/{id}/dictionary`, docs/API.md 857행)는 사전집을 별도
-   * id·이름을 가진 리소스로 응답하지 않는다(워크스페이스당 활성 1개 + 보관 N개일 뿐,
-   * "이름"이라는 개념 자체가 없다 — API.md 818행). 실연동에서는 `workspaceId` 기반으로
-   * 합성한다. */
+  /** 실 API(`GET /api/workspaces/{id}/dictionary`)의 `dictionaryId`. 사전집 행 하나가
+   * 확정된 버전 하나이므로 이 id는 "현재 활성 버전"을 가리킨다 — 용어 추출 접수가
+   * 요구하는 값이 이것이다(T-INT-17). */
   id: DictionaryId
   workspaceId: WorkspaceId
+  /** 사전집에는 "이름" 개념이 없다(워크스페이스당 활성 1개 + 보관 N개일 뿐 — docs/API.md
+   * «알아 둘 것 셋»). 화면 표시용으로만 합성한다. */
   name: string
   currentVersionNo: number
   status: DictionaryStatus
@@ -111,19 +112,25 @@ export interface CandidateTerm {
   occurrenceCount: number
   /** 검토 시 판단 근거 */
   contextSnippets?: string[]
+  /**
+   * **새 경로는 이 값으로 아무것도 판단하지 않는다**(`docs/plan/DRAFT_PLAN.md`).
+   * 초안 화면에서 판정을 걷어내 새 후보어는 계속 `PENDING`에 머무른다 — 리뷰 요청 준비
+   * 여부는 대표어·정의가 채워졌는지로만 본다. 과거 데이터를 읽기 위해 타입만 남겼다.
+   */
   status: CandidateTermStatus
   origin?: CandidateTermOrigin
   /** 사람이 고른 분류. 추출 생성분은 비어 있다. */
   type?: CandidateTermType
   /** 추출기가 같은 개념으로 묶어 돌려준 표기 변형들(대표 표기 form 포함). */
   variantForms?: string[]
-  /** 판정을 내린 처리자. 등록자(createdBy)와 다르다. */
+  /** 판정을 내린 처리자. 판정과 함께 사용 안 함이 됐다. */
   handledBy?: MemberId
   rejectReason?: string
   mergeTargetTermId?: TermId
   /** 승인 후 생성된 표준 용어 */
   resultTermId?: TermId
   createdAt: string
-  createdBy: MemberId
+  /** **응답에 없다** — 후보어별 작성자를 화면이 쓰지 않게 되어 API에서 빠졌다(`DRAFT_PLAN.md`). */
+  createdBy?: MemberId
   updatedAt: string
 }

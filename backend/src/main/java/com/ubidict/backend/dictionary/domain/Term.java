@@ -8,10 +8,13 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 사전집에 등재된 표준 용어. 소속 사전집 버전과 함께 얼어붙는다.
@@ -24,6 +27,7 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"dictionary_id", "preferred_form"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Term extends BaseEntity {
 
@@ -42,7 +46,7 @@ public class Term extends BaseEntity {
     @Column(length = FORM_MAX_LENGTH, updatable = false)
     private String englishName;
 
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     @Column(nullable = false, updatable = false)
     private String definition;
 

@@ -9,10 +9,14 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 사전집의 한 확정 버전. 워크스페이스에 행이 쌓이고 ACTIVE인 행 하나가 가장 최근 확정본이자 문서 대조의 기준이다.
@@ -27,6 +31,11 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
+@Table(
+        uniqueConstraints = {
+            @UniqueConstraint(columnNames = {"workspace_id", "version_no"}),
+            @UniqueConstraint(columnNames = {"workspace_id", "active_flag"})
+        })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Dictionary extends BaseEntity {
 
@@ -43,6 +52,21 @@ public class Dictionary extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private DictionaryStatus status;
+
+    /**
+     * ACTIVE 사전집을 워크스페이스당 하나만 허용하는 스키마 생성용 generated column.
+     *
+     * <p>타입을 <b>두 군데</b> 맞춰야 {@code ddl-auto=validate}를 통과한다(`D-106`) — 기대 타입명은
+     * {@code columnDefinition}의 첫 단어에서, JDBC 타입 코드는 필드 타입에서 각각 온다. 마이그레이션의
+     * {@code tinyint}에 맞춰 둘 다 {@code tinyint}로 둔다.
+     */
+    @JdbcTypeCode(SqlTypes.TINYINT)
+    @Column(
+            name = "active_flag",
+            insertable = false,
+            updatable = false,
+            columnDefinition = "tinyint generated always as (case when status = 'ACTIVE' then 1 else null end)")
+    private Integer activeFlag;
 
     @Column(nullable = false, updatable = false)
     private Long createdBy;

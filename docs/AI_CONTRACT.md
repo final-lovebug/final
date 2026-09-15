@@ -103,17 +103,20 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 | `jobType` | enum | `TERM_EXTRACTION` \| `DOCUMENT_CHECK` |
 | `jobId` | long | 콜백 경로의 `{jobId}` |
 | `workspaceId` | long | |
-| `mode` | enum | `STUB` \| `REAL` |
+| `mode` | enum | `STUB` \| `MOCK` \| `REAL` |
 | `requestedAt` | ISO-8601 offset | 발행 시각 |
 
 **작업 종류에 따라 채워지지 않는 필드는 `null`로 실린다.** 워커는 `jobType`으로 분기한다.
 
-### 5-2. `mode`의 의미 (`D-71`)
+### 5-2. `mode`의 의미 (`D-71`·`D-86`)
 
 - **`REAL`** — 모델을 호출해 실제 결과를 만든다.
-- **`STUB`** — **모델을 호출하지 않는다.** 임의 시간(수 초 이내)을 기다린 뒤 형식만 맞는 목 데이터를 돌려준다. 비용 없이 전 구간 왕복을 확인하기 위한 것이다.
+- **`STUB`** — **모델을 호출하지 않는다.** 임의 시간(수 초 이내)을 기다린 뒤 빈 결과를 돌려준다. 기존 대역과의 호환을 위한 값이다.
+- **`MOCK`** — **모델을 호출하지 않는다.** 워커가 계약에 맞는 목 결과를 HTTP 콜백으로 돌려준다. `dev`에서 Spring → LocalStack → FastAPI → Spring 왕복을 확인하기 위한 값이다.
+  - **`TERM_EXTRACTION`은 DB도 보지 않는다** — 고정 용어 한 건을 지어내 돌려준다.
+  - **`DOCUMENT_CHECK`은 본문과 활성 사전집을 읽는다**(2026-09-15 변경). 제안어는 두 조건을 **모두** 만족해야 쓸모가 있다 — ① `anchor`가 가리키는 구간이 `originTerm`과 같아야 하고(6-2, 아니면 `DRAFT_DOCUMENT_CHECK_INVALID_RESULT`로 콜백이 거절된다), ② `suggestionTerm`이 **활성 사전집에 등재된 표준어**여야 한다(아니면 초안은 만들어져도 사용자가 「적용」을 누를 때 `DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM`으로 막힌다). 그래서 5-5의 `document`·`document_version`·`dictionary`·`term`을 읽는다. 모델은 부르지 않는다.
 
-백엔드는 이 값으로 아무 분기도 하지 않는다. `dev`는 `STUB`, `prod`는 `REAL`이 기본이다.
+백엔드는 이 값으로 아무 분기도 하지 않는다. `dev`는 `MOCK`, `prod`는 `REAL`이 기본이다.
 
 ### 5-3. 용어 추출 (`TERM_EXTRACTION`)
 
@@ -300,3 +303,6 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 | 버전 | 날짜 | 변경 | 호환성 |
 | --- | --- | --- | --- |
 | 1 | 2026-09-14 | 최초 정의(`T-INT-6`, `D-66`~`D-78`) | — |
+| 1 | 2026-09-14 | `MOCK` 모드 추가(`D-86`). `dev`에서 고정 목 결과로 실제 SQS·HTTP 콜백 왕복을 검증한다 | 호환 — 워커는 알 수 없는 필드를 무시하는 대신 새 enum 값을 처리해야 한다 |
+| 1 | 2026-09-15 | `MOCK`의 `DOCUMENT_CHECK`이 본문을 읽어 유효한 앵커를 만들도록 바꿨다. 종전에는 빈 제안만 돌려줘 대조 화면을 확인할 수 없었다 | 호환 — 메시지 스키마는 그대로고 워커 쪽 동작만 바뀐다. 워커 배포 환경에 DB 접속 정보가 필요하다 |
+| 1 | 2026-09-15 | `MOCK`의 `DOCUMENT_CHECK`이 대체 용어를 **활성 사전집의 표준어 중에서** 고르도록 바꿨다. 지어낸 용어는 초안까지는 통과하지만 「적용」에서 막혀 반쪽짜리 목데이터였다 | 호환 — 워커 쪽 동작만 바뀐다 |

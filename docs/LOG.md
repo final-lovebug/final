@@ -52,12 +52,14 @@ log.warn("[OrderService.cancel] Order cancel rejected. orderId={}, currentStatus
 
 ## **Trace ID와 MDC**
 
-Trace ID는 한 요청의 로그를 이어 붙이기 위한 식별자다. Filter 또는 Interceptor에서 만들어 MDC에 넣는다.
+Trace ID는 한 요청의 로그를 이어 붙이기 위한 식별자다. **직접 만들지 않는다** — OpenTelemetry 계측이 요청마다 trace를 시작하고 Micrometer Tracing이 그 값을 MDC의 `traceId`·`spanId`로 넣어 준다(`D-103`).
 
 - 모든 요청은 trace id를 가진다.
-- **API 에러 응답에는 trace id를 포함한다.**
-- 외부 API 요청 시 가능하면 trace id를 헤더로 전달하고, 비동기 메시지에는 correlation id를 포함한다.
-- MDC에 넣은 값은 요청 종료 시 반드시 제거한다.
+- **직접 `TraceIdFilter`를 만들지 않는다.** 따로 만들면 ID가 둘 공존해 로그와 트레이스가 오히려 끊긴다. MDC 정리도 계측이 맡으므로 손으로 `MDC.clear()`를 부르지 않는다.
+- **API 에러 응답에는 trace id를 포함한다.** `ErrorResponse`가 팩토리에서 `MDC.get("traceId")`를 읽는다 — 핸들러가 따로 챙기지 않는다.
+- 이 값은 **텔레메트리 전송 여부와 무관하게 살아 있다.** 익스포터를 꺼도 `Tracer` 빈은 만들어지므로 로컬·테스트에서도 응답에 `traceId`가 실린다.
+- 외부 API 요청 시 trace id를 헤더로 전달하고(`RestClient` 계측이 `traceparent`를 자동으로 싣는다), 비동기 메시지에는 correlation id를 포함한다. **메시지 큐 경계는 아직 자동이 아니다** — AI 워커 요청은 `requestId`가 correlation id를 겸한다.
+- MDC에 **직접 넣은** 값은 요청 종료 시 반드시 제거한다.
 
 ## **예외 로그 규칙**
 
@@ -78,12 +80,18 @@ Trace ID는 한 요청의 로그를 이어 붙이기 위한 식별자다. Filter
 
 Controller마다 직접 남기지 않고, 필요하면 Filter 또는 Interceptor에서 공통으로 남긴다. 권장 필드는 traceId, method, path, status code, elapsed time, user id, client ip다.
 
+- **트레이스와 중복되지 않는지 먼저 본다.** method·path·status·elapsed는 HTTP 서버 스팬이 이미 갖고 있다. 같은 것을 로그로 한 번 더 남기면 저장 비용만 는다. 요청/응답 로그는 **스팬에 없는 것**(도메인 식별자, 인가 판단 근거)을 남길 때 값이 있다.
+
 - **request body와 response body는 기본적으로 남기지 않는다.** 파일 업로드·결제·인증 API는 body 로그를 금지한다.
 - 2xx 응답을 너무 많이 남기면 로그 비용이 커진다.
 
 ## **로그 저장과 롤링 전략**
 
-운영 파일 로그는 일자+파일 크기 기준으로 롤링한다 — maxFileSize 100MB, maxHistory 14일, totalSizeCap 2GB, 지난 로그는 `.gz` 압축. 운영 기본 로그 레벨은 INFO이며, DEBUG가 필요하면 특정 패키지만 일시적으로 올리고 분석이 끝나면 되돌린다. 컨테이너로 운영하면 애플리케이션은 stdout에만 남기고 롤링은 플랫폼 수집기에 맡긴다. 금전·감사·보안 이벤트처럼 장기 보관이 필요한 기록은 로그 파일이 아니라 별도 테이블이나 이벤트 저장소에 남긴다.
+**이 서비스는 컨테이너로 운영하므로 파일 appender를 두지 않는다**(`D-100`). `logback-spring.xml`의 appender는 둘이다 — `CONSOLE`(stdout)과 `OTEL`(OTLP). 보존·검색·롤링은 수집기가 맡는다. **`CONSOLE`을 지우지 않는다** — OTLP가 끊겼을 때와 기동 중 죽었을 때 `docker logs`가 마지막 방어선이다.
+
+운영 기본 로그 레벨은 INFO이며, DEBUG가 필요하면 특정 패키지만 일시적으로 올리고 분석이 끝나면 되돌린다. **OTLP 익스포터 자신의 로거(`io.opentelemetry.exporter.internal` 등)는 `ERROR`로 낮춰 둔다** — export 실패 WARN이 다시 로그 레코드가 되어 export되는 되먹임을 끊어야 한다(`D-105`). 금전·감사·보안 이벤트처럼 장기 보관이 필요한 기록은 로그가 아니라 별도 테이블이나 이벤트 저장소에 남긴다.
+
+파일 로그를 쓰는 환경이 생긴다면 일자+파일 크기 기준으로 롤링한다 — maxFileSize 100MB, maxHistory 14일, totalSizeCap 2GB, 지난 로그는 `.gz` 압축.
 
 ## **흔한 실수**
 
