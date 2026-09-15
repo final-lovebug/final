@@ -53,7 +53,7 @@ export function DocumentDraftListPage() {
                   key={document.draftDocumentId}
                   clickable
                   onClick={() =>
-                    navigate(routes.documentReview(workspaceId, document.documentId))
+                    navigate(routes.documentDraft(workspaceId, document.documentId))
                   }
                 >
                   <Td className="font-bold text-text">{document.title}</Td>

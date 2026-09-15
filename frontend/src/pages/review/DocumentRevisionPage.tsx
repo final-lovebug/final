@@ -42,7 +42,7 @@ function toneFor(memberId: string): AvatarTone {
 /**
  * 문서 개정안 검토 화면.
  *
- * **라우트의 `reviewId` 파라미터는 실제로는 리뷰 요청 id다** — 코멘트 조회·검토 제출·
+ * **라우트 파라미터 `reviewRequestId`는 개정안 id가 아니라 리뷰 요청 id다** — 코멘트 조회·검토 제출·
  * 재교정·반영이 전부 리뷰 요청 스코프다(`GET /api/review-requests/{id}/...`). 코멘트를
  * 새로 달 때만 reviewId가 필요한데, 그건 검토 제출과 한 트랜잭션으로 묶여 있다(`D-63`).
  *
@@ -52,15 +52,15 @@ function toneFor(memberId: string): AvatarTone {
  * 위치를 강조하는 것보다 「처리 내역」으로 무엇이 바뀌었는지 보여주는 편이 정확하다 —
  * 본문 위 표시는 문장 분할·오프셋 규격(`REQ-DOC-005`)이 선행돼야 한다(`D-61`).
  */
-export function DocumentReviewThreadPage() {
+export function DocumentRevisionPage() {
   const {
     workspaceId = '',
     documentId = '',
-    reviewId: reviewRequestId = '',
+    reviewRequestId = '',
   } = useParams<{
     workspaceId: string
     documentId: string
-    reviewId: string
+    reviewRequestId: string
   }>()
   const navigate = useNavigate()
   const { data: comments } = useReviewThreadComments(reviewRequestId)

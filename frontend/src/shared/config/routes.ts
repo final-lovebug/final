@@ -10,21 +10,22 @@ export const routes = {
   documents: (workspaceId: string) => `/workspaces/${workspaceId}/documents`,
   documentDrafts: (workspaceId: string) =>
     `/workspaces/${workspaceId}/documents/drafts`,
-  documentReviewRequests: (workspaceId: string) =>
-    `/workspaces/${workspaceId}/documents/reviews`,
+  documentRevisions: (workspaceId: string) =>
+    `/workspaces/${workspaceId}/documents/revisions`,
   documentUpload: (workspaceId: string) =>
     `/workspaces/${workspaceId}/documents/upload`,
   documentDetail: (workspaceId: string, documentId: string) =>
     `/workspaces/${workspaceId}/documents/${documentId}`,
   documentHistory: (workspaceId: string, documentId: string) =>
     `/workspaces/${workspaceId}/documents/${documentId}/history`,
-  documentReview: (workspaceId: string, documentId: string) =>
-    `/workspaces/${workspaceId}/documents/${documentId}/review`,
-  documentReviewThread: (
+  documentDraft: (workspaceId: string, documentId: string) =>
+    `/workspaces/${workspaceId}/documents/${documentId}/draft`,
+  documentRevision: (
     workspaceId: string,
     documentId: string,
-    reviewId: string,
-  ) => `/workspaces/${workspaceId}/documents/${documentId}/review/${reviewId}`,
+    reviewRequestId: string,
+  ) =>
+    `/workspaces/${workspaceId}/documents/${documentId}/revisions/${reviewRequestId}`,
 
   dictionary: (workspaceId: string) => `/workspaces/${workspaceId}/dictionary`,
   dictionaryDraft: (workspaceId: string) =>

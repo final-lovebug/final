@@ -34,7 +34,7 @@ export function DocumentDetailPage() {
     setActionError(null)
     createCheckJob.mutate(undefined, {
       onSuccess: (created) =>
-        navigate(`${routes.documentReview(workspaceId, documentId)}?checkJob=${created.id}`),
+        navigate(`${routes.documentDraft(workspaceId, documentId)}?checkJob=${created.id}`),
       onError: (error) =>
         setActionError(
           error instanceof ApiError ? error.message : '대조 작업을 접수하지 못했습니다.',

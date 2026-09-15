@@ -7,7 +7,7 @@ import { NicknameOnboardingPage } from '../pages/onboarding/NicknameOnboardingPa
 import { WorkspacesPage } from '../pages/WorkspacesPage'
 import { DocumentListPage } from '../pages/document/DocumentListPage'
 import { DocumentDraftListPage } from '../pages/document/DocumentDraftListPage'
-import { DocumentReviewRequestListPage } from '../pages/document/DocumentReviewRequestListPage'
+import { DocumentRevisionListPage } from '../pages/document/DocumentRevisionListPage'
 import { DocumentUploadPage } from '../pages/document/DocumentUploadPage'
 import { DocumentDetailPage } from '../pages/document/DocumentDetailPage'
 import { DocumentHistoryPage } from '../pages/document/DocumentHistoryPage'
@@ -15,8 +15,8 @@ import { TermExtractionPage } from '../pages/dictionary/TermExtractionPage'
 import { DictionaryDraftPage } from '../pages/dictionary/DictionaryDraftPage'
 import { DictionaryPage } from '../pages/dictionary/DictionaryPage'
 import { DictionaryHistoryPage } from '../pages/dictionary/DictionaryHistoryPage'
-import { DocumentReviewPage } from '../pages/review/DocumentReviewPage'
-import { DocumentReviewThreadPage } from '../pages/review/DocumentReviewThreadPage'
+import { DocumentDraftPage } from '../pages/review/DocumentDraftPage'
+import { DocumentRevisionPage } from '../pages/review/DocumentRevisionPage'
 import { DictionaryRevisionPage } from '../pages/review/DictionaryRevisionPage'
 import { SettingsLayout } from '../pages/settings/SettingsLayout'
 import { SettingsMembersPage } from '../pages/settings/SettingsMembersPage'
@@ -67,8 +67,8 @@ export const router = createBrowserRouter([
             handle: { title: '초안' },
           },
           {
-            path: 'documents/reviews',
-            element: <DocumentReviewRequestListPage />,
+            path: 'documents/revisions',
+            element: <DocumentRevisionListPage />,
             handle: { title: '개정안' },
           },
           {
@@ -87,13 +87,13 @@ export const router = createBrowserRouter([
             handle: { title: '문서 버전 이력' },
           },
           {
-            path: 'documents/:documentId/review',
-            element: <DocumentReviewPage />,
-            handle: { title: '문서 검토' },
+            path: 'documents/:documentId/draft',
+            element: <DocumentDraftPage />,
+            handle: { title: '문서 초안' },
           },
           {
-            path: 'documents/:documentId/review/:reviewId',
-            element: <DocumentReviewThreadPage />,
+            path: 'documents/:documentId/revisions/:reviewRequestId',
+            element: <DocumentRevisionPage />,
             handle: { title: '문서 개정안 리뷰' },
           },
           {

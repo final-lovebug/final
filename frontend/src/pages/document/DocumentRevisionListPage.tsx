@@ -37,7 +37,7 @@ const STATUS_LABEL: Record<ReviewRequestStatus, string> = {
 // document 도메인의 문서 목록, 두 훅의 결과를 여기(페이지)에서 조합한다 — features 간 직접
 // 참조를 피하면서도 "어떤 문서의 개정안인지"를 보여줘야 하기 때문이다
 // (frontend/docs/ARCHITECTURE.md 의존성 규칙 참고).
-export function DocumentReviewRequestListPage() {
+export function DocumentRevisionListPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
   const navigate = useNavigate()
   const { data: reviewRequests, isLoading, isError } = useDocumentReviewRequests(workspaceId)
@@ -77,7 +77,7 @@ export function DocumentReviewRequestListPage() {
                   clickable
                   onClick={() =>
                     navigate(
-                      routes.documentReviewThread(
+                      routes.documentRevision(
                         workspaceId,
                         request.documentId,
                         request.reviewRequestId,
