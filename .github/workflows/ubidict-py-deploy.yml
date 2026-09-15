@@ -1,104 +1,96 @@
 name: ubidict-py Deploy
 
-# 하는 일: 이미지 빌드 → ECR 푸시 → ECS 태스크 정의 등록 → CodeDeploy 블루/그린 배포.
-# `ubidict-py-ci.yml`(lint+test)이 이 워크플로보다 먼저 통과해야 한다는 보장은 없다 —
-# 필요하면 나중에 `workflow_run`으로 체이닝한다(지금은 최소 구성).
+# 하는 일: 이미지 빌드 → ECR 푸시 → S3에 CodeDeploy 번들 업로드 → EC2(IN_PLACE) 배포.
+# `deploy.yml`(스프링 백엔드)과 완전히 동일한 구조다 — 같은 계정, 같은 CodeDeploy 앱
+# `lovebug`, 같은 OIDC 역할, 같은 S3 버킷을 그대로 재사용한다. 차이는 이미지
+# 리포(`lovebug/fastapi`)·배포그룹(`lovebug-fastapi-codedeploy`)·번들 원본
+# (`ubidicExtractor/ubidict-py/deploy/`)뿐이다.
 #
-# **이 워크플로는 아직 실제로 성공할 수 없다** — 참조하는 AWS 리소스(ECS
-# 클러스터/서비스, CodeDeploy 애플리케이션/배포 그룹, ECR 리포지토리, IAM
-# 역할, Secrets Manager 시크릿)가 하나도 프로비저닝돼 있지 않다(task.md
-# "실제 ECS/IAM/RDS 프로비저닝은 범위 밖" 참고 — Terraform/CDK는 별도
-# 작업이다). 아래 env/secrets 자리가 전부 실제 값으로 채워지고 인프라가
-# 만들어진 뒤에야 동작한다. 코드만 미리 준비해두는 것.
-#
-# **그래서 자동 트리거를 두지 않는다.** 원래 `push`(main + ubidict-py 변경)로 돌게 돼 있었고
-# 독립 저장소에서는 실패해도 눈에 띄지 않았지만, 이 저장소로 편입된 뒤에는 main 에 워커
-# 변경이 들어갈 때마다 빨간 실패가 찍힌다 — 인프라가 없어서 확정적으로 실패하는 것이라
-# 신호가 되지 못하고 다른 실패를 가린다. 수동 실행(workflow_dispatch)만 남긴다.
-#
-# 인프라가 준비되면 아래를 되살린다(경로는 저장소 루트 기준으로 이미 맞춰 뒀다).
-#
-#   push:
-#     branches: [main]
-#     paths:
-#       - "ubidicExtractor/ubidict-py/**"
-#       - ".github/workflows/ubidict-py-deploy.yml"
-#
-# 경로 규칙: `run:` 스텝은 defaults.run.working-directory 를 타지만 action
-# 입력(task-definition·codedeploy-appspec)은 루트 기준이라 접두사가 붙는다.
+# **2026-09-15 — ECS 블루/그린 설계에서 EC2 IN_PLACE로 전면 교체.** 이전 설계는
+# 존재하지 않는 ECS 클러스터/서비스·CodeDeploy 블루/그린 배포그룹·Secrets Manager
+# 시크릿을 참조해 항상 실패가 확정이었다(그래서 workflow_dispatch만 남기고 push
+# 트리거를 꺼 뒀었다). 실제 배포 대상은 이미 떠 있는 단일 EC2 `lovebug-fastapi`로
+# 확정됐고(`ubidicExtractor/ubidict-py/task.md` "AWS 배포(EC2+CodeDeploy)" 절 참고),
+# 필요한 AWS 인프라(EC2·ECR 리포·ALB 타깃그룹·CodeDeploy 배포그룹)가 전부
+# 프로비저닝돼 있어 이제 push 트리거를 되살린다 — 아직 안 끝난 IAM 조치(ECR 리소스
+# ARN 오타·SSM 파라미터 미등록·Gemini 키 미등록) 때문에 당분간은 실패하겠지만, 이제는
+# "정확히 어디서 막혔는지"가 CodeDeploy 로그에 실제 신호로 남는다(예전처럼 애초에
+# 존재하지 않는 리소스라 무의미하게 실패하던 것과 다르다).
 on:
-  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "ubidicExtractor/ubidict-py/**"
+      - ".github/workflows/ubidict-py-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-fastapi
+  cancel-in-progress: false
 
 permissions:
-  id-token: write   # AWS OIDC (아래 role-to-assume) — 장기 액세스 키를 시크릿에 안 둔다
+  id-token: write   # AWS OIDC — 장기 액세스 키를 시크릿에 안 둔다
   contents: read
 
-defaults:
-  run:
-    working-directory: ubidicExtractor/ubidict-py
-
 env:
-  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
-  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ubidict-py' }}
+  AWS_REGION: ap-northeast-2
+  AWS_ROLE: arn:aws:iam::416121583617:role/lovebug-github-actions
+  BUCKET: lovebug-s3-416121583617-ap-northeast-2-an
+  TAG: ${{ github.sha }}
 
 jobs:
-  build-and-deploy:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ubidicExtractor/ubidict-py
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          # lovebug/fastapi 리포는 IMMUTABLE이다 — latest 태그는 두 번째 배포부터
+          # 푸시가 거절된다. 커밋 SHA 단일 태그만 쓴다.
+          tags: ${{ steps.ecr.outputs.registry }}/lovebug/fastapi:${{ env.TAG }}
+          cache-from: type=gha,scope=fastapi
+          cache-to: type=gha,mode=max,scope=fastapi
+
+  deploy:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # 리포 Settings → Secrets and variables → Actions 에서 만들어야 하는 것들.
-      # AWS_DEPLOY_ROLE_ARN: GitHub OIDC를 신뢰하는 IAM 역할(ECR 푸시·ECS
-      # 태스크 정의 등록·CodeDeploy 배포 생성 권한 필요) — 이 역할 자체는
-      # 인프라 작업으로 미리 만들어져 있어야 한다.
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ env.AWS_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - uses: aws-actions/amazon-ecr-login@v2
-        id: ecr-login
-
-      - name: Build, tag, push image
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Upload bundle
         run: |
-          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" -t "$ECR_REGISTRY/$ECR_REPOSITORY:latest" .
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
-
-      # deploy/taskdef.json의 ${TASK_EXECUTION_ROLE_ARN} 등은 CodeDeploy의
-      # <IMAGE1_NAME>·<TASK_DEFINITION>과 달리 우리가 직접 채워야 한다(아래
-      # 시크릿들 — 전부 인프라 준비 후 리포 시크릿으로 등록해야 함).
-      - name: Render task definition (fill ARN placeholders)
-        env:
-          TASK_EXECUTION_ROLE_ARN: ${{ secrets.TASK_EXECUTION_ROLE_ARN }}
-          TASK_ROLE_ARN: ${{ secrets.TASK_ROLE_ARN }}
-          SECRETS_MANAGER_ARN: ${{ secrets.SECRETS_MANAGER_ARN }}
+          echo "$TAG" > ubidicExtractor/ubidict-py/deploy/IMAGE_TAG
+          cd ubidicExtractor/ubidict-py/deploy && zip -qr "$GITHUB_WORKSPACE/bundle.zip" .
+          cd "$GITHUB_WORKSPACE"
+          unzip -l bundle.zip
+          aws s3 cp bundle.zip "s3://$BUCKET/lovebug/deploy/fastapi-$TAG.zip"
+      - name: Deploy
+        timeout-minutes: 30
         run: |
-          envsubst < deploy/taskdef.json > deploy/taskdef.rendered.json
-          cat deploy/taskdef.rendered.json
-
-      - name: Fill in the new image ID
-        id: render-image
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ubidicExtractor/ubidict-py/deploy/taskdef.rendered.json
-          container-name: ubidict-py
-          image: ${{ steps.build-image.outputs.image }}
-
-      # ECS_CLUSTER·ECS_SERVICE·CODEDEPLOY_APPLICATION·CODEDEPLOY_DEPLOYMENT_GROUP
-      # 는 리포 Variables로 등록(비밀 아님, 이름뿐이라 secrets 말고 vars 사용 권장).
-      - name: Deploy to Amazon ECS (CodeDeploy blue/green)
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-image.outputs.task-definition }}
-          service: ${{ vars.ECS_SERVICE }}
-          cluster: ${{ vars.ECS_CLUSTER }}
-          codedeploy-appspec: ubidicExtractor/ubidict-py/deploy/appspec.yaml
-          codedeploy-application: ${{ vars.CODEDEPLOY_APPLICATION }}
-          codedeploy-deployment-group: ${{ vars.CODEDEPLOY_DEPLOYMENT_GROUP }}
+          ID=$(aws deploy create-deployment \
+            --application-name lovebug \
+            --deployment-group-name lovebug-fastapi-codedeploy \
+            --description "$TAG" \
+            --s3-location "bucket=$BUCKET,key=lovebug/deploy/fastapi-$TAG.zip,bundleType=zip" \
+            --query deploymentId --output text)
+          echo "deployment: $ID"
+          aws deploy wait deployment-successful --deployment-id "$ID" || {
+            aws deploy get-deployment --deployment-id "$ID" \
+              --query 'deploymentInfo.{Status:status,Error:errorInformation}'
+            exit 1
+          }
