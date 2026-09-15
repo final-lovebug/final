@@ -60,59 +60,59 @@
 
 ### 2. 백엔드 OTel 배선
 
-- [ ] `build.gradle` — OTel 스타터 주석 해제 + `opentelemetry-logback-appender-1.0`.
+- [x] `build.gradle` — OTel 스타터 주석 해제 + `opentelemetry-logback-appender-1.0`.
       **`opentelemetry-instrumentation-bom-alpha`를 import하지 않는다** — 그 BOM을 import하면
       `io.opentelemetry:*` 전체가 Boot가 관리하는 버전에서 내려간다. 버전을 직접 고정한다
-- [ ] `application.yml` — actuator 노출·리소스 속성·샘플링·OTel 익스포터 로거 `ERROR`.
+- [x] `application.yml` — actuator 노출·리소스 속성·샘플링·OTel 익스포터 로거 `ERROR`.
       **수집기 주소를 적지 않는다**(`D-94`)
-- [ ] `logback-spring.xml` 신설 — `CONSOLE` + `OTEL`. `OpenTelemetryAppenderInitializer`가
+- [x] `logback-spring.xml` 신설 — `CONSOLE` + `OTEL`. `OpenTelemetryAppenderInitializer`가
       `InitializingBean`으로 install한다(Logback이 Spring 컨텍스트보다 먼저 뜨므로 appender가
       스스로 `OpenTelemetry`를 얻지 못한다)
-- [ ] `local`·`dev`에 `exposure.include`로 `prometheus` 추가
+- [x] `local`·`dev`에 `exposure.include`로 `prometheus` 추가
 
 ### 3. traceId (`X-08`)
 
-- [ ] `ErrorResponse`에 `traceId` 필드(`@JsonInclude(NON_NULL)`) + 팩토리에서 MDC 조회
-- [ ] `GlobalExceptionHandler`는 손대지 않는다 — 두 팩토리가 유일한 통로라 핸들러 전체에
+- [x] `ErrorResponse`에 `traceId` 필드(`@JsonInclude(NON_NULL)`) + 팩토리에서 MDC 조회
+- [x] `GlobalExceptionHandler`는 손대지 않는다 — 두 팩토리가 유일한 통로라 핸들러 전체에
       자동 적용된다. **착수 시 이 전제가 여전한지 코드로 확인할 것**
 
 ### 4. `@Async` 컨텍스트 전파
 
-- [ ] `spring.task.execution.propagate-context`는 **Boot 4.0.8에 없다**(4.1 추가분).
+- [x] `spring.task.execution.propagate-context`는 **Boot 4.0.8에 없다**(4.1 추가분).
       `ContextPropagatingTaskDecorator`를 빈으로 등록한다
-- [ ] **`AsyncEventConfig`에 두지 않는다** — `AsyncConfigurer` 구현체에 이 `@Bean`을 함께 두면
+- [x] **`AsyncEventConfig`에 두지 않는다** — `AsyncConfigurer` 구현체에 이 `@Bean`을 함께 두면
       `applicationTaskExecutor` 생성 중 `Illegal factory instance`로 컨텍스트가 기동에 실패한다
 
 ### 5. actuator 노출 범위 (`D-97`)
 
-- [ ] `SecurityConfig` — `/actuator/**` `permitAll`을 `/actuator/health`·`/actuator/health/**`·
+- [x] `SecurityConfig` — `/actuator/**` `permitAll`을 `/actuator/health`·`/actuator/health/**`·
       `/actuator/info`로 좁힌다. **health 경로는 반드시 열어 둔다** — `deploy/scripts/validate.sh`의
       readiness 폴링이 여기를 친다
-- [ ] `app.security.actuator.permit-all` 신설 — `prod`는 기본 `false`, `local`·`dev`만 연다.
+- [x] `app.security.actuator.permit-all` 신설 — `prod`는 기본 `false`, `local`·`dev`만 연다.
       **노출(`exposure.include`)만으로는 `/actuator/prometheus`가 401이라** 「눈으로 확인하는
       수단」이 실제로는 동작하지 않는다
-- [ ] 나머지 경로를 인증으로 막을 때 **`isAuthenticated()`를 직접 쓰지 않는다** — 익명 인증
+- [x] 나머지 경로를 인증으로 막을 때 **`isAuthenticated()`를 직접 쓰지 않는다** — 익명 인증
       토큰도 `true`라 무인증이 통과한다
 
 ### 6. prod — Grafana Cloud 직행
 
-- [ ] `OtlpAuthHeaderEnvironmentPostProcessor` 신설 + `META-INF/spring.factories` 등록.
+- [x] `OtlpAuthHeaderEnvironmentPostProcessor` 신설 + `META-INF/spring.factories` 등록.
       `otel.auth`(원문 `instanceID:token`)를 base64해 `otel.auth-header`로 파생한다.
       **`getOrder()`가 `ConfigDataEnvironmentPostProcessor.ORDER`보다 커야** Parameter Store가
       올라온 뒤에 돈다. **`trim()` 필수** — 값에 개행이 섞이면 base64가 깨져 401이 나는데
       익스포터 로거가 `ERROR`라 조용히 실패한다. **토큰을 로그에 찍지 않는다**
-- [ ] `application-prod.yml` — 엔드포인트·헤더·`enabled`·샘플링·리소스 속성.
+- [x] `application-prod.yml` — 엔드포인트·헤더·`enabled`·샘플링·리소스 속성.
       `health.show-details`도 `always` → `when-authorized`
-- [ ] `start_container.sh` — `-e OTEL_SERVICE_VERSION="$TAG"` 한 줄
+- [x] `start_container.sh` — `-e OTEL_SERVICE_VERSION="$TAG"` 한 줄
 
 ### 7. 검증
 
-- [ ] `./gradlew spotlessApply && ./gradlew check`
+- [x] `./gradlew spotlessApply && ./gradlew check`
 - [ ] 로컬 — `bootRun`으로 Tempo·Loki·Prometheus 3신호 확인. **에러 응답의 `traceId`로 트레이스가
       조회되고 Loki 로그의 `trace_id`가 같은 값인지**까지 본다. 배치 플러시에 수 초 걸리므로
       즉시 조회하면 안 나온다
 - [ ] 로컬 — **LGTM을 내린 채로도 서비스가 계속되는지**(`D-98`). export 실패 로그가 쌓이지 않는지
-- [ ] `grep -r "grafana.net" backend/src`가 0건 — 로컬·테스트 경로에 Cloud 주소가 없다
+- [x] `grep -r "grafana.net" backend/src`가 0건 — 로컬·테스트 경로에 Cloud 주소가 없다
 - [ ] 배포 — `/lovebug/otel/enabled=false`로 먼저 배포해 **설정 변경만 단독 검증**
 - [ ] 배포 — `true`로 바꾸고 재배포. Grafana Cloud에서 3신호, `docker logs spring`에 EPP의
       `instanceID` 한 줄
@@ -122,12 +122,27 @@
 
 ### 8. 사후 문서
 
-- [ ] `backend/CLAUDE.md` — 「관측」 절을 실제 구성으로, 환경변수 표에 `OTEL_*`,
+- [x] `backend/CLAUDE.md` — 「관측」 절을 실제 구성으로, 환경변수 표에 `OTEL_*`,
       Parameter Store 절에 `/lovebug/otel/`
-- [ ] 루트 `CLAUDE.md` 「미구성 항목」의 `ErrorResponse.traceId` 항목을 해소로
-- [ ] `docs/REQUIREMENTS.md` — `NFR-CMN-003` 완료.
+- [x] 루트 `CLAUDE.md` 「미구성 항목」의 `ErrorResponse.traceId` 항목을 해소로
+- [x] `docs/REQUIREMENTS.md` — `NFR-CMN-003` 완료.
       **`NFR-INF-008`은 올리지 않는다**(워커 구간 전파가 범위 밖).
       **`NFR-CMN-001`도 올리지 않는다** — 측정 수단이 생겼을 뿐이다
+
+## 진행 중 드러난 선행 결함 (이 태스크가 만든 것이 아니다)
+
+`./gradlew check` 984건 중 **1건이 실패한다.** `develop` 시점부터 이미 실패하고 있었다 —
+작업분을 `git stash` 로 걷어내고 돌려 확인했다. 조건을 완화하지 않고 그대로 둔다
+(루트 `CLAUDE.md` 「테스트가 실패하면 테스트를 삭제하거나 조건을 완화하지 말고 원인을 보고한다」).
+
+- **`UbiquitousLanguageLifecycleTest.firstDictionaryIsBornFromDocuments`**
+- 기대: 사전집에 손으로 등록한 `결제수단` 하나 / 실제: `결제`·`결제수단`·`주문`
+- 원인: `InProcessExtractionWorker.mockTerms` 가 고정 후보어 2건(`결제`·`주문`)을 돌려주는데
+  테스트는 아직 「대역이 추출 결과를 빈 목록으로 돌려준다」를 전제한다. **그 테스트의 주석이
+  이 드리프트를 스스로 예고해 뒀다** — 「대역이 후보어를 돌려주게 되면 그것들도 함께 실리며 이
+  기대값이 늘어난다」
+- `D-88`(후보어를 판정 없이 전부 발행) 기준으로는 **현재 동작이 맞고 기대값이 낡았다.**
+  고친다면 기대값을 세 건으로 늘리는 쪽이며, 이 태스크의 범위가 아니라 담당을 따로 정한다
 
 ## 이번 범위 밖
 
