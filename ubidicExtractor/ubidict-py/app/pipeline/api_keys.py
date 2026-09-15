@@ -10,6 +10,14 @@
 
 **안 하는 일 (D-38 참고)**: 키별 RPD 잔량 추적, 라운드로빈. 지금 측정된
 필요("막히면 다음 키로")를 넘어서는 복잡도는 넣지 않는다.
+
+**환경변수 이름의 대소문자**: `getenv_ci()`를 쓴다 — 배포에서 이 키들은
+`.env`가 아니라 AWS Parameter Store `/lovebug/llm/*`에서 온다.
+`deploy/scripts/start_container.sh`가 파라미터 이름의 마지막 세그먼트를
+**그대로** 환경변수 이름으로 만드는데, 등록된 이름이 소문자
+(`gemini_api_key_1`)라 대문자로만 찾으면 키가 하나도 안 잡힌다. SSM
+파라미터 이름을 대문자로 바꾸는 것보다 읽는 쪽을 관대하게 두는 편이,
+`.env`(대문자)와 Parameter Store(소문자) 양쪽을 다 받는다.
 """
 
 from __future__ import annotations
@@ -34,6 +42,23 @@ _KEY_SPECIFIC_CODES = (401, 403, 429)
 _KEY_SPECIFIC_REASONS = {"API_KEY_INVALID", "PERMISSION_DENIED", "UNAUTHENTICATED"}
 
 
+def getenv_ci(name: str) -> str | None:
+    """환경변수를 대소문자 구분 없이 읽는다.
+
+    정확히 일치하는 이름을 먼저 보고, 없을 때만 대소문자를 무시하고 찾는다 —
+    `GEMINI_MODEL_1`과 `gemini_model_1`이 동시에 있으면 호출부가 적은 이름
+    그대로를 이긴 것으로 본다(명시가 파생보다 우선).
+    """
+    value = os.getenv(name)
+    if value:
+        return value
+    folded = name.casefold()
+    for env_name, env_value in os.environ.items():
+        if env_name.casefold() == folded and env_value:
+            return env_value
+    return None
+
+
 def _extract_reason(exc: errors.ClientError) -> str | None:
     try:
         for detail in exc.details.get("error", {}).get("details", []):
@@ -53,7 +78,7 @@ def load_api_keys() -> list[str]:
     numbered: list[str] = []
     i = 1
     while True:
-        key = os.getenv(f"GEMINI_API_KEY_{i}")
+        key = getenv_ci(f"GEMINI_API_KEY_{i}")
         if not key:
             break
         numbered.append(key)
@@ -62,7 +87,7 @@ def load_api_keys() -> list[str]:
     if numbered:
         return numbered
 
-    single = os.getenv("GEMINI_API_KEY")
+    single = getenv_ci("GEMINI_API_KEY")
     if not single:
         raise RuntimeError("GEMINI_API_KEY(_1)이 .env에 없다.")
     return [single]

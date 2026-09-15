@@ -18,11 +18,10 @@
 
 from __future__ import annotations
 
-import os
 
 from google.genai import errors
 
-from app.pipeline.api_keys import is_key_specific_failure
+from app.pipeline.api_keys import getenv_ci, is_key_specific_failure
 
 
 def parse_model_chain(model_arg: str) -> list[str]:
@@ -40,11 +39,14 @@ def load_default_model_chain() -> list[str]:
     `GEMINI_MODEL_1`, `_2`, ... 를 순서대로 읽는다. 번호 붙은 게 하나도
     없으면 기존 `GEMINI_MODEL`(단수) 하나를 반환한다 — `api_keys.load_api_keys()`와
     같은 하위 호환 원칙. 둘 다 없으면 빈 목록(호출부가 에러를 던진다).
+
+    이름은 `getenv_ci()`로 읽는다 — 배포에서는 Parameter Store의 소문자
+    이름(`gemini_model_1`)이 그대로 환경변수가 된다(`api_keys` 참고).
     """
     numbered: list[str] = []
     i = 1
     while True:
-        m = os.getenv(f"GEMINI_MODEL_{i}")
+        m = getenv_ci(f"GEMINI_MODEL_{i}")
         if not m:
             break
         numbered.append(m)
@@ -53,7 +55,7 @@ def load_default_model_chain() -> list[str]:
     if numbered:
         return numbered
 
-    single = os.getenv("GEMINI_MODEL", "")
+    single = getenv_ci("GEMINI_MODEL") or ""
     return [single] if single else []
 
 

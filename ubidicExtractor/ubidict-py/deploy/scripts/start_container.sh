@@ -45,6 +45,13 @@ docker pull "$IMAGE_REPO:$TAG"
 # (test/의 D-38~D-40 키·모델 폴백 체인 규칙과 그대로 맞물린다).
 # 경로는 스프링 백엔드의 /lovebug/rds/... 관례와 통일한 것이다(2026-09-15,
 # 기존 /prod/llm/*에서 변경 — 그 경로엔 실제 파라미터가 하나도 없었다).
+# 번호 붙은 이름(GEMINI_MODEL_1/_2/...)을 여기서 고정하지 않는다 — 아래 -e에는
+# 단수 GEMINI_MODEL만 기본값으로 두고, 번호 체인은 전적으로 Parameter Store가
+# 정한다. 파이썬 쪽은 번호 붙은 게 하나라도 있으면 단수를 무시하므로
+# (model_chain.load_default_model_chain), 파라미터가 있으면 그게 곧 체인이고
+# 없으면 이 기본값 하나로 동작한다. 여기에 GEMINI_MODEL_1을 박아 두면 대문자
+# 이름이 우선해 SSM의 gemini_model_1만 가려지고 _2~_4는 살아남아 체인이
+# 뒤섞인다.
 ENV_ARGS=()
 while IFS=$'\t' read -r NAME VALUE; do
   [ -z "$NAME" ] && continue
@@ -99,7 +106,7 @@ docker run -d --name ubidict-py \
   -e MYSQL_DATABASE="$DB_NAME" \
   -e MYSQL_USER="$RDS_USER" \
   -e MYSQL_PASSWORD="$RDS_PASSWORD" \
-  -e GEMINI_MODEL_1=gemini-3.5-flash \
+  -e GEMINI_MODEL=gemini-3.5-flash \
   "${ENV_ARGS[@]}" \
   "$IMAGE_REPO:$TAG"
 

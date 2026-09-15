@@ -21,13 +21,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 
 from app.job_schema import ContrastJobRequest, ExtractJobRequest
+from app.pipeline.api_keys import getenv_ci
 from app.pipeline.model_chain import load_default_model_chain
 from app.queue_consumer import start_consumer_loop, stop_consumer_loop
 from app.queue_schema import QueueResultEnvelope
@@ -110,4 +110,4 @@ def contrast_job(job: ContrastJobRequest) -> QueueResultEnvelope:
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     chain = load_default_model_chain()
-    return HealthResponse(status="ok", model=chain[0] if chain else os.getenv("GEMINI_MODEL", "unset"))
+    return HealthResponse(status="ok", model=chain[0] if chain else getenv_ci("GEMINI_MODEL") or "unset")
