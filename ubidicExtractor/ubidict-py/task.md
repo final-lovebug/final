@@ -237,6 +237,46 @@ validate.sh}` 신설, `.github/workflows/ubidict-py-deploy.yml` 전면 재작성
 배포 워크플로가 이미 신뢰된 `final` 저장소 안에 있으므로 독립 저장소 쪽에서 막혔던
 "OIDC 신뢰정책에 리포 추가 필요" 블로커가 자동으로 없어졌다(위 표 1번 참고).
 
+## 배포 시도 — `main`에 워크플로가 없어 막힘 (2026-09-15)
+
+사용자가 IAM 정책 수정 + `/lovebug/llm/GEMINI_API_KEY_1` 등록을 AWS 콘솔에서 완료.
+`develop`에 `BACKEND_CALLBACK_BASE_URL` 수정까지 커밋·push한 뒤 `gh workflow run`으로
+"ubidict-py Deploy"를 `develop` ref로 수동 트리거하려 했으나 **실패**:
+
+```
+$ gh workflow list
+deploy          active  354713746
+front-cd        active  356485235
+oidc-check      active  354576700
+ubidict-py CI   active  358451588   # ubidict-py Deploy가 없다
+```
+
+원인: GitHub Actions는 `workflow_dispatch`로 실행하려면 그 워크플로 **파일이 기본
+브랜치(`main`)에도 있어야** API가 인식한다. 확인해보니(`git ls-tree origin/main --
+.github/workflows/`) `main`엔 `deploy.yml`·`front-cd.yml`·`oidc-check.yml`뿐이고
+`ubidict-py-deploy.yml`은 **`develop`에만 있고 `main`엔 한 번도 올라간 적이 없다**
+(`ubidict-py-ci.yml`은 `push`로 이미 여러 번 실행돼서 GitHub이 인식하지만, deploy는
+`workflow_dispatch` 전용이라 실행 이력이 없어 인식 자체가 안 됨).
+
+**해결하려면 `develop`을 `main`에 병합해야 하는데, 지금 `develop`엔 다른 팀원들이 최근
+머지한 검증 안 된 변경(문서 삭제 기능, 리뷰 UI 개편, 프론트 라우트 개명, DB 마이그레이션
+`V430` 등)이 함께 쌓여 있다.** `main`에 push하면 `paths` 필터 때문에 스프링
+`deploy.yml`(`backend/**`·`deploy/**` 변경)·프론트 `front-cd.yml`(`frontend/**` 변경)도
+같이 트리거될 가능성이 높다 — 즉 "fastapi 배포 한 번 시도"가 **스프링+프론트 운영
+배포까지 함께 일으키는** 훨씬 큰 액션이 된다.
+
+**사용자 결정(2026-09-15): 지금은 멈추고 팀과 먼저 논의.** 이 세션은 `main` 병합을
+진행하지 않는다. 재개 시 고려할 선택지:
+1. 팀원들과 `develop→main` 병합 시점을 맞춘 뒤 정상적으로 병합(스프링·프론트도 같이
+   배포되는 걸 감수)
+2. `ubidict-py-deploy.yml`(과 CI 파일)만 먼저 `main`에 올리는 별도의 작은 PR을 만들어
+   다른 변경과 분리 — 워크플로 파일 자체는 배포 로직이 없어(다른 파일을 안 건드림)
+   `deploy.yml`/`front-cd.yml`의 `paths` 필터에 안 걸리므로 스프링·프론트 배포를
+   유발하지 않을 가능성이 높다(단, 실제로 그런지는 검증 필요)
+3. `develop`에서 직접 `aws deploy create-deployment`를 수동으로 한 번 돌려 CodeDeploy
+   훅 자체만 검증(빌드된 이미지가 있어야 함 — ECR에 수동으로 이미지를 먼저 push해야
+   하므로 이것도 결국 CI 없이 수동 작업이 많이 필요)
+
 **새로 발견한 것 — 낡은 복사본(위에서 이미 처리).** `final`에 이 프로젝트의 ECS 시절
 낡은 복사본이 들어와 있다는 걸 먼저 발견해 사용자에게 물었으나, 실제로는 그게 바로
 **진짜 배포 소스**였다 — 이 세션의 첫 이해가 거꾸로였다(독립 저장소를 배포 소스로
