@@ -27,6 +27,7 @@ docker run -d --name spring \
   --log-opt max-size=100m \
   --log-opt max-file=3 \
   -e SPRING_PROFILES_ACTIVE=prod \
+  -e SPRING_FLYWAY_ENABLED=false \
   -e AWS_REGION="$REGION" \
   -e OTEL_SERVICE_VERSION="$TAG" \
   "$IMAGE_REPO:$TAG"
