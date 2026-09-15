@@ -32,8 +32,17 @@ management:
 app:
   ai:
     dispatch:
+      # 추출·대조 요청을 인프로세스 대역이 아니라 LocalStack SQS 큐로 보낸다.
       mode: sqs
   security:
     actuator:
       # 개발 서버도 /actuator/prometheus 를 연다(D-97). prod 는 기본값(false)으로 닫힌다.
       permit-all: true
+    # 워커가 실제 모델을 부를지 정하는 축이다(D-71). 위의 dispatch.mode 와 이름이 같지만
+    # 다른 축이다 — dispatch 는 「어떻게 보낼지」, 이것은 「워커가 무엇을 할지」다.
+    # 요청 메시지에 실려 나가고 백엔드는 이 값으로 분기하지 않는다.
+    #
+    # dev 는 mock 이 기본이다(D-86) — Spring → LocalStack → FastAPI → Spring 왕복을
+    # 비용 없이 확인하려면 결과에 데이터가 있어야 한다. stub 은 빈 결과라 「성공했지만
+    # 후보어 0건」과 실패를 구분할 수 없어 화면까지 흐르는지 볼 수 없다.
+    mode: ${AI_MODE:mock}

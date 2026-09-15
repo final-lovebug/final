@@ -50,7 +50,13 @@ services:
       - 'EAGER_SERVICE_LOADING=1'
       - 'DEBUG=0'
     ports:
-      - '4566'
+      # 호스트 포트를 고정한다. spring-boot-docker-compose 는 LocalStack 커넥션 정보를
+      # 자동 주입하지 않아, 호스트에서 백엔드를 띄우면 application-dev.yml 의
+      # ${AWS_ENDPOINT:http://localhost:4566} 이 이 주소를 직접 가리킨다 — 동적 포트면
+      # 닿지 못해 lovebug-llm-request 발행이 Connection refused 로 실패한다.
+      # backend 서비스를 컨테이너로 띄우던 동안에는 내부 네트워크(localstack:4566)를 써서
+      # 드러나지 않았던 문제다. backend/compose.yaml 이 같은 이유로 이미 4566 을 고정한다.
+      - '4566:4566'
     healthcheck:
       test: 'curl -fsS http://127.0.0.1:4566/_localstack/health'
       interval: 5s
@@ -114,7 +120,11 @@ services:
       - 'SQS_REQUEST_QUEUE_URL=http://localstack:4566/000000000000/lovebug-llm-request'
       - 'AWS_ACCESS_KEY_ID=test'
       - 'AWS_SECRET_ACCESS_KEY=test'
-      - 'BACKEND_CALLBACK_BASE_URL=http://backend:8080'
+      # 워커는 완료를 동기 HTTP 콜백으로 알린다(D-68). 기본값이 host.docker.internal 인 이유는
+      # backend 서비스를 주석으로 내려 백엔드가 호스트에서 돌기 때문이다 — 컨테이너 안에서
+      # 'backend' 는 DNS 로 풀리지 않아 콜백이 Name or service not known 으로 실패한다.
+      # backend 서비스를 되살려 컨테이너로 띄울 때는 http://backend:8080 으로 덮어쓴다.
+      - 'BACKEND_CALLBACK_BASE_URL=${BACKEND_CALLBACK_BASE_URL:-http://host.docker.internal:8080}'
     healthcheck:
       # python:3.11-slim에는 curl이 없으므로 표준 라이브러리로 health endpoint를 확인한다.
       test: >-
