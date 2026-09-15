@@ -24,7 +24,9 @@ spring:
           google:
             client-id: ${oauth.google.client-id}
             client-secret: ${oauth.google.client-secret}
-
+            scope:
+              - openid
+              - email
   # 지금 상태로는 두 클라이언트가 localhost 기본값을 쓰므로 운영에서 반드시 채워야 한다.
   data:
      redis:
@@ -117,3 +119,6 @@ management:
         step: 60s
         headers:
           Authorization: ${otel.auth-header:}
+
+server:
+  forward-headers-strategy: framework
