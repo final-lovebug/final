@@ -1,0 +1,96 @@
+name: ubidict-py Deploy
+
+# 하는 일: 이미지 빌드 → ECR 푸시 → S3에 CodeDeploy 번들 업로드 → EC2(IN_PLACE) 배포.
+# `deploy.yml`(스프링 백엔드)과 완전히 동일한 구조다 — 같은 계정, 같은 CodeDeploy 앱
+# `lovebug`, 같은 OIDC 역할, 같은 S3 버킷을 그대로 재사용한다. 차이는 이미지
+# 리포(`lovebug/fastapi`)·배포그룹(`lovebug-fastapi-codedeploy`)·번들 원본
+# (`ubidicExtractor/ubidict-py/deploy/`)뿐이다.
+#
+# **2026-09-15 — ECS 블루/그린 설계에서 EC2 IN_PLACE로 전면 교체.** 이전 설계는
+# 존재하지 않는 ECS 클러스터/서비스·CodeDeploy 블루/그린 배포그룹·Secrets Manager
+# 시크릿을 참조해 항상 실패가 확정이었다(그래서 workflow_dispatch만 남기고 push
+# 트리거를 꺼 뒀었다). 실제 배포 대상은 이미 떠 있는 단일 EC2 `lovebug-fastapi`로
+# 확정됐고(`ubidicExtractor/ubidict-py/task.md` "AWS 배포(EC2+CodeDeploy)" 절 참고),
+# 필요한 AWS 인프라(EC2·ECR 리포·ALB 타깃그룹·CodeDeploy 배포그룹)가 전부
+# 프로비저닝돼 있어 이제 push 트리거를 되살린다 — 아직 안 끝난 IAM 조치(ECR 리소스
+# ARN 오타·SSM 파라미터 미등록·Gemini 키 미등록) 때문에 당분간은 실패하겠지만, 이제는
+# "정확히 어디서 막혔는지"가 CodeDeploy 로그에 실제 신호로 남는다(예전처럼 애초에
+# 존재하지 않는 리소스라 무의미하게 실패하던 것과 다르다).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ubidicExtractor/ubidict-py/**"
+      - ".github/workflows/ubidict-py-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-fastapi
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # AWS OIDC — 장기 액세스 키를 시크릿에 안 둔다
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+  AWS_ROLE: arn:aws:iam::416121583617:role/lovebug-github-actions
+  BUCKET: lovebug-s3-416121583617-ap-northeast-2-an
+  TAG: ${{ github.sha }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ubidicExtractor/ubidict-py
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          # lovebug/fastapi 리포는 IMMUTABLE이다 — latest 태그는 두 번째 배포부터
+          # 푸시가 거절된다. 커밋 SHA 단일 태그만 쓴다.
+          tags: ${{ steps.ecr.outputs.registry }}/lovebug/fastapi:${{ env.TAG }}
+          cache-from: type=gha,scope=fastapi
+          cache-to: type=gha,mode=max,scope=fastapi
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Upload bundle
+        run: |
+          echo "$TAG" > ubidicExtractor/ubidict-py/deploy/IMAGE_TAG
+          cd ubidicExtractor/ubidict-py/deploy && zip -qr "$GITHUB_WORKSPACE/bundle.zip" .
+          cd "$GITHUB_WORKSPACE"
+          unzip -l bundle.zip
+          aws s3 cp bundle.zip "s3://$BUCKET/lovebug/deploy/fastapi-$TAG.zip"
+      - name: Deploy
+        timeout-minutes: 30
+        run: |
+          ID=$(aws deploy create-deployment \
+            --application-name lovebug \
+            --deployment-group-name lovebug-fastapi-codedeploy \
+            --description "$TAG" \
+            --s3-location "bucket=$BUCKET,key=lovebug/deploy/fastapi-$TAG.zip,bundleType=zip" \
+            --query deploymentId --output text)
+          echo "deployment: $ID"
+          aws deploy wait deployment-successful --deployment-id "$ID" || {
+            aws deploy get-deployment --deployment-id "$ID" \
+              --query 'deploymentInfo.{Status:status,Error:errorInformation}'
+            exit 1
+          }
