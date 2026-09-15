@@ -45,6 +45,7 @@
 - `docs/plan/REVIEW_REQUEST_PLAN.md` — 리뷰 요청(ReviewRequest) 구현 계획
 - `docs/plan/NOTIFICATION_PLAN.md` — 알림(Notification) 구현 계획. **2026-09-13 신설**이라 낡은 서술이 없다
 - `docs/plan/REVISION_LOG_PLAN.md` — 개정 이력(RevisionLog) 구현 계획. **2026-09-13 신설.** 사전집·문서가 확정될 때마다 무엇이 달라졌는지를 발행 시점에 얼려 둔다
+- `docs/plan/REVIEW_UI_FIX_PLAN.md` — 사전집 개정안 리뷰 화면 수정 계획. **2026-09-15 신설.** 리뷰 재제출 집계 표시·전체 코멘트 노출·요청자 본인 리뷰 차단을 다룬다. UI 미리보기는 `docs/mockups/dictionary-revision-review.html`
 
 > 앞의 3개는 **이미 구현된 도메인**이라 as-built 스냅샷과 변경 델타를 함께 담는다. 그다음 3개는 미구현이며 **2026-09-10 큰 흐름 확정 이전에 작성되어 낡은 서술이 남아 있다** — `CONFLICTS.md`의 `R-8`~`R-14`·`R-19`가 그 목록이다. 마지막 Notification은 **6개 도메인이 계약으로만 두던 이벤트의 첫 소비자**다(`D-47`).
 

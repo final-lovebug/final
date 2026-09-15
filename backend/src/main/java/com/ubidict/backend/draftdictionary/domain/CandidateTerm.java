@@ -183,7 +183,9 @@ public class CandidateTerm extends BaseEntity {
                 draftDictionaryId, form, definition, english, List.of(), 1, List.of(), List.of(), createdBy);
         candidate.origin = CandidateTermOrigin.EXISTING;
         candidate.sourceTermId = sourceTermId;
-        candidate.occurrenceCount = null;
+        // 기존 사전 용어는 추출 출현 횟수가 없지만 DB 컬럼은 NOT NULL이다.
+        // 0은 "이번 추출에서 발견되지 않음"을 표현하며 최소 출현 횟수 필터에서도 제외된다.
+        candidate.occurrenceCount = 0;
         candidate.status = CandidateTermStatus.KEPT;
         return candidate;
     }
