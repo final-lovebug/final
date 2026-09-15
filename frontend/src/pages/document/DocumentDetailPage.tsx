@@ -98,7 +98,7 @@ export function DocumentDetailPage() {
         <ColFlex>
           <Card className="px-[30px] py-[26px]">
             <div className="mb-4 font-display text-base font-bold">{document.title}</div>
-            <p className="whitespace-pre-wrap text-[13.5px] leading-[1.9] text-text-secondary">
+            <p className="whitespace-pre-wrap wrap-break-word text-[13.5px] leading-[1.9] text-text-secondary">
               {document.content}
             </p>
           </Card>

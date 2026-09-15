@@ -166,7 +166,7 @@ export function DocumentReviewThreadPage() {
       <TwoCol>
         <ColFlex>
           <Card className="px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
-            <p className="whitespace-pre-wrap">
+            <p className="whitespace-pre-wrap wrap-break-word">
               {revision?.proposedBody ?? document?.content}
             </p>
             <Banner tone="neutral" className="mt-6 text-[11.5px]">

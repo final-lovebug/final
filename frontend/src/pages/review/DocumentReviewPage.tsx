@@ -286,7 +286,7 @@ export function DocumentReviewPage() {
 
       <TwoCol>
         <ColFlex>
-          <Card className="whitespace-pre-wrap px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
+          <Card className="whitespace-pre-wrap wrap-break-word px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
             {isLoadingContrast && <p className="text-text-tertiary">불러오는 중…</p>}
             {!isLoadingContrast && !draft && (
               <p className="text-text-tertiary">
