@@ -272,10 +272,32 @@ ubidict-py CI   active  358451588   # ubidict-py Deploy가 없다
 2. `ubidict-py-deploy.yml`(과 CI 파일)만 먼저 `main`에 올리는 별도의 작은 PR을 만들어
    다른 변경과 분리 — 워크플로 파일 자체는 배포 로직이 없어(다른 파일을 안 건드림)
    `deploy.yml`/`front-cd.yml`의 `paths` 필터에 안 걸리므로 스프링·프론트 배포를
-   유발하지 않을 가능성이 높다(단, 실제로 그런지는 검증 필요)
+   유발하지 않을 가능성이 높다(단, 실제로 그런지는 검증 필요) — **✅ 아래 절 참고,
+   실행 완료(PR #75)**
 3. `develop`에서 직접 `aws deploy create-deployment`를 수동으로 한 번 돌려 CodeDeploy
    훅 자체만 검증(빌드된 이미지가 있어야 함 — ECR에 수동으로 이미지를 먼저 push해야
    하므로 이것도 결국 CI 없이 수동 작업이 많이 필요)
+
+### 후속 — 옵션 2 실행: PR #75 (2026-09-15)
+
+사용자가 `paths` 필터 동작을 직접 재확인해 달라고 요청해 4개 워크플로의 `on:` 블록을
+전부 대조했다 — **필터는 정확히 그렇게 동작한다.** 문제는 `develop→main` 전체 병합이
+"fastapi 파일만 바뀐 push"가 아니라서(스프링·프론트 파일도 같이 바뀜) 필터가 다 걸리는
+것뿐. 추가로 확인하며 **더 근본적인 원인을 하나 더 발견**: `main`의 `ubidicExtractor`가
+아직 **깨진 submodule gitlink**(`git ls-tree origin/main -- ubidicExtractor` →
+`160000 commit eb5a4ee...`, 해석 불가 SHA, `.gitmodules`도 없음)였다 — 실제 파일이
+전혀 없었다. `897d983`(깨진 submodule → 일반 디렉터리 전환) 커밋이 `develop`에만
+있고 `main`엔 병합된 적이 없어서다.
+
+**조치**: `main` 기준 새 브랜치(`feat/ubidict-py-fastapi-deploy`)를 만들어
+`git checkout origin/develop -- ubidicExtractor/ .github/workflows/ubidict-py-ci.yml
+.github/workflows/ubidict-py-deploy.yml`로 **fastapi 관련 파일만 선별적으로** 가져와
+커밋(269개 파일 — `ubidicExtractor/test/`·`ubidict-py/` 전체 + 워크플로 2개,
+`backend/**`·`frontend/**`는 전혀 안 건드림 확인) → push →
+**[PR #75](https://github.com/final-lovebug/final/pull/75)** 생성. 머지되면 깨진
+gitlink가 실제 디렉터리로 바뀌면서 `ubidict-py-deploy.yml`이 `main`에 생겨
+`workflow_dispatch`가 가능해진다 — `paths` 필터 덕분에 스프링·프론트 워크플로는
+트리거되지 않는다. **아직 머지되지 않았다** — 팀·사용자 검토 후 머지 여부 결정.
 
 **새로 발견한 것 — 낡은 복사본(위에서 이미 처리).** `final`에 이 프로젝트의 ECS 시절
 낡은 복사본이 들어와 있다는 걸 먼저 발견해 사용자에게 물었으나, 실제로는 그게 바로
