@@ -12,7 +12,6 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.config.ConfigDataEnvironmentPostProcessor;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
@@ -134,7 +133,11 @@ class OtlpAuthHeaderEnvironmentPostProcessorTest {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** 자동 구성 없이 컨텍스트만 띄우기 위한 빈 설정. */
-    @Configuration(proxyBeanMethods = false)
+    /**
+     * 자동 구성 없이 컨텍스트만 띄우기 위한 진입점.
+     *
+     * <p>{@code @Configuration}을 붙이지 않는다 — 붙이면 나중에 이 클래스에 {@code @SpringBootTest}가
+     * 더해졌을 때 중첩 설정 클래스로 감지돼 애플리케이션 설정을 대체해 버린다.
+     */
     static class BareConfiguration {}
 }
