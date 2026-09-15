@@ -86,6 +86,23 @@ VITE_API_BASE_URL=http://localhost:8080
   허용(`CORS_ALLOWED_ORIGINS`, 기본값이 이미 `http://localhost:5173`)으로 직접 통신한다.
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 
+### 배포 빌드의 환경 변수
+
+**`.env.production` 같은 파일을 저장소에 두지 않는다.** 배포 빌드가 쓰는 값은
+GitHub Actions 의 Variables/Secrets 에서 주입하고, `.github/workflows/front-cd.yml` 의
+Build 스텝이 그것을 읽는다. 값이 비어 있으면 워크플로가 실패한다 — 조용히 로컬
+기본값(`http://localhost:8080`)으로 빌드돼 배포되는 것을 막기 위함이다.
+
+| 이름 | 종류 | 값 |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | Variable | `https://api.ubidic.site` |
+
+- 등록 위치는 Settings > Secrets and variables > Actions 다. CLI 로는
+  `gh variable set VITE_API_BASE_URL --body https://api.ubidic.site`.
+- **`VITE_` 접두사 값은 비밀이 될 수 없다.** Vite 가 빌드 시점에 번들에 문자열로 박고
+  그 번들을 브라우저가 내려받으므로, Secrets 에 넣어도 마스킹은 로그에만 적용된다.
+  토큰·API 키처럼 실제로 가려야 하는 값은 프론트에 두지 말고 백엔드를 거친다.
+
 ## **관련 문서**
 
 - 기술 스택·결정 이력: `frontend/docs/SPEC.md`
