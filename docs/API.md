@@ -1311,11 +1311,12 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 ```json
 {
   "targetRound": 0,
-  "verdict": "APPROVED"
+  "verdict": "APPROVED",
+  "comments": []
 }
 ```
 
-`verdict`는 `APPROVED` 또는 `CHANGES_REQUESTED`다. 지정 리뷰어 여부와 무관하게 워크스페이스 참여자라면 리뷰할 수 있고, 같은 회원도 새 리뷰를 제출해 이전 판정을 바꿀 수 있다.
+`verdict`는 `APPROVED` 또는 `CHANGES_REQUESTED`다. `comments`는 선택 필드이며 생략하거나 빈 배열로 보내도 된다. 지정 리뷰어 여부와 무관하게 워크스페이스 참여자라면 리뷰할 수 있지만, 요청자 본인은 `REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED`(403)으로 검토할 수 없다. 같은 회원도 새 리뷰를 제출해 이전 판정을 바꿀 수 있다.
 
 `GET /api/review-requests/{reviewRequestId}/reviews?targetRound={targetRound}` → `200 OK`
 
@@ -1414,6 +1415,7 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | 같은 회차의 개정안이 이미 있음 | 409 | `REVIEW_REQUEST_REVISION_ALREADY_EXISTS` |
 | 요청 유형과 개정안 종류가 다름 | 400 | `REVIEW_REQUEST_TYPE_MISMATCHED` |
 | 리뷰할 수 없는 상태에서 제출 | 409 | `REVIEW_REQUEST_NOT_REVIEWABLE_STATUS` |
+| 요청자 본인이 리뷰 제출 | 403 | `REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED` |
 | 현재 개정안과 다른 회차에 리뷰 제출 | 400 | `REVIEW_REQUEST_STALE_TARGET_ROUND` |
 | 리뷰를 찾을 수 없음 | 404 | `REVIEW_REQUEST_REVIEW_NOT_FOUND` |
 | 코멘트를 찾을 수 없음 | 404 | `REVIEW_REQUEST_COMMENT_NOT_FOUND` |

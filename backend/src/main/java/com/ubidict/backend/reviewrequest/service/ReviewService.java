@@ -7,6 +7,7 @@ import com.ubidict.backend.reviewrequest.domain.ReviewRequest;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
 import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
+import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
 import com.ubidict.backend.reviewrequest.implement.CommentReader;
 import com.ubidict.backend.reviewrequest.implement.CommentWriter;
 import com.ubidict.backend.reviewrequest.implement.LatestReviewAggregator;
@@ -48,11 +49,13 @@ public class ReviewService {
     private final ReviewRequestEventPublisher eventPublisher;
     private final WorkspacePolicyPort workspacePolicyPort;
     private final WorkspaceAccessValidator workspaceAccessValidator;
+    private final ApprovalAuthorityValidator approvalAuthorityValidator;
 
     @Transactional
     public ReviewResult submit(SubmitReviewCommand command) {
         ReviewRequest reviewRequest = reviewRequestReader.read(command.reviewRequestId());
         workspaceAccessValidator.validateParticipant(reviewRequest.getWorkspaceId(), command.memberId());
+        approvalAuthorityValidator.validateNotRequester(reviewRequest, command.memberId());
         reviewRequestStatusPolicy.validateReviewable(reviewRequest);
         reviewRequestStatusPolicy.validateTargetRound(command.targetRound(), currentRound(reviewRequest));
 
