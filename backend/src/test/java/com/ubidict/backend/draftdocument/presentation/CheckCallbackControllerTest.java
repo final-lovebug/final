@@ -32,20 +32,17 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p><b>{@code @WithLoginMember}가 없다.</b> 이 엔드포인트는 인증 주체 없이 동작해야 하므로 principal을 주입하지 않는 것 자체가 검증이다
  * (D-69).
  */
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(CheckCallbackController.class)
-class CheckCallbackControllerTest {
+class CheckCallbackControllerTest extends com.ubidict.backend.support.ControllerTest {
+
+    @Autowired
+    private DraftDocumentCheckCallbackService callbackService;
 
     private static final String REQUEST_ID = "0d5c6f6e-0000-4000-8000-000000000001";
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private DraftDocumentCheckCallbackService callbackService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

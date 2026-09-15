@@ -26,16 +26,16 @@ public class DbCleaner {
         em.flush();
         em.clear();
 
-        em.createNativeQuery("set foreign_key_checks = 0").executeUpdate();
+        em.createNativeQuery("set referential_integrity false").executeUpdate();
         tableNames().forEach(table -> em.createNativeQuery("truncate table `" + table + "`")
                 .executeUpdate());
-        em.createNativeQuery("set foreign_key_checks = 1").executeUpdate();
+        em.createNativeQuery("set referential_integrity true").executeUpdate();
     }
 
     @SuppressWarnings("unchecked")
     private List<String> tableNames() {
         List<String> tables = em.createNativeQuery("select table_name from information_schema.tables "
-                        + "where table_schema = database() and table_type = 'BASE TABLE'")
+                        + "where table_schema = schema() and table_type = 'BASE TABLE'")
                 .getResultList();
 
         return tables.stream()

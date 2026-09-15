@@ -14,6 +14,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
@@ -23,6 +25,7 @@ import org.hibernate.annotations.BatchSize;
 
 @Entity
 @Getter
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"draft_dictionary_id", "form"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CandidateTerm extends BaseEntity {
     @Id
@@ -55,7 +58,7 @@ public class CandidateTerm extends BaseEntity {
     private String proposedDefinition;
     private String proposedEnglishName;
 
-    @Column(nullable = false)
+    @Column
     private Integer occurrenceCount;
 
     @Enumerated(EnumType.STRING)

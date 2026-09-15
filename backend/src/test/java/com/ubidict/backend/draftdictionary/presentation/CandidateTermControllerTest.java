@@ -28,10 +28,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(CandidateTermController.class)
 @WithLoginMember(2L)
-@AutoConfigureMockMvc(addFilters = false)
-class CandidateTermControllerTest {
+class CandidateTermControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 2L;
     private static final Long CANDIDATE_TERM_ID = 10L;
@@ -39,11 +37,7 @@ class CandidateTermControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private CandidateTermService candidateTermService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

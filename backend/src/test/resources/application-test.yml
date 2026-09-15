@@ -5,8 +5,8 @@
 # app.crossdomain.* 전체를 수동 복제해야 했고, 실제로 review-request 키 누락이 양쪽에 똑같이 생겼다.
 # 프로파일 파일로 옮기면서 그 중복을 걷어냈으므로 여기에는 **차이만** 적는다.
 #
-# DB·Redis 접속은 Testcontainers 의 @ServiceConnection 이 주입하므로 여기 적지 않는다
-# (IntegrationTestSupport 는 TestcontainersConfiguration, RepositoryTestSupport 는 MySQL 하나).
+# H2가 테스트 스키마를 생성하므로 외부 DB 컨테이너를 사용하지 않는다.
+# (모든 테스트 DB는 H2를 사용한다.)
 app:
   auth:
     cookie:
@@ -15,10 +15,13 @@ app:
 
   ai:
     dispatch:
-      # 기본은 인프로세스 대역이다. 실제 SQS 왕복을 보는 테스트만 @TestPropertySource 로 sqs 를 켠다 —
-      # 전 테스트가 LocalStack 을 띄우면 컨테이너가 넷이 되고 빌드 JVM 과 메모리를 다툰다.
+      # 테스트는 인프로세스 대역만 사용한다.
       mode: in-process
     timeout:
       # 스위퍼가 테스트 도중 끼어들어 작업을 실패시키지 않게 끈다.
       # 회수 동작 자체는 TimeoutService 를 직접 불러 검증한다.
       enabled: false
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1

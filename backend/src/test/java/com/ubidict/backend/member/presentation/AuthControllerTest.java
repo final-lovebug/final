@@ -44,28 +44,15 @@ import org.springframework.test.web.servlet.MockMvc;
  *
  * <p>RefreshTokenCookieProvider는 실제 구현을 그대로 써서 Set-Cookie 헤더 형식까지 검증한다.
  */
-@Import(AuthControllerTest.CookieProviderConfig.class)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(AuthController.class)
-class AuthControllerTest {
+class AuthControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private MemberOAuthLoginService memberOAuthLoginService;
 
-    @MockitoBean
-    private TokenReissueService tokenReissueService;
 
-    @MockitoBean
-    private LogoutService logoutService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
-    @MockitoBean
-    private OAuthExchangeCodeRedisRepository oAuthExchangeCodeRedisRepository;
 
     @BeforeEach
     void setUp() {
@@ -249,12 +236,4 @@ class AuthControllerTest {
         verify(logoutService, never()).logout(any());
     }
 
-    @TestConfiguration
-    static class CookieProviderConfig {
-
-        @Bean
-        RefreshTokenCookieProvider refreshTokenCookieProvider() {
-            return new RefreshTokenCookieProvider(Duration.ofDays(7), true);
-        }
-    }
 }
