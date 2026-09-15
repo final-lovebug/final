@@ -17,7 +17,7 @@
 #   (커밋 금지 — .gitignore에 등록돼 있다)나 셸 환경변수로 넘긴다. 값이 없어도 스택은 뜬다 —
 #   Google 로그인만 실패하고, local 프로파일의 /api/auth/dev/login으로 토큰을 받을 수 있다.
 
-name: ubidict
+name: ubidic
 
 x-logging: &default-logging
   driver: 'json-file'
@@ -69,10 +69,10 @@ services:
       - '--character-set-server=utf8mb4'
       - '--collation-server=utf8mb4_0900_ai_ci'
     environment:
-      - 'MYSQL_DATABASE=ubidict'
-      - 'MYSQL_PASSWORD=ubidict'
-      - 'MYSQL_ROOT_PASSWORD=ubidict'
-      - 'MYSQL_USER=ubidict'
+      - 'MYSQL_DATABASE=ubidic'
+      - 'MYSQL_PASSWORD=ubidic'
+      - 'MYSQL_ROOT_PASSWORD=ubidic'
+      - 'MYSQL_USER=ubidic'
     healthcheck:
       # -h 127.0.0.1로 TCP를 강제한다. 공식 엔트리포인트의 초기화용 임시 서버는
       # --skip-networking이라 TCP가 열리지 않으므로 초기화 창이 정확히 배제된다.
@@ -150,9 +150,9 @@ services:
       # MySQL URL에 파라미터를 붙이지 않는다. Connector/J 기본 sslMode=PREFERRED와
       # MySQL 8.4의 자동 생성 인증서로 TLS가 협상되어 caching_sha2_password가
       # 성립한다. sslMode=DISABLED를 넣는 순간 allowPublicKeyRetrieval이 필요해진다.
-      - 'DB_URL=jdbc:mysql://mysql:3306/ubidict'
-      - 'DB_USERNAME=ubidict'
-      - 'DB_PASSWORD=ubidict'
+      - 'DB_URL=jdbc:mysql://mysql:3306/ubidic'
+      - 'DB_USERNAME=ubidic'
+      - 'DB_PASSWORD=ubidic'
       - 'REDIS_HOST=redis'
       - 'REDIS_PORT=6379'
       #
