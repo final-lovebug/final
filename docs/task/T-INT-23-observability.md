@@ -41,9 +41,9 @@
       등록해 두었다(2026-09-15 확인)
 - [x] EC2 인스턴스 역할 — `/lovebug/*`가 기존 권한에 들어 있어 추가가 필요 없다.
       **이것이 파라미터를 옮기지 않고 경로에 맞춘 이유다**(`D-95`)
-- [ ] **`/lovebug/otel/endpoint`의 값 형태 확인.** 설계는 `https://otlp-gateway-prod-<zone>.grafana.net/otlp`
-      (경로 없음, 끝 슬래시 없음)에 우리가 `/v1/traces`를 붙이는 것을 전제한다. 값이 이미 경로를
-      갖고 있거나 슬래시로 끝나면 깨진다
+- [x] **`/lovebug/otel/endpoint`의 값 형태 확인** — **경로가 없고 끝 슬래시도 없다**(2026-09-15 확인).
+      설계 전제와 같다. 신호별 경로는 애플리케이션이 붙이며, 이 전제는 이제
+      `ObservabilityPropertiesTest`가 고정한다
 - [ ] `/lovebug/otel/enabled` — **선택 사항.** 없으면 켠 것으로 본다. 설정 변경만 단독으로
       검증하려면 먼저 `false`로 만들어 둔다
 
@@ -106,6 +106,26 @@
 - [x] `start_container.sh` — `-e OTEL_SERVICE_VERSION="$TAG"` 한 줄
 
 ### 7. 검증
+
+배포 전에 로컬에서 확인할 수 있는 것은 모두 테스트로 옮겼다(2026-09-15). 사슬을 넷으로 나눠 본다.
+
+- [x] **키가 맞는가** — `OtlpPropertyBindingTest`. 세 신호의 네임스페이스가 비대칭이고 4.x 키의
+      오타는 조용히 무시되므로 사람 눈으로는 못 잡는다
+- [x] **설정이 그 키에 올바른 값을 넣는가** — `ObservabilityPropertiesTest`. 엔드포인트 합성,
+      Basic 헤더, 킬 스위치, 자격증명이 없을 때 기동이 막히지 않는 것. **Boot 3.x 낡은 키가
+      되살아나지 않는지도 함께 막는다** — 그 키들은 deprecation level이 `error`인데 `prod`
+      프로파일은 CI에서 뜨지 않아 배포 때까지 드러나지 않는다
+- [x] **값이 와이어까지 나가는가** — `OtlpExportOverHttpTest`. JDK 내장 HTTP 서버를 가짜 수신기로
+      세워 경로·`Authorization`·`Content-Encoding: gzip`을 확인한다. 헤더가 빠지면 Grafana Cloud가
+      401로 돌려주는데 익스포터 로거가 `ERROR`라 조용히 실패한다
+- [x] **Parameter Store에서 거기까지 이어지는가** — `OtlpParameterStoreChainTest`. LocalStack SSM에
+      실제로 파라미터를 넣어 경로→프로퍼티 매핑과 **EPP가 Parameter Store 뒤에 도는 것**을 본다.
+      순서가 뒤집히면 예외 없이 아무것도 하지 않는다
+
+> **테스트에서는 텔레메트리가 LGTM으로 나가지 않는다.** `spring-boot-starter-opentelemetry-test`가
+> `@SpringBootTest`마다 `management.tracing.export.enabled=false`를 꽂는다(메트릭도 같다). 켜려면
+> `@AutoConfigureObservability`나 `spring.test.tracing.export=true`가 필요하다. **로컬 LGTM으로
+> 실제 신호를 보내는 것은 `bootRun`뿐이다** — 아래 수동 확인이 그래서 남는다.
 
 - [x] `./gradlew spotlessApply && ./gradlew check`
 - [ ] 로컬 — `bootRun`으로 Tempo·Loki·Prometheus 3신호 확인. **에러 응답의 `traceId`로 트레이스가
