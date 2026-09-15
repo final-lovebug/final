@@ -103,17 +103,18 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 | `jobType` | enum | `TERM_EXTRACTION` \| `DOCUMENT_CHECK` |
 | `jobId` | long | 콜백 경로의 `{jobId}` |
 | `workspaceId` | long | |
-| `mode` | enum | `STUB` \| `REAL` |
+| `mode` | enum | `STUB` \| `MOCK` \| `REAL` |
 | `requestedAt` | ISO-8601 offset | 발행 시각 |
 
 **작업 종류에 따라 채워지지 않는 필드는 `null`로 실린다.** 워커는 `jobType`으로 분기한다.
 
-### 5-2. `mode`의 의미 (`D-71`)
+### 5-2. `mode`의 의미 (`D-71`·`D-86`)
 
 - **`REAL`** — 모델을 호출해 실제 결과를 만든다.
-- **`STUB`** — **모델을 호출하지 않는다.** 임의 시간(수 초 이내)을 기다린 뒤 형식만 맞는 목 데이터를 돌려준다. 비용 없이 전 구간 왕복을 확인하기 위한 것이다.
+- **`STUB`** — **모델을 호출하지 않는다.** 임의 시간(수 초 이내)을 기다린 뒤 빈 결과를 돌려준다. 기존 대역과의 호환을 위한 값이다.
+- **`MOCK`** — **모델·워커 DB 조회를 호출하지 않는다.** 워커가 계약에 맞는 고정 목 결과를 HTTP 콜백으로 돌려준다. `dev`에서 Spring → LocalStack → FastAPI → Spring 왕복을 확인하기 위한 값이다.
 
-백엔드는 이 값으로 아무 분기도 하지 않는다. `dev`는 `STUB`, `prod`는 `REAL`이 기본이다.
+백엔드는 이 값으로 아무 분기도 하지 않는다. `dev`는 `MOCK`, `prod`는 `REAL`이 기본이다.
 
 ### 5-3. 용어 추출 (`TERM_EXTRACTION`)
 
@@ -300,3 +301,4 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 | 버전 | 날짜 | 변경 | 호환성 |
 | --- | --- | --- | --- |
 | 1 | 2026-09-14 | 최초 정의(`T-INT-6`, `D-66`~`D-78`) | — |
+| 1 | 2026-09-14 | `MOCK` 모드 추가(`D-86`). `dev`에서 고정 목 결과로 실제 SQS·HTTP 콜백 왕복을 검증한다 | 호환 — 워커는 알 수 없는 필드를 무시하는 대신 새 enum 값을 처리해야 한다 |
