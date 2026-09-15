@@ -11,6 +11,7 @@ import com.ubidict.backend.support.RepositoryTestSupport;
 import com.ubidict.backend.workspace.domain.Workspace;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,16 +111,26 @@ class DocumentRepositoryTest extends RepositoryTestSupport {
         assertThat(found).isEmpty();
     }
 
+    /**
+     * <b>두 문서의 생성일시를 손으로 벌린다.</b> 연달아 저장하면 감사 필드가 같은 값으로 찍혀 정렬이
+     * 무승부가 되고, 그때 DB가 돌려주는 순서는 보장되지 않는다 — 실제로 H2에서 삽입 순서로 나와 이 테스트가
+     * 깨졌다. 검증 대상은 "생성일시 내림차순"이지 "같은 시각일 때의 순서"가 아니므로 입력을 분명히 한다.
+     */
     @DisplayName("문서 목록은 생성일시 내림차순으로 조회된다.")
     @Test
     void findAllByWorkspaceIdAndDeletedAtIsNullOrderByCreatedAtDesc() {
         // given
-        documentRepository.save(
+        Document older = documentRepository.save(
                 DocumentFixture.document().workspaceId(workspaceId).title("먼저").build());
         em.flush();
         documentRepository.save(
                 DocumentFixture.document().workspaceId(workspaceId).title("나중").build());
         em.flush();
+        em.getEntityManager()
+                .createNativeQuery("update document set created_at = ? where id = ?")
+                .setParameter(1, OffsetDateTime.now().minusMinutes(1))
+                .setParameter(2, older.getId())
+                .executeUpdate();
         em.clear();
 
         // when

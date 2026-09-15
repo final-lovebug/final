@@ -8,7 +8,7 @@ import com.ubidict.backend.document.domain.DocumentLabel;
 import com.ubidict.backend.document.domain.Label;
 import com.ubidict.backend.document.fixture.DocumentFixture;
 import com.ubidict.backend.document.fixture.LabelFixture;
-import com.ubidict.backend.support.RepositoryTestSupport;
+import com.ubidict.backend.support.MySqlRepositoryTestSupport;
 import com.ubidict.backend.workspace.domain.Workspace;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 
-class LabelRepositoryTest extends RepositoryTestSupport {
+class LabelRepositoryTest extends MySqlRepositoryTestSupport {
 
     @Autowired
     private LabelRepository labelRepository;

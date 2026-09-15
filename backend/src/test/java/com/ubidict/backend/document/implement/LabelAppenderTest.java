@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.ubidict.backend.document.domain.Label;
 import com.ubidict.backend.document.infra.LabelRepository;
-import com.ubidict.backend.support.IntegrationTestSupport;
+import com.ubidict.backend.support.MySqlIntegrationTestSupport;
 import com.ubidict.backend.workspace.fixture.WorkspaceFixture;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
 import java.util.List;
@@ -19,7 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>MySQL 위에서 돌려야 의미가 있는 검증이라 단위 테스트가 아니라 통합 테스트다 — 자바만 보면 통과하지만 DB가 막는 경우가 정확히 Y-36이었다.
  */
-class LabelAppenderTest extends IntegrationTestSupport {
+class LabelAppenderTest extends MySqlIntegrationTestSupport {
 
     private static final Long MEMBER_ID = 1L;
 
