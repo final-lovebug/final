@@ -7,11 +7,13 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
 import com.ubidict.backend.workspace.domain.Permission;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
-import com.ubidict.backend.workspace.service.CreateWorkspaceCommand;
-import com.ubidict.backend.workspace.service.WorkspaceResult;
 import com.ubidict.backend.workspace.service.WorkspaceService;
+import com.ubidict.backend.workspace.service.model.CreateWorkspaceCommand;
+import com.ubidict.backend.workspace.service.model.WorkspaceResult;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.time.OffsetDateTime;
@@ -26,9 +28,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(WorkspaceController.class)
-class WorkspaceControllerTest {
+/**
+ * addFilters=false로 Security 필터 체인 자체는 우회하지만, SecurityConfig가 이 슬라이스에
+ * 함께 로드되므로 JwtAuthenticationFilter가 요구하는 JwtProvider는 mock으로 채워 컨텍스트를
+ * 띄운다(member 도메인의 컨트롤러 테스트들과 동일한 이유).
+ */
+@WithLoginMember(1L)
+class WorkspaceControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long WORKSPACE_ID = 10L;
@@ -36,8 +42,7 @@ class WorkspaceControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private WorkspaceService workspaceService;
+
 
     @BeforeEach
     void setUp() {
@@ -58,7 +63,7 @@ class WorkspaceControllerTest {
                         {"name": "개발팀"}
                         """)
                 .when()
-                .post("/api/workspaces?memberId={memberId}", MEMBER_ID)
+                .post("/api/workspaces")
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("workspaceId", equalTo(WORKSPACE_ID.intValue()))
@@ -76,25 +81,10 @@ class WorkspaceControllerTest {
                         {"name": "  "}
                         """)
                 .when()
-                .post("/api/workspaces?memberId={memberId}", MEMBER_ID)
+                .post("/api/workspaces")
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
                 .body("code", equalTo("COMMON_INVALID_REQUEST"));
-    }
-
-    @DisplayName("요청자 식별자가 없으면 400을 응답한다.")
-    @Test
-    void create_memberIdIsMissing() {
-        // when & then
-        RestAssuredMockMvc.given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {"name": "개발팀"}
-                        """)
-                .when()
-                .post("/api/workspaces")
-                .then()
-                .statusCode(HttpStatus.BAD_REQUEST.value());
     }
 
     @DisplayName("참여 중인 워크스페이스 목록을 200으로 응답한다.")
@@ -108,7 +98,7 @@ class WorkspaceControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces?memberId={memberId}", MEMBER_ID)
+                .get("/api/workspaces")
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("$", hasSize(1))
@@ -127,7 +117,7 @@ class WorkspaceControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("requiredDocumentReviewerCount", equalTo(2))
@@ -144,7 +134,7 @@ class WorkspaceControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .get("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .get("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .body("code", equalTo("WORKSPACE_NOT_FOUND"));
@@ -160,7 +150,7 @@ class WorkspaceControllerTest {
                         {"name": "플랫폼팀"}
                         """)
                 .when()
-                .patch("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
     }
@@ -180,7 +170,7 @@ class WorkspaceControllerTest {
                         {"name": "플랫폼팀"}
                         """)
                 .when()
-                .patch("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .patch("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.FORBIDDEN.value())
                 .body("code", equalTo("WORKSPACE_ADMIN_REQUIRED"));
@@ -192,8 +182,37 @@ class WorkspaceControllerTest {
         // when & then
         RestAssuredMockMvc.given()
                 .when()
-                .delete("/api/workspaces/{workspaceId}?memberId={memberId}", WORKSPACE_ID, MEMBER_ID)
+                .delete("/api/workspaces/{workspaceId}", WORKSPACE_ID)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
+    }
+
+    @DisplayName("룰셋을 수정하면 200과 저장된 값을 응답한다.")
+    @Test
+    void changeRuleSet() {
+        given(workspaceService.changeRuleSet(any()))
+                .willReturn(new WorkspaceResult(WORKSPACE_ID, "개발팀", 2, 3, Permission.OWNER, OffsetDateTime.now()));
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("{\"requiredDocumentReviewerCount\":2,\"requiredDictionaryReviewerCount\":3}")
+                .when()
+                .patch("/api/workspaces/{workspaceId}/rule-set", WORKSPACE_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("requiredDocumentReviewerCount", equalTo(2))
+                .body("requiredDictionaryReviewerCount", equalTo(3));
+    }
+
+    @DisplayName("음수 리뷰어 수는 400으로 응답한다.")
+    @Test
+    void changeRuleSet_negativeCount() {
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("{\"requiredDocumentReviewerCount\":-1,\"requiredDictionaryReviewerCount\":0}")
+                .when()
+                .patch("/api/workspaces/{workspaceId}/rule-set", WORKSPACE_ID)
+                .then()
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .body("code", equalTo("COMMON_INVALID_REQUEST"));
     }
 }

@@ -4,34 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
+@Disabled("Redis 외부 저장소 테스트는 인메모리 대역 테스트로 대체한다.")
 class RefreshTokenRedisRepositoryTest {
-
-    @Container
-    private static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:latest")).withExposedPorts(6379);
 
     private RefreshTokenRedisRepository refreshTokenRedisRepository;
 
     @BeforeEach
     void setUp() {
-        LettuceConnectionFactory connectionFactory =
-                new LettuceConnectionFactory(redis.getHost(), redis.getMappedPort(6379));
-        connectionFactory.afterPropertiesSet();
-        StringRedisTemplate redisTemplate = new StringRedisTemplate(connectionFactory);
-        redisTemplate.afterPropertiesSet();
-
         JwtProperties jwtProperties = new JwtProperties("secret", Duration.ofMinutes(30), Duration.ofDays(7));
-        refreshTokenRedisRepository = new RefreshTokenRedisRepository(redisTemplate, jwtProperties);
+        refreshTokenRedisRepository = new RefreshTokenRedisRepository(null, jwtProperties);
     }
 
     @DisplayName("current 토큰을 저장하면 조회할 수 있다.")

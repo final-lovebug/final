@@ -30,6 +30,7 @@ dependencyManagement {
 
 dependencies {
     implementation 'io.awspring.cloud:spring-cloud-aws-starter-parameter-store'
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
@@ -58,10 +59,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:testcontainers-grafana'
-    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
-    testImplementation 'org.testcontainers:testcontainers-mysql'
+    testRuntimeOnly 'com.h2database:h2'
+    // spring-boot-starter-test 가 이미 끌어오지만, 전이 의존성에 기대지 않도록 명시한다.
+    testImplementation 'org.awaitility:awaitility'
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'

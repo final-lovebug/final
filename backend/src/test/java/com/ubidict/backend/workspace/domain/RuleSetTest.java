@@ -51,4 +51,11 @@ class RuleSetTest {
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_INVALID_REVIEWER_COUNT);
     }
+
+    @DisplayName("참여자 수와 같은 리뷰어 수는 넘지 않은 것으로 본다.")
+    @Test
+    void exceedsParticipantCount_boundary() {
+        assertThat(new RuleSet(2, 3).exceedsParticipantCount(3)).isFalse();
+        assertThat(new RuleSet(2, 4).exceedsParticipantCount(3)).isTrue();
+    }
 }

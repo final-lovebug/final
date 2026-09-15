@@ -20,7 +20,6 @@ public class OAuthExchangeCodeRedisRepository {
     private static final String KEY_FORMAT = "auth:oauth-exchange:%s";
 
     private static final String FIELD_EMAIL = "email";
-    private static final String FIELD_DISPLAY_NAME = "displayName";
     private static final String FIELD_PROVIDER = "provider";
     private static final String FIELD_PROVIDER_ID = "providerId";
 
@@ -34,7 +33,6 @@ public class OAuthExchangeCodeRedisRepository {
                         key,
                         Map.of(
                                 FIELD_EMAIL, entry.email(),
-                                FIELD_DISPLAY_NAME, entry.displayName(),
                                 FIELD_PROVIDER, entry.provider().name(),
                                 FIELD_PROVIDER_ID, entry.providerId()));
         redisTemplate.expire(key, TTL);
@@ -49,10 +47,8 @@ public class OAuthExchangeCodeRedisRepository {
         redisTemplate.delete(key);
 
         return Optional.of(new OAuthExchangeEntry(
-                (String) fields.get(FIELD_EMAIL),
-                (String) fields.get(FIELD_DISPLAY_NAME),
-                OAuthProvider.valueOf((String) fields.get(FIELD_PROVIDER)),
-                (String) fields.get(FIELD_PROVIDER_ID)));
+                (String) fields.get(FIELD_EMAIL), OAuthProvider.valueOf((String) fields.get(FIELD_PROVIDER)), (String)
+                        fields.get(FIELD_PROVIDER_ID)));
     }
 
     private String key(String code) {

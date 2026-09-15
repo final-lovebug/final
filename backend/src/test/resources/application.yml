@@ -1,12 +1,99 @@
 spring:
   application:
     name: backend
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
+      parameterstore:
+        # 기본 off. 켜져 있으면 SsmClient 빈이 곧바로 만들어져 로컬·테스트에서도 AWS 리전을 요구하고,
+        # 리전이 없으면 컨텍스트 자체가 뜨지 않는다. 시크릿을 Parameter Store 에서 읽는 prod 만 켠다.
+        enabled: ${AWS_PARAMETER_STORE_ENABLED:false}
   jpa:
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: google-client-id
+            client-secret: google-secret-key
+            # 실명(profile scope)을 받지 않는다 — 최초 로그인 시 사용자가 직접 입력한 닉네임을
+            # displayName으로 쓴다(REQ-USR-001 9/11 번복, docs/REQUIREMENTS.md 참고).
+            scope:
+              - openid
+              - email
+  profiles:
+    active: test
 
 app:
-  worker:
-    enabled: false
+  messaging:
+    mode: ${MESSAGING_MODE:in-memory}
+    sqs:
+      queue: ${MESSAGING_SQS_QUEUE:lovebug-domain-event}
+      # AI 워커(FastAPI)에게 작업을 넘기는 전용 큐(D-67). 도메인 이벤트 큐와 나눈 이유는
+      # 소비자가 우리 코드가 아니어서 봉투 규약을 강요할 수 없고, 메시지 크기·가시성 타임아웃·DLQ 정책이
+      # 정반대이기 때문이다. 응답용 큐는 두지 않는다 — 완료 통보는 동기 HTTP 콜백이다(D-68).
+      llm-request-queue: ${MESSAGING_SQS_LLM_REQUEST_QUEUE:lovebug-llm-request}
+  crossdomain:
+    # 크로스 도메인 어댑터 선택(D-33). 6개 도메인이 모두 머지돼 여덟 축이 전부 real이고,
+    # 「제공 도메인이 아직 없으면 스텁을 함께 만든다」의 전제가 소멸했으므로 스텁은 제거했다(T-INT-2).
+    # 키는 남겨 둔다 — 어댑터가 이 값으로 선택되므로 real이 아니면 빈이 없어 기동이 실패한다.
+    dictionary:
+      mode: ${DICTIONARY_CROSSDOMAIN_MODE:real}
+    document:
+      mode: ${DOCUMENT_CROSSDOMAIN_MODE:real}
+    draft-document:
+      mode: ${DRAFT_DOCUMENT_CROSSDOMAIN_MODE:real}
+    draft-dictionary:
+      mode: ${DRAFT_DICTIONARY_CROSSDOMAIN_MODE:real}
+    review-request:
+      mode: ${REVIEW_REQUEST_CROSSDOMAIN_MODE:real}
+    workspace:
+      mode: ${WORKSPACE_CROSSDOMAIN_MODE:real}
+    # 발행 위임 축. 제공 도메인의 real 어댑터가 DOC-6 / DIC-3으로 들어와 있다.
+    document-publish:
+      mode: ${DOCUMENT_PUBLISH_CROSSDOMAIN_MODE:real}
+    dictionary-publish:
+      mode: ${DICTIONARY_PUBLISH_CROSSDOMAIN_MODE:real}
+  ai:
+    # 용어 추출·문서 대조의 AI 워커 경계(D-66). 실행 주체는 별도 프로세스(FastAPI)이며,
+    # 백엔드는 요청을 발행하고 완료 콜백을 받는 데까지만 관여한다.
+    dispatch:
+      # in-process | sqs. app.messaging.mode 와 독립된 축이다 — 도메인 이벤트를 어느 어댑터로 보내든
+      # 추출·대조는 이 값만 따른다. in-process 는 워커가 없는 환경(로컬·테스트)의 대역으로,
+      # 큐 대신 같은 JVM 안에서 빈 결과를 돌려준다.
+      mode: ${AI_DISPATCH_MODE:in-process}
+    # stub | mock | real. 요청 메시지에 실려 나가 **워커가** 실제 모델을 부를지 정한다(D-71).
+    # 백엔드는 이 값으로 분기하지 않는다.
+    mode: ${AI_MODE:stub}
+    timeout:
+      # 콜백이 끝내 오지 않은 작업을 회수한다(D-77). 이것이 없으면 고아 작업 하나가
+      # 워크스페이스·문서의 추출·대조를 영구히 막는다.
+      enabled: ${AI_TIMEOUT_ENABLED:true}
+      # SQS 가시성 타임아웃 × maxReceiveCount 보다 커야 한다(NFR-MSG-005).
+      # 기본값은 가시성 5분 × 3회를 가정한 값이며, 워커 배포 시 실제 큐 설정에 맞춰 다시 정한다.
+      job: ${AI_TIMEOUT_JOB:PT15M}
+      sweep-interval: ${AI_TIMEOUT_SWEEP_INTERVAL:PT1M}
+  jwt:
+    secret: "${JWT_SECRET:local-dev-only-jwt-secret-do-not-use-in-production-0123456789}"
+    access-token-validity: 30m
+    refresh-token-validity: 7d
+  oauth:
+    # 프론트 dev 서버(Vite, WLSH-92) 주소. 배포 시 실제 프론트 도메인으로 교체한다.
+    frontend-redirect-uri: "${OAUTH_FRONTEND_REDIRECT_URI:http://localhost:5173/oauth/callback}"
+  auth:
+    cookie:
+      # refresh token 쿠키의 Secure 플래그. 로컬(http)에서는 application-local.yml이 false로 덮어쓴다.
+      secure: true
+  cors:
+    # 프론트 dev 서버 origin. refresh token이 쿠키 기반이라 자격증명 포함 요청엔 "*"를 못 쓰고
+    # origin을 명시해야 한다. 배포 시 실제 프론트 도메인으로 교체(콤마로 여러 개 지정 가능).
+    allowed-origins: "${CORS_ALLOWED_ORIGINS:http://localhost:5173}"
+  member:
+    # email/displayName 컬럼 암호화 키(AES-256, MemberFieldEncryptor). JWT_SECRET과 같은 패턴 —
+    # 로컬 전용 기본값이 있어 안 정해도 동작하지만 실제 배포 환경에서는 반드시 실제 값으로 덮어써야 한다.
+    encryption-key: "${MEMBER_ENCRYPTION_KEY:local-dev-only-member-encryption-key-0123456789}"

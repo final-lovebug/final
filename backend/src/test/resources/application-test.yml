@@ -1,0 +1,27 @@
+# 테스트 프로파일(NFR-INF-002·D-46).
+#
+# 이 파일은 main 의 application.yml 을 **대체하지 않고 덮는다**. 예전에는
+# src/test/resources/application.yml 이 같은 이름으로 main 파일을 완전히 가려서
+# app.crossdomain.* 전체를 수동 복제해야 했고, 실제로 review-request 키 누락이 양쪽에 똑같이 생겼다.
+# 프로파일 파일로 옮기면서 그 중복을 걷어냈으므로 여기에는 **차이만** 적는다.
+#
+# H2가 테스트 스키마를 생성하므로 외부 DB 컨테이너를 사용하지 않는다.
+# (모든 테스트 DB는 H2를 사용한다.)
+app:
+  auth:
+    cookie:
+      # 테스트는 https 가 아니므로 Secure 쿠키 검증에 기대지 않는다.
+      secure: false
+
+  ai:
+    dispatch:
+      # 테스트는 인프로세스 대역만 사용한다.
+      mode: in-process
+    timeout:
+      # 스위퍼가 테스트 도중 끼어들어 작업을 실패시키지 않게 끈다.
+      # 회수 동작 자체는 TimeoutService 를 직접 불러 검증한다.
+      enabled: false
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1

@@ -8,6 +8,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import lombok.AccessLevel;
@@ -22,8 +24,11 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"workspace_id", "member_id"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Participant extends BaseEntity {
+
+    public static final int MAX_PARTICIPANTS = 5;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -58,5 +63,29 @@ public class Participant extends BaseEntity {
      */
     public static Participant owner(Long workspaceId, Long memberId) {
         return new Participant(workspaceId, memberId, Permission.OWNER, memberId);
+    }
+
+    public static Participant join(Long workspaceId, Long memberId, Permission permission, Long invitedBy) {
+        return new Participant(workspaceId, memberId, permission, invitedBy);
+    }
+
+    public void changePermission(Permission permission) {
+        this.permission = permission;
+    }
+
+    public void demoteToAdmin() {
+        this.permission = Permission.ADMIN;
+    }
+
+    public void promoteToOwner() {
+        this.permission = Permission.OWNER;
+    }
+
+    public boolean isOwner() {
+        return permission == Permission.OWNER;
+    }
+
+    public boolean canBeManagedBy(Permission actorPermission) {
+        return !permission.isAtLeast(actorPermission);
     }
 }

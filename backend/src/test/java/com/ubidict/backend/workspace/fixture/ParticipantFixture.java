@@ -5,7 +5,7 @@ import com.ubidict.backend.workspace.domain.Permission;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * 소유자 외의 권한은 운영 코드에 등록 경로가 아직 없으므로(REQ-WS-003·004) 리플렉션으로 주입한다.
+ * 운영 코드에는 초대와 권한 변경 경로가 있다. 저장 전 상태를 독립적으로 만들기 위해 리플렉션으로 권한을 주입한다.
  */
 public class ParticipantFixture {
 

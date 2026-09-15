@@ -41,4 +41,45 @@ class ParticipantTest {
         // then
         assertThat(participant.getCreatedBy()).isEqualTo(MEMBER_ID);
     }
+
+    @DisplayName("참여자의 권한을 변경할 수 있다.")
+    @Test
+    void changePermission_changesPermission() {
+        Participant participant = Participant.owner(WORKSPACE_ID, MEMBER_ID);
+        participant.changePermission(Permission.ADMIN);
+        assertThat(participant.getPermission()).isEqualTo(Permission.ADMIN);
+    }
+
+    @DisplayName("같은 서열의 참여자는 서로 관리할 수 없다.")
+    @Test
+    void canBeManagedBy_sameRankIsRejected() {
+        Participant admin = Participant.join(WORKSPACE_ID, MEMBER_ID, Permission.ADMIN, 3L);
+        Participant owner = Participant.owner(WORKSPACE_ID, MEMBER_ID);
+
+        assertThat(admin.canBeManagedBy(Permission.ADMIN)).isFalse();
+        assertThat(owner.canBeManagedBy(Permission.OWNER)).isFalse();
+    }
+
+    @DisplayName("소유자는 관리자를 관리할 수 있다.")
+    @Test
+    void canBeManagedBy_ownerCanManageAdmin() {
+        Participant participant = Participant.join(WORKSPACE_ID, MEMBER_ID, Permission.ADMIN, 3L);
+        assertThat(participant.canBeManagedBy(Permission.OWNER)).isTrue();
+    }
+
+    @DisplayName("소유자를 관리자로 강등할 수 있다.")
+    @Test
+    void demoteToAdmin() {
+        Participant participant = Participant.owner(WORKSPACE_ID, MEMBER_ID);
+        participant.demoteToAdmin();
+        assertThat(participant.getPermission()).isEqualTo(Permission.ADMIN);
+    }
+
+    @DisplayName("참여자를 소유자로 승격할 수 있다.")
+    @Test
+    void promoteToOwner() {
+        Participant participant = Participant.join(WORKSPACE_ID, MEMBER_ID, Permission.ADMIN, 3L);
+        participant.promoteToOwner();
+        assertThat(participant.getPermission()).isEqualTo(Permission.OWNER);
+    }
 }

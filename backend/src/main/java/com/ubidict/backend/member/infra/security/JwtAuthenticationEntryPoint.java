@@ -1,10 +1,11 @@
 package com.ubidict.backend.member.infra.security;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.domain.AuthErrorCode;
+import com.ubidict.backend.member.exception.AuthErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
@@ -18,7 +19,13 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
  * 처리한다. Security 필터 체인은 {@code DispatcherServlet} 앞단이라 {@code GlobalExceptionHandler}가
  * 직접 못 받으므로, {@link HandlerExceptionResolver}로 넘겨 BusinessException 처리 경로를
  * 그대로 재사용한다({@code docs/EXCEPTION.md} 에러 응답 형식 통일).
+ *
+ * <p>{@code HandlerExceptionResolver}는 서블릿 웹 MVC가 있어야만 존재하는 빈이라,
+ * {@code webEnvironment = WebEnvironment.NONE}으로 띄우는 서비스 통합 테스트
+ * (예: {@code IntegrationTestSupport})에서는 이 빈 자체가 없다. 그런 컨텍스트까지 억지로
+ * 만들려다 실패하지 않도록 서블릿 웹 애플리케이션일 때만 등록한다.
  */
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Component
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 

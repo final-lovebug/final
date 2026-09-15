@@ -40,6 +40,10 @@ public class WorkspaceFixture {
             return this;
         }
 
+        public WorkspaceBuilder ruleSet(int requiredDocumentReviewerCount, int requiredDictionaryReviewerCount) {
+            return ruleSet(new RuleSet(requiredDocumentReviewerCount, requiredDictionaryReviewerCount));
+        }
+
         public Workspace build() {
             Workspace workspace = Workspace.create(name, createdBy);
             if (id != null) {

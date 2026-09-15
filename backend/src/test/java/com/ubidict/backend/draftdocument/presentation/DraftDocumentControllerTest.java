@@ -1,0 +1,174 @@
+package com.ubidict.backend.draftdocument.presentation;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.BDDMockito.given;
+
+import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
+import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
+import com.ubidict.backend.draftdocument.service.DraftDocumentService;
+import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
+import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
+import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
+import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.support.WithLoginMember;
+import io.restassured.http.ContentType;
+import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import java.time.OffsetDateTime;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpStatus;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+@WithLoginMember(1L)
+class DraftDocumentControllerTest extends com.ubidict.backend.support.ControllerTest {
+
+    private static final Long MEMBER_ID = 1L;
+    private static final Long DRAFT_DOCUMENT_ID = 100L;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+
+
+    @BeforeEach
+    void setUp() {
+        RestAssuredMockMvc.mockMvc(mockMvc);
+    }
+
+    @DisplayName("문서 초안을 조회하면 200과 상세를 응답한다.")
+    @Test
+    void read() {
+        // given
+        given(draftDocumentService.read(DRAFT_DOCUMENT_ID, MEMBER_ID)).willReturn(draftDocumentResult("회원은 결제할 수 있다."));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("documentId", equalTo(10))
+                .body("draftBody", equalTo("회원은 결제할 수 있다."));
+    }
+
+    @DisplayName("존재하지 않는 문서 초안을 조회하면 404와 도메인 오류 코드를 응답한다.")
+    @Test
+    void read_notFound() {
+        // given
+        given(draftDocumentService.read(anyLong(), anyLong()))
+                .willThrow(new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_NOT_FOUND));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
+                .then()
+                .statusCode(HttpStatus.NOT_FOUND.value())
+                .body("code", equalTo("DRAFT_DOCUMENT_NOT_FOUND"));
+    }
+
+    @DisplayName("워크스페이스 비참여자가 문서 초안을 조회하면 404를 응답한다.")
+    @Test
+    void read_notParticipant() {
+        given(draftDocumentService.read(anyLong(), anyLong()))
+                .willThrow(new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_NOT_FOUND));
+
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
+                .then()
+                .statusCode(HttpStatus.NOT_FOUND.value());
+    }
+
+    @DisplayName("문서 초안 본문을 수정하면 200과 수정된 상세를 응답한다.")
+    @Test
+    void updateBody() {
+        // given
+        given(draftDocumentService.updateBody(any(UpdateDraftBodyCommand.class)))
+                .willReturn(draftDocumentResult("수정 본문"));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"draftBody": "수정 본문"}
+                        """)
+                .when()
+                .patch("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("draftBody", equalTo("수정 본문"));
+    }
+
+    @DisplayName("문서 초안을 삭제하면 204를 응답한다.")
+    @Test
+    void delete() {
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .delete("/api/draft-documents/{draftDocumentId}", DRAFT_DOCUMENT_ID)
+                .then()
+                .statusCode(HttpStatus.NO_CONTENT.value());
+    }
+
+    @DisplayName("교정을 완료하면 200과 교정완료 상태를 응답한다.")
+    @Test
+    void completeExamine() {
+        // given
+        DraftDocumentResult result = new DraftDocumentResult(
+                DRAFT_DOCUMENT_ID,
+                10L,
+                1,
+                "사용자는 결제할 수 있다.",
+                DraftDocumentStatus.EXAMINED,
+                MEMBER_ID,
+                MEMBER_ID,
+                OffsetDateTime.now(),
+                OffsetDateTime.now());
+        given(draftDocumentService.completeExamine(any())).willReturn(result);
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .post("/api/draft-documents/{draftDocumentId}/examine-completion", DRAFT_DOCUMENT_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("status", equalTo("EXAMINED"))
+                .body("draftBody", equalTo("사용자는 결제할 수 있다."));
+    }
+
+    @DisplayName("교정 진행률과 미리보기를 조회하면 200을 응답한다.")
+    @Test
+    void readExamineProgress() {
+        // given
+        given(draftDocumentService.readExamineProgress(DRAFT_DOCUMENT_ID, MEMBER_ID))
+                .willReturn(new ExamineProgressResult(3, 1, 1, 1, "사용자는 결제할 수 있다."));
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/api/draft-documents/{draftDocumentId}/examine-progress", DRAFT_DOCUMENT_ID)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("total", equalTo(3))
+                .body("pending", equalTo(1))
+                .body("keptOrigin", equalTo(1))
+                .body("appliedSuggestion", equalTo(1))
+                .body("previewBody", equalTo("사용자는 결제할 수 있다."));
+    }
+
+    private static DraftDocumentResult draftDocumentResult(String draftBody) {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        return new DraftDocumentResult(
+                DRAFT_DOCUMENT_ID, 10L, 1, draftBody, DraftDocumentStatus.EXAMINING, MEMBER_ID, MEMBER_ID, now, now);
+    }
+}

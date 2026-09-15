@@ -1,0 +1,5 @@
+create table candidate_term (id bigint not null auto_increment, draft_dictionary_id bigint not null, created_by bigint not null, origin varchar(20) not null, source_term_id bigint, form varchar(200) not null, proposed_definition text, proposed_english_name varchar(200), occurrence_count int, status varchar(30) not null, created_at datetime(6) not null, updated_at datetime(6) not null, primary key(id), constraint uq_candidate_term_form unique(draft_dictionary_id,form));
+create index idx_candidate_term_draft_status on candidate_term(draft_dictionary_id,status);
+create index idx_candidate_term_occurrence on candidate_term(draft_dictionary_id,occurrence_count);
+create table candidate_term_occurred_document (candidate_term_id bigint not null, document_id bigint not null, primary key(candidate_term_id,document_id), constraint fk_candidate_term_occurred foreign key(candidate_term_id) references candidate_term(id));
+create table candidate_term_context_snippet (candidate_term_id bigint not null, snippet text not null, constraint fk_candidate_term_context foreign key(candidate_term_id) references candidate_term(id));

@@ -11,12 +11,59 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 - 기본 경로 접두사는 `/api`다.
 - 요청/응답 본문은 모두 `application/json`이다.
 - 성공 응답의 HTTP 상태 코드는 유스케이스 의미에 맞춘다. 리소스 생성은 `201 Created`, 조회는 `200 OK`를 사용한다.
-- 요청 형식 검증 실패는 `400 Bad Request`와 `COMMON_INVALID_REQUEST` 코드로 내려간다.
+- 요청 형식 검증 실패는 `400 Bad Request`와 **`COMMON_INVALID_REQUEST`** 코드로 내려간다. 필드별 상세는 `errors` 배열에 담긴다.
 - 비즈니스 규칙 위반은 도메인 `ErrorCode`에 정의된 상태 코드와 코드로 내려간다.
 - 인증 사용자 식별자(`userId`)는 인증 계층에서 해석해 컨트롤러로 전달한다. 요청 본문에 담지 않는다.
 - 도메인 모델을 응답 본문으로 직접 직렬화하지 않는다. presentation은 service가 반환한 result 모델만 응답 DTO로 변환한다.
 - service의 result 모델에도 도메인 모델을 담지 않는다. 필요한 값만 옮긴 record로 만든다.
 - 요청 본문을 도메인 모델에 바인딩하지 않는다. 요청 DTO → command로만 들어온다.
+
+## **API 버저닝**
+
+경로에 버전 세그먼트를 두지 않는다. 접두사는 `/api`뿐이고 `/api/v1` 같은 형태를 쓰지 않는다. 호환이 깨지는 변경이 필요해지면 그때 방침을 정한다.
+
+## **요청자 식별**
+
+**요청자 회원 식별자는 인증 주체에서 해석한다.** `Authorization: Bearer {accessToken}` 헤더의 access token을 `JwtAuthenticationFilter`가 검증해 `SecurityContext`의 principal에 회원 식별자(`Long`)를 넣고, 컨트롤러는 `@AuthenticationPrincipal`로 그것을 받는다. **요청 파라미터나 요청 본문으로 요청자를 받는 엔드포인트는 없다.**
+
+요청 본문의 `memberId`는 요청자가 아니라 **작업 대상 회원**을 가리킬 때만 쓴다 — 리뷰어 지정(`AssignReviewerRequest.memberId`)이 그 유일한 예다.
+
+토큰이 없거나 잘못된 경우의 응답은 «Auth API»의 인증 실패 표를 따른다.
+
+**예외 — 내부 워커 콜백.** `/api/internal/**`은 인증 주체가 없다. AI 워커(FastAPI)가 작업 결과를 돌려주는 서버-투-서버 경로이며 회원 principal이 존재하지 않는다. 대신 **작업마다 발행되는 1회용 상관 식별자(`requestId`)를 본문으로 받아 작업 행에 저장된 값과 대조**하고, 배포 환경에서는 네트워크로 출발지를 제한한다(`NFR-AI-002`·`D-70`). **이 경로도 요청자를 본문으로 받지 않는다** — 행위의 주체는 작업 행에 이미 기록된 `requestedBy`이므로 「요청자를 클라이언트가 참칭하지 못한다」는 원칙의 취지는 그대로다. 그 밖의 `/api/**`에는 예외가 없다.
+
+## **데이터 격리 — 접근 불가 리소스는 404**
+
+**참여자가 아닌 워크스페이스에 속한 리소스는 `403`이 아니라 `404`로 응답한다.** `403`을 주면 그 리소스가 존재한다는 사실이 드러난다(`NFR-WS-001`). 참여자이지만 서열이 모자란 경우에만 `403`이고, 이때는 WARN 감사 로그를 남긴다(`NFR-REV-001`).
+
+워크스페이스 스코프 리소스 전체에 적용된다 — 워크스페이스, 문서, 사전집, 초안, 리뷰 요청.
+
+## **페이징·정렬 규격**
+
+목록 조회는 페이징을 쓴다. 배열을 그대로 반환하지 않는다. (개수가 구조적으로 작은 목록 — 한 리뷰 요청의 리뷰어 목록 등 — 은 예외로 배열을 반환할 수 있다)
+
+**요청 파라미터**
+
+| 파라미터 | 기본값 | 규칙 |
+| --- | --- | --- |
+| `page` | `0` | **0-base**. 음수는 `400` |
+| `size` | `20` | 최대 `100`. 초과·0 이하는 `400` |
+| `sort` | 엔드포인트별 지정 | `필드,방향` 형식(예: `occurrenceCount,desc`). **엔드포인트가 허용하는 필드 화이트리스트 밖이면 `400`** — 임의 필드 정렬을 허용하면 인덱스 없는 컬럼으로 전체 스캔이 난다 |
+
+**응답 본문**
+
+```json
+{
+  "content": [],
+  "page": 0,
+  "size": 20,
+  "totalElements": 0,
+  "totalPages": 0
+}
+```
+
+- 키 이름은 위 5개로 고정한다. Spring Data `Page`의 직렬화 형태(`pageable`, `first`, `last`, `numberOfElements` 등)를 그대로 내보내지 않는다 — 버전에 따라 필드가 바뀌고 클라이언트가 그것에 의존하게 된다.
+- **service는 Spring `Page`를 반환하지 않는다.** infra 타입이 상위 레이어로 새는 것이다. `common/service/PageResult`로 옮겨 반환하고, presentation이 `common/presentation/PageResponse`로 변환한다.
 
 ## **에러 응답 형식**
 
@@ -28,6 +75,18 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
   "message": "요청한 리소스를 찾을 수 없습니다."
 }
 ```
+
+검증 실패는 `errors` 배열이 붙는다. 비어 있으면 직렬화에서 빠진다.
+
+```json
+{
+  "code": "COMMON_INVALID_REQUEST",
+  "message": "요청 값이 올바르지 않습니다.",
+  "errors": [{ "field": "title", "message": "must not be blank" }]
+}
+```
+
+> `NFR-CMN-003`은 `traceId`도 요구한다. `docs/LOG.md`가 MDC와 「에러 응답에 trace id 포함」을 이미 규정하므로, **인증·공통 설정 태스크(`T-INT-3`)에서 `ErrorResponse`에 한 필드로 추가한다.** 그때까지는 위 형식이다.
 
 ---
 
@@ -81,7 +140,7 @@ Authorization: Bearer {accessToken}
 
 ## **Google 로그인**
 
-Google OAuth2(Authorization Code Flow)로 로그인한다. 별도의 회원가입 API는 없다 — 최초 로그인 시 회원이 자동 생성된다.
+Google OAuth2(Authorization Code Flow)로 로그인한다. 별도의 회원가입 API는 없다 — 처음 보는 Google 계정으로 로그인하면 닉네임을 입력받아 그 시점에 회원이 생성된다("닉네임 등록 완료" 절 참고, REQ-USR-001 9/11 번복). Google 프로필 이름(실명)은 요청하지도 저장하지도 않는다.
 
 ### **로그인 시작**
 
@@ -102,8 +161,10 @@ Google 인증이 끝나면 서버가 프론트엔드로 리다이렉트하면서
 POST /api/auth/oauth/google/exchange
 ```
 
-- 성공 시 `200 OK`. Access token은 응답 본문으로, refresh token은 `Set-Cookie`로 내려간다.
-- refresh token 쿠키 속성: `HttpOnly`, `Secure`(로컬 프로필에서만 꺼짐), `SameSite=Strict`, `Path=/api/auth` — `/api/auth/**` 밖에서는 전송되지 않는다.
+- 성공 시 `200 OK`. 이미 가입된 회원이면 로그인(응답·쿠키는 아래 "기존 회원" 참고), 처음 보는
+  Google 계정이면 회원을 만들지 않고 닉네임 등록이 필요하다는 응답만 준다(아래 "신규 식별자" 참고 —
+  이 경우 refresh token 쿠키도 내려가지 않는다. 로그인은 "닉네임 등록 완료"에서 마무리된다).
+- refresh token 쿠키 속성(기존 회원 로그인 시): `HttpOnly`, `Secure`(로컬 프로필에서만 꺼짐), `SameSite=Strict`, `Path=/api/auth` — `/api/auth/**` 밖에서는 전송되지 않는다.
 - 인증이 필요 없다.
 
 #### Request Body
@@ -120,6 +181,8 @@ POST /api/auth/oauth/google/exchange
 
 #### Response Body
 
+**기존 회원** — 바로 로그인된다.
+
 ```json
 {
   "accessToken": "eyJ...",
@@ -127,10 +190,21 @@ POST /api/auth/oauth/google/exchange
 }
 ```
 
+**신규 식별자** — 아직 회원이 아니다. 닉네임을 입력받아 아래 "닉네임 등록 완료"를 호출해야 한다.
+
+```json
+{
+  "needsNickname": true,
+  "registrationToken": "b2c3d4e5-..."
+}
+```
+
 | **필드** | **타입** | **설명** |
 | --- | --- | --- |
-| `accessToken` | String | API 호출에 사용하는 access token. |
-| `role` | String | `REGULAR` 또는 `ADMIN`. |
+| `accessToken` | String | (기존 회원만) API 호출에 사용하는 access token. |
+| `role` | String | (기존 회원만) `REGULAR` 또는 `ADMIN`. |
+| `needsNickname` | Boolean | (신규 식별자만) 항상 `true`. |
+| `registrationToken` | String | (신규 식별자만) 닉네임 등록 완료에 쓰는 1회용 토큰. 발급 후 10분 이내 사용해야 한다. |
 
 #### 에러
 
@@ -138,8 +212,51 @@ POST /api/auth/oauth/google/exchange
 | --- | --- | --- |
 | `code`가 없거나 형식이 잘못됨 | 400 | `COMMON_INVALID_REQUEST` |
 | `code`가 만료됐거나 이미 사용됨 | 401 | `AUTH_TOKEN_INVALID` |
+| 정지·탈퇴 등으로 로그인할 수 없는 회원(기존 회원만 해당) | 403 | `MEMBER_LOGIN_NOT_ALLOWED` |
+
+### **닉네임 등록 완료**
+
+"콜백 및 토큰 교환"이 신규 식별자로 판정해 `registrationToken`을 내려준 경우에만 호출한다. 이
+시점에 비로소 회원이 생성되고(바로 `ACTIVE`) 로그인이 끝난다.
+
+```
+POST /api/auth/oauth/google/complete-registration
+```
+
+- 성공 시 `200 OK`. Access token은 응답 본문으로, refresh token은 `Set-Cookie`로 내려간다(속성은
+  "콜백 및 토큰 교환"의 refresh token 쿠키 속성과 동일).
+- 인증이 필요 없다.
+
+#### Request Body
+
+```json
+{
+  "registrationToken": "b2c3d4e5-...",
+  "displayName": "새로 정한 닉네임"
+}
+```
+
+| **필드** | **타입** | **제약** | **설명** |
+| --- | --- | --- | --- |
+| `registrationToken` | String | 필수 | "콜백 및 토큰 교환"이 내려준 1회용 등록 토큰. 발급 후 10분 이내 사용해야 한다. |
+| `displayName` | String | 필수, 공백 불가 | 사용자가 정한 닉네임. `Member.displayName`으로 저장된다. |
+
+#### Response Body
+
+```json
+{
+  "accessToken": "eyJ...",
+  "role": "REGULAR"
+}
+```
+
+#### 에러
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| `registrationToken`·`displayName`이 없거나 공백 | 400 | `COMMON_INVALID_REQUEST` |
+| `registrationToken`이 만료됐거나 이미 사용됨 | 401 | `AUTH_TOKEN_INVALID` |
 | 이미 다른 소셜 제공자로 가입된 이메일 | 409 | `MEMBER_DUPLICATE_SOCIAL_ACCOUNT` |
-| 정지·탈퇴 등으로 로그인할 수 없는 회원 | 403 | `MEMBER_LOGIN_NOT_ALLOWED` |
 
 ### **재발급**
 
@@ -178,6 +295,8 @@ POST /api/auth/logout
 - 인증이 필요 없다.
 
 > 위 Auth API는 `feat/WLSH-75-member-social-login-OAtuh2`에서 구현 완료됐다(9/10). 실제 구현 기준으로 최종화한 문서다.
+> "닉네임 등록 완료" 절은 `Refactor/WLSH-138-Member-personal-info-secure`에서 추가됐다(9/13) — Google 실명
+> 대신 사용자가 직접 입력한 닉네임을 쓰기로 REQ-USR-001을 재결정(9/8 결정 번복)한 결과다.
 
 ---
 
@@ -245,6 +364,44 @@ DELETE /api/members/me
 - 로컬 상태를 `WITHDRAWN`으로 변경하고 소프트 삭제한다. Google 쪽 소셜 연동 해제(Unlink)는 호출하지 않는다 — 필요하면 회원이 Google 계정에서 직접 해제해야 한다(`docs/DOMAIN.md` 인증·회원가입 정책).
 - 성공 시 `204 No Content`.
 
+### **다른 회원 조회**
+
+```
+GET /api/members/{memberId}
+GET /api/members?ids=1,2,3
+```
+
+로그인한 회원이면 누구나 다른 회원의 이름·이메일을 조회할 수 있다 — 특별한 스코프
+제한을 두지 않는다(`memberId`는 이미 다른 인가된 엔드포인트를 통해서만 얻을 수
+있으므로, `docs/plan/CONFLICTS.md` `D-62`). 배치 조회는 콤마로 구분한 id 목록을
+받고, 존재하지 않는 id는 결과에서 조용히 빠진다(에러가 아니다).
+
+#### Response Body
+
+단건:
+```json
+{ "memberId": 2, "displayName": "김개발", "email": "kim.dev@potenup.io" }
+```
+
+배치(`GET /api/members?ids=1,2`):
+```json
+[
+  { "memberId": 1, "displayName": "민뱅", "email": "idabc1234@gmail.com" },
+  { "memberId": 2, "displayName": "김개발", "email": "kim.dev@potenup.io" }
+]
+```
+
+`status`·`role`은 담지 않는다 — 타인의 사이트 권한·계정 상태까지 공개할 이유가
+없다. 탈퇴한 회원은 익명화된 값(`탈퇴한 회원`, `withdrawn-{id}@deleted.local`)이
+그대로 내려간다(`Member.withdraw()`가 이미 해당 필드를 그렇게 바꿔 두므로 별도
+처리가 필요 없다).
+
+#### 에러
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 단건 조회에서 존재하지 않는 `memberId` | 404 | `MEMBER_NOT_FOUND` |
+
 ### **회원 생성(테스트/관리자용)**
 
 ```
@@ -280,16 +437,11 @@ POST /api/members
 
 사전집과 문서를 공유하는 협업 단위를 만들고 관리한다. 관련 도메인은 `workspace`다.
 
-## **요청자 식별 — 임시 방식**
-
-인증 계층(`NFR-USR-001`)이 아직 없어 **요청자 회원 식별자를 `memberId` 요청 파라미터로 받는다.** 공통 규칙("인증 사용자 식별자는 인증 계층에서 해석해 컨트롤러로 전달한다")에 대한 의도적 예외이며, **인증 도입 시 이 파라미터는 전부 사라진다.** 누구나 남의 `memberId`를 넣어 호출할 수 있으므로 **인증 전까지 운영 배포 대상이 아니다.**
-
 ## **권한과 응답 원칙**
 
-참여자 권한은 `OWNER > ADMIN > REGULAR` 3단계다.
+참여자 권한은 `OWNER > ADMIN > REGULAR` 3단계이고 **Owner와 Admin은 사실상 동급**이다. 권한 검사는 `validateAtLeast(workspaceId, memberId, Permission.ADMIN)` 한 줄로 하고 Owner 전용 분기를 만들지 않는다(워크스페이스 삭제·소유권 이전만 예외).
 
-- **참여자가 아닌 워크스페이스는 `403`이 아니라 `404`로 응답한다.** `403`을 주면 그 워크스페이스가 존재한다는 사실이 드러난다(`NFR-WS-001` 데이터 격리).
-- 참여자이지만 서열이 모자라면 `403`이다.
+요청자 식별(인증 주체)과 접근 불가 리소스에 `404`를 주는 규칙은 **공통 규칙 절**에 있다. 이 도메인만의 규칙이 아니다.
 
 | **Method** | **Path** | **권한** | **성공** |
 | --- | --- | --- | --- |
@@ -297,11 +449,42 @@ POST /api/members
 | GET | `/api/workspaces` | — | `200` |
 | GET | `/api/workspaces/{workspaceId}` | 참여자 | `200` |
 | PATCH | `/api/workspaces/{workspaceId}` | ADMIN 이상 | `204` |
+| PATCH | `/api/workspaces/{workspaceId}/rule-set` | ADMIN 이상 | `200` |
 | DELETE | `/api/workspaces/{workspaceId}` | OWNER | `204` |
+| POST | `/api/workspaces/{workspaceId}/invitations` | ADMIN 이상 | `201` |
+| GET | `/api/workspaces/{workspaceId}/invitations` | ADMIN 이상 | `200` (배열) |
+| DELETE | `/api/workspaces/{workspaceId}/invitations/{invitationId}` | 발급자 또는 ADMIN 이상 | `204` |
+| POST | `/api/invitations/{token}/accept` | 로그인 | `201` |
+
+### **워크스페이스 참여자 관리**
+
+| **Method** | **Path** | **권한** | **성공** |
+| --- | --- | --- | --- |
+| GET | `/api/workspaces/{workspaceId}/participants` | 참여자 | `200` (배열) |
+| PATCH | `/api/workspaces/{workspaceId}/participants/{participantId}/permission` | OWNER | `204` |
+| PATCH | `/api/workspaces/{workspaceId}/participants/{participantId}/ownership` | OWNER | `204` |
+| DELETE | `/api/workspaces/{workspaceId}/participants/{participantId}` | ADMIN 이상 | `204` |
+
+Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 있다.
+권한 변경의 `permission`에는 `ADMIN` 또는 `REGULAR`만 허용하며, 소유권 이전은 별도 엔드포인트를 사용한다.
+참여자를 내보내면 해당 회원을 진행 중인 리뷰의 지정 리뷰어에서 제외할 수 있도록 이탈 이벤트를 발행한다.
+
+### **워크스페이스 초대**
+
+| **Method** | **Path** | **요청** | **응답** |
+| --- | --- | --- | --- |
+| POST | `/api/workspaces/{workspaceId}/invitations` | `IssueInvitationRequest` | `InvitationResponse` |
+| GET | `/api/workspaces/{workspaceId}/invitations?status={status}` | — | `InvitationResponse[]` |
+| DELETE | `/api/workspaces/{workspaceId}/invitations/{invitationId}` | — | — |
+| POST | `/api/invitations/{token}/accept` | — | `WorkspaceResponse` |
+
+발급 요청의 `inviteeEmail`은 선택이며, 링크 복사 방식에서는 생략한다. `permission`은 `ADMIN` 또는 `REGULAR`만 허용한다. 초대는 7일 뒤 만료되고 조회·수락 시점에 만료 여부를 판정한다.
+
+발급 응답에만 링크 복사용 `token`을 담고, 목록 응답에서는 노출하지 않는다. 수락 경로는 워크스페이스를 모른 채 토큰으로 진입하므로 워크스페이스 하위가 아니다. 수락 직후 화면 진입에 필요한 `myPermission`을 전달하기 위해 `WorkspaceResponse`를 반환한다.
 
 ## **워크스페이스 생성**
 
-`POST /api/workspaces?memberId={memberId}` → `201 Created`
+`POST /api/workspaces` → `201 Created`
 
 생성자를 **OWNER 참여자로 자동 등록**한다. 리뷰 규칙(룰셋)은 기본값 `0 / 0`으로 함께 저장된다.
 
@@ -328,11 +511,28 @@ POST /api/members
 
 > 생성·목록·상세가 같은 응답 형식을 쓴다. 생성 직후에는 요청자가 OWNER이고 룰셋이 `0 / 0`이다.
 
+## **워크스페이스 룰셋 수정**
+
+`PATCH /api/workspaces/{workspaceId}/rule-set` → `200 OK`
+
+**ADMIN 이상**만 수정할 수 있다. 각 필수 리뷰어 수는 현재 참여자 수 이하만 허용된다.
+
+```json
+{
+  "requiredDocumentReviewerCount": 2,
+  "requiredDictionaryReviewerCount": 1
+}
+```
+
+응답은 저장된 실제 룰셋을 포함한 `WorkspaceResponse`다.
+
 ## **참여 중인 워크스페이스 목록 조회**
 
-`GET /api/workspaces?memberId={memberId}` → `200 OK`
+`GET /api/workspaces` → `200 OK`
 
 **참여 중인 워크스페이스만** 내려간다. 참여하지 않은 워크스페이스는 목록에 들어오지 않는다.
+
+> 이 엔드포인트는 **페이징 규격의 예외**로 배열을 반환한다. 한 회원이 참여하는 워크스페이스 수가 구조적으로 작기 때문이다.
 
 ```json
 [
@@ -349,7 +549,7 @@ POST /api/members
 
 ## **워크스페이스 상세 조회**
 
-`GET /api/workspaces/{workspaceId}?memberId={memberId}` → `200 OK`
+`GET /api/workspaces/{workspaceId}` → `200 OK`
 
 ```json
 {
@@ -370,7 +570,7 @@ POST /api/members
 
 ## **워크스페이스 이름 수정**
 
-`PATCH /api/workspaces/{workspaceId}?memberId={memberId}` → `204 No Content`
+`PATCH /api/workspaces/{workspaceId}` → `204 No Content`
 
 **ADMIN 이상**만 수정할 수 있다. 이름만 바꾸므로 응답 본문이 없다.
 
@@ -382,9 +582,10 @@ POST /api/members
 
 ## **워크스페이스 삭제**
 
-`DELETE /api/workspaces/{workspaceId}?memberId={memberId}` → `204 No Content`
+`DELETE /api/workspaces/{workspaceId}` → `204 No Content`
 
 **OWNER만** 삭제할 수 있다. **소프트 삭제**이며 이후 모든 조회에서 빠진다. 참여자 행은 함께 지우지 않는다 — 조회가 워크스페이스에서 먼저 막히기 때문이다.
+삭제가 완료되면 알림과 감사 처리를 위한 워크스페이스 삭제 이벤트를 발행한다.
 
 ## **에러**
 
@@ -393,10 +594,1205 @@ POST /api/members
 | 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
 | 참여자지만 ADMIN 미만이 이름 수정을 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
 | 참여자지만 OWNER가 아닌 사용자가 삭제를 시도 | 403 | `WORKSPACE_OWNER_REQUIRED` |
+| 없는 참여자 또는 다른 워크스페이스의 참여자 | 404 | `WORKSPACE_PARTICIPANT_NOT_FOUND` |
+| 소유자를 내보내려고 시도 | 409 | `WORKSPACE_OWNER_CANNOT_BE_REMOVED` |
+| 워크스페이스 참여자가 이미 5명인 초대를 수락 | 409 | `WORKSPACE_PARTICIPANT_LIMIT_EXCEEDED` |
+| 초대를 찾을 수 없음 | 404 | `INVITATION_NOT_FOUND` |
+| 만료되거나 이미 처리된 초대를 수락·취소 | 409 | `INVITATION_NOT_ACCEPTABLE` |
+| 이미 참여 중인 회원에게 초대를 발급하거나 해당 회원이 초대를 수락 | 409 | `INVITATION_ALREADY_PARTICIPANT` |
+| 같은 대상에게 대기 중인 초대를 중복 발급 | 409 | `INVITATION_DUPLICATE_PENDING` |
+| 초대로 OWNER 권한을 부여 | 400 | `INVITATION_OWNER_NOT_ALLOWED` |
 | 이름이 비었거나 50자 초과(도메인 검증) | 400 | `WORKSPACE_INVALID_NAME` |
 | 필수 리뷰어 수가 0 미만(도메인 검증) | 400 | `WORKSPACE_INVALID_REVIEWER_COUNT` |
-| 요청 DTO 검증 실패, `memberId` 누락 | 400 | `COMMON_INVALID_REQUEST` |
+| 요청 DTO 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
 
 > `COMMON_INVALID_REQUEST`는 요청 DTO 검증(`@NotBlank`·`@Size`)에서, `WORKSPACE_INVALID_*`는 도메인 모델 검증에서 발생한다. 같은 입력이라도 앞단에서 걸리면 `COMMON_INVALID_REQUEST`가 먼저 내려간다.
+
+---
+
+# **Document API**
+
+워크스페이스에 속한 문서를 만들고 읽고 지운다. 버전 이력과 라벨도 여기서 다룬다. 관련 도메인은 `document`다.
+
+## **알아 둘 것 셋**
+
+- **본문은 확정 버전에만 있다.** `Document`에는 본문 컬럼이 없다. 상세 응답의 `content`는 `currentVersionNo`가 가리키는 `DocumentVersion`에서 온다.
+- **본문이 바뀌는 경로는 셋이고 엔드포인트는 둘이다**(2026-09-10 확정).
+
+| 경로 | 엔드포인트 | `dictionaryVersionNo` | `edited` |
+| --- | --- | --- | --- |
+| 업로드(v1) | `POST .../documents` | `null` | `false` |
+| **직접 편집** | **`PATCH .../documents/{documentId}/content`** | **이전 버전 값 승계** | **`true`** |
+| 갱신 → 교정 → 리뷰 → 반영 | `reviewrequest` 도메인의 발행 | **발행 시점 활성 사전집 버전** | `false` |
+
+  **직접 편집은 대조·초안·개정안을 거치지 않고 즉시 새 버전을 발행한다.** `PATCH .../documents/{documentId}`(제목·라벨)와 **경로를 나눈 이유**는 본문 편집이 버전을 만들고 제목·라벨 수정은 만들지 않기 때문이다 — 같은 엔드포인트에 섞으면 요청 하나가 두 의미를 갖는다. `REQ-CHK-007`(편집 저장 시 대조)은 이 결정으로 **폐기**했다.
+
+- **`aligned`(정렬됨)가 `outdated`를 대체한다**(2026-09-10). `최신 확정 버전의 dictionaryVersionNo == 활성 사전집 versionNo` **AND** `edited == false`일 때 참이다.
+  - **참이면 용어 추출 대상이고 갱신이 필요 없다.** 두 의미가 같은 조건이라 필드 하나로 합쳤다.
+  - **`edited`가 별도 축인 이유** — 편집본이 이전 사전집 버전을 승계하므로 버전 번호만 보면 「통과했다」로 읽힌다. 사람이 손댄 본문은 그 사전집을 통과한 적이 없다. 그래서 응답에 `aligned`·`edited`·`dictionaryVersionNo` 셋을 함께 내려 **정렬되지 않은 이유**를 화면이 설명할 수 있게 한다.
+  - 활성 사전집이 없으면 양쪽이 `null`이라 `aligned`가 참이다 — 갱신할 대상이 없고 첫 추출의 대상이 된다.
+
+## **엔드포인트**
+
+경로는 모두 워크스페이스 하위에 중첩된다. `workspaceId`가 URL에 강제되면 데이터 격리(`NFR-WS-001`) 검증이 모든 엔드포인트에서 같은 모양이 된다.
+
+| **Method** | **Path** | **권한** | **성공** |
+| --- | --- | --- | --- |
+| POST | `/api/workspaces/{workspaceId}/documents` | 참여자 | `201` |
+| GET | `/api/workspaces/{workspaceId}/documents` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `200` |
+| PATCH | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `204` |
+| PATCH | `/api/workspaces/{workspaceId}/documents/{documentId}/content` | 참여자 | `200` |
+| DELETE | `/api/workspaces/{workspaceId}/documents/{documentId}` | **ADMIN 이상** | `204` |
+| GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions/{versionNo}` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/labels` | 참여자 | `200` |
+
+## **문서 생성**
+
+`POST /api/workspaces/{workspaceId}/documents` → `201 Created`
+
+`Document`와 `DocumentVersion` v1을 한 트랜잭션에서 만든다. **파일 업로드가 아니라 JSON 본문 작성**이다(`REQ-DOC-001`. multipart 업로드는 후속).
+
+```json
+{
+  "title": "결제 도메인 설계",
+  "content": "회원은 결제할 수 있다.",
+  "labels": ["설계", "결제"]
+}
+```
+
+| **필드** | **타입** | **제약** | **설명** |
+| --- | --- | --- | --- |
+| `title` | String | 필수, 1~200자 | 워크스페이스 안에서 중복을 허용한다 |
+| `content` | String | 필수, 1~10,000자 | v1 버전의 본문이 된다 |
+| `labels` | String[] | 선택, 최대 5개, 각 1~20자 | **없는 이름은 라벨이 새로 만들어진다** |
+
+```json
+{
+  "documentId": 1,
+  "workspaceId": 1,
+  "title": "결제 도메인 설계",
+  "content": "회원은 결제할 수 있다.",
+  "currentVersionNo": 1,
+  "aligned": true,
+  "edited": false,
+  "dictionaryVersionNo": null,
+  "labels": ["결제", "설계"],
+  "uploaderId": 7,
+  "createdAt": "2026-09-10T10:24:38.123456Z",
+  "updatedAt": "2026-09-10T10:24:38.123456Z"
+}
+```
+
+| **필드** | **타입** | **설명** |
+| --- | --- | --- |
+| `content` | String | **최신 확정 버전의 본문** |
+| `aligned` | Boolean | 사전집 기준에 맞춰져 있고 그 뒤로 사람이 손대지 않았는지. **참이면 용어 추출 대상이고 갱신이 필요 없다.** 판정 기준은 아래 |
+| `edited` | Boolean | 최신 확정 버전이 **직접 편집본**인지. `aligned`가 거짓인 이유를 구분하게 해 준다 |
+| `dictionaryVersionNo` | Int | 최신 확정 버전이 통과한 사전집 버전. 업로드본은 `null`, 편집본은 이전 값 승계 |
+| `uploaderId` | Long | 문서를 올린 회원 |
+
+> **`aligned` 판정** — `최신 확정 버전의 dictionaryVersionNo == 활성 사전집 versionNo` **AND** `edited == false`. 활성 사전집이 없으면 양쪽이 `null`이라 `true`다. 기준이 「마지막으로 대조한 시점」이 아니라 「마지막으로 반영된 버전」이므로, **대조만 하고 교정을 끝내지 않은 문서는 `false`다.** 직접 편집본도 `false`다 — 사람이 손댄 본문은 그 사전집을 통과한 적이 없다.
+
+## **문서 목록 조회**
+
+`GET /api/workspaces/{workspaceId}/documents?label={name}&page=0&size=20&sort=createdAt,desc` → `200 OK`
+
+`label`은 선택이다. 주면 그 라벨이 붙은 문서만 내려간다. 페이징·정렬은 **공통 규칙 절**을 따르고, `sort` 화이트리스트는 `createdAt`(기본, 내림차순)·`title`이다.
+
+**항목에 본문(`content`)을 담지 않는다.** 10,000자 × N을 목록에 실을 이유가 없다. 아래 응답의 `content` 키는 페이징 규격의 항목 배열이며 문서 본문과 무관하다.
+
+```json
+{
+  "content": [
+    {
+      "documentId": 1,
+      "title": "결제 도메인 설계",
+      "currentVersionNo": 1,
+      "aligned": true,
+      "edited": false,
+      "dictionaryVersionNo": null,
+      "labels": ["결제", "설계"],
+      "uploaderId": 7,
+      "createdAt": "2026-09-10T10:24:38.123456Z",
+      "updatedAt": "2026-09-10T10:24:38.123456Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+## **문서 상세 조회**
+
+`GET /api/workspaces/{workspaceId}/documents/{documentId}` → `200 OK`
+
+생성 응답과 같은 형식이다. `content`는 최신 확정 버전에서 온다.
+
+## **문서 수정**
+
+`PATCH /api/workspaces/{workspaceId}/documents/{documentId}` → `204 No Content`
+
+**제목과 라벨만 바꾼다.** 본문은 이 경로로 바뀌지 않는다.
+
+```json
+{
+  "title": "정산 도메인 설계",
+  "labels": ["정산"]
+}
+```
+
+> **`labels`는 통째로 교체된다.** 빈 배열이나 생략은 「라벨을 모두 뗀다」는 뜻이다. 부분 추가·삭제 엔드포인트를 따로 두지 않는 이유는 문서당 5개뿐이라 전체 교체가 더 단순하기 때문이다. **문서에서 뗀 라벨도 워크스페이스에는 남는다.**
+
+## **본문 편집**
+
+`PATCH /api/workspaces/{workspaceId}/documents/{documentId}/content` → `200 OK`
+
+**대조·초안·개정안을 거치지 않고 즉시 새 버전을 발행한다**(2026-09-10 확정). 참여자면 누구나 할 수 있다 — `DOMAIN.md`가 「Regular는 문서 작성·교정·리뷰까지 가능」으로 두었고 편집은 작성에 해당한다.
+
+```json
+{
+  "content": "회원은 결제 수단을 선택해 결제할 수 있다."
+}
+```
+
+| **필드** | **타입** | **제약** | **설명** |
+| --- | --- | --- | --- |
+| `content` | String | 필수, 1~10,000자 | 새 버전의 본문이 된다 |
+
+응답은 문서 상세와 같은 형식이며 **`currentVersionNo`가 오르고 `edited`가 `true`, `aligned`가 `false`**다.
+
+- `dictionaryVersionNo`는 **이전 버전 값을 승계**한다. 편집은 대조를 거치지 않아 어떤 사전집도 통과하지 않았지만, 그 사실은 `edited`가 나타낸다.
+- **응답이 `204`가 아닌 이유** — 새 버전 번호와 갱신된 `aligned`를 클라이언트가 알아야 한다. 제목·라벨 수정(`204`)과 차이가 여기서 드러난다.
+- **진행 중인 초안이 걸린 문서는 편집할 수 없다**(`409`). 두 경우다 — 그 문서에 진행 중인 문서 초안이 있거나(초안의 `baseVersionNo`가 낡고 발행 시 편집 내용을 덮어쓴다), 그 문서가 진행 중인 사전 초안의 원천 문서다(초안이 이미 없는 본문을 근거로 삼는다).
+
+## **문서 삭제**
+
+`DELETE /api/workspaces/{workspaceId}/documents/{documentId}` → `204 No Content`
+
+**ADMIN 이상만** 삭제할 수 있다. **소프트 삭제**이며 이후 모든 조회에서 빠진다. 확정된 버전 행과 라벨 연결 행은 함께 지우지 않는다 — 조회가 문서에서 먼저 막히기 때문이다.
+
+## **버전 이력 조회**
+
+`GET /api/workspaces/{workspaceId}/documents/{documentId}/versions?page=0&size=20` → `200 OK`
+
+`versionNo` 내림차순 고정. **본문을 담지 않는다.**
+
+```json
+{
+  "content": [
+    { "versionNo": 2, "publishedAt": "2026-09-11T09:00:00.000000Z", "dictionaryVersionNo": null, "edited": true, "publishedBy": 7 },
+    { "versionNo": 1, "publishedAt": "2026-09-10T10:24:38.123456Z", "dictionaryVersionNo": null, "edited": false, "publishedBy": 7 }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 2,
+  "totalPages": 1
+}
+```
+
+`edited`로 **그 버전이 어떻게 만들어졌는지**가 드러난다 — `true`는 사람이 직접 고친 것, `false`는 업로드본이거나 교정 반영본이다.
+
+> 반영(Revise) 경로는 `reviewrequest` 도메인이 붙어야 생긴다. **그때까지 v2 이상은 직접 편집으로만 쌓인다.**
+
+## **특정 버전 조회**
+
+`GET /api/workspaces/{workspaceId}/documents/{documentId}/versions/{versionNo}` → `200 OK`
+
+위 형식에 `body`가 붙는다.
+
+```json
+{
+  "versionNo": 1,
+  "body": "회원은 결제할 수 있다.",
+  "publishedAt": "2026-09-10T10:24:38.123456Z",
+  "dictionaryVersionNo": null,
+  "edited": false,
+  "publishedBy": 7
+}
+```
+
+## **워크스페이스 라벨 목록 조회**
+
+`GET /api/workspaces/{workspaceId}/labels` → `200 OK`
+
+이름 오름차순. 목록 필터 UI를 채우기 위한 것이다. **라벨 생성·수정·삭제 엔드포인트는 없다** — 라벨은 문서에 붙일 때 없으면 만들어진다.
+
+```json
+[
+  { "labelId": 1, "name": "결제" },
+  { "labelId": 2, "name": "설계" }
+]
+```
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
+| 없거나 삭제된 문서, **다른 워크스페이스의 문서 식별자** | 404 | `DOCUMENT_NOT_FOUND` |
+| 없는 버전 번호 | 404 | `DOCUMENT_VERSION_NOT_FOUND` |
+| 참여자지만 ADMIN 미만이 삭제를 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
+| 제목이 비었거나 200자 초과(도메인 검증) | 400 | `DOCUMENT_INVALID_TITLE` |
+| 본문이 비었거나 10,000자 초과(도메인 검증) | 400 | `DOCUMENT_INVALID_CONTENT` |
+| 라벨이 6개 이상 | 400 | `DOCUMENT_LABEL_LIMIT_EXCEEDED` |
+| 라벨 이름이 비었거나 20자 초과 | 400 | `LABEL_INVALID_NAME` |
+| **진행 중인 문서 초안이 있어 본문을 편집할 수 없음** | 409 | `DOCUMENT_DRAFT_IN_PROGRESS` |
+| **진행 중인 사전 초안의 원천 문서라 본문을 편집할 수 없음** | 409 | `DOCUMENT_SOURCE_OF_DICTIONARY_DRAFT` |
+| 요청 DTO 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
+
+> 권한 부족에 document 전용 코드를 두지 않고 `WORKSPACE_ADMIN_REQUIRED`를 그대로 쓴다. 검증 주체가 `WorkspaceAccessValidator`이므로 같은 뜻의 코드를 도메인마다 늘리지 않는다.
+
+---
+
+# **Dictionary API**
+
+워크스페이스에서 합의된 표준 용어의 집합을 버전 단위로 조회하고, 리뷰 승인이 위임한 발행을 수행한다. 관련 도메인은 `dictionary`다.
+
+## **알아 둘 것 셋**
+
+- **사전집 행 하나가 확정된 버전 하나다.** 워크스페이스에 행이 쌓이고 **활성중인 행 하나**가 가장 최근 확정본이자 대조·추출의 기준이다. 나머지는 보관 버전이며 내용이 바뀌지 않는다.
+- **경로가 단수 `/dictionary`인 이유** — 활성 1개 + 보관 N개로 존재하고 「이름」을 두지 않으므로 리소스 컬렉션이 아니라 워크스페이스의 단일 속성처럼 읽힌다. 버전은 그 하위에 둔다.
+- **워크스페이스에 사전집이 없는 기간은 정상이다.** 첫 발행 전까지가 그 상태이며 오류 상황이 아니다. 사전집은 사람이 빈 껍데기를 만드는 것이 아니라 **문서에서 용어를 추출해 리뷰를 통과시킨 결과로 태어난다**(`DOMAIN.md` «사전집 생성 주기»).
+
+## **엔드포인트**
+
+| **Method** | **Path** | **권한** | **성공** |
+| --- | --- | --- | --- |
+| GET | `/api/workspaces/{workspaceId}/dictionary` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/dictionary/versions` | 참여자 | `200` |
+| GET | `/api/workspaces/{workspaceId}/dictionary/versions/{versionNo}` | 참여자 | `200` |
+
+## **새 버전은 어떻게 생기는가**
+
+**이 도메인에는 버전을 만드는 엔드포인트가 없다.** `DOMAIN.md` «사전집»의 「새 버전은 리뷰 승인(Revise)의 반영으로만 생긴다」와 `NFR-UPD-001`(Human-in-the-Loop)에 따라, 발행은 `POST /api/review-requests/{reviewRequestId}/revision`(ADMIN 이상)이 **발행 위임 포트로 이 도메인에 넘긴다.** 사전 초안이 확정한 통합 용어 목록이 그대로 새 버전의 내용이 된다.
+
+> ADMIN이 용어 목록을 직접 실어 보내던 임시 엔드포인트(`POST /api/workspaces/{workspaceId}/dictionary/versions`)는 **제거했다**(`DIC-7`). 리뷰 경로가 이어지기 전까지 사전집을 만들 유일한 수단이었으나, `T-INT-5`가 초안 → 리뷰 요청 진입점을 이으면서 대체 경로가 생겼다.
+
+발행 시 지켜지는 것은 셋이다.
+
+- **넘어온 목록만 그 버전의 내용이 된다** — 이전 버전에서 복사하지 않는다. 기존 용어를 유지하려면 초안이 그것을 함께 들고 있어야 하고, 사전 초안이 「이전 사전집 + 추출 용어」의 통합 결과인 것이 이 구조와 맞물린다.
+- **표준어 유일성을 이중으로 막는다** — 목록 안의 중복은 저장 전에 `409 TERM_DUPLICATE_PREFERRED_FORM`으로 걸리고(`NFR-DIC-002`), DB 유니크가 최후 방어선이다.
+- **이전 활성 사전집은 같은 트랜잭션에서 보관 버전으로 내려간다** — 활성 사전집은 워크스페이스당 정확히 1개이고 DB 유니크가 그것을 보장한다.
+
+기준 버전이 현재 활성 버전과 다르면 `409 DICTIONARY_VERSION_CONFLICT`로 거절한다(`D-42`). 용어가 0개인 버전은 만들 수 없다.
+
+## **활성 사전집 조회**
+
+`GET /api/workspaces/{workspaceId}/dictionary?page=0&size=20&sort=preferredForm,asc&keyword=회원` → `200 OK`
+
+현재 확정본을 읽는다. **문서 대조와 용어 추출이 기준으로 삼는 사전집**이다.
+
+| **파라미터** | **기본값** | **설명** |
+| --- | --- | --- |
+| `page`·`size` | `0` / `20` | 공통 규칙 절을 따른다 |
+| `sort` | `preferredForm,asc` | 화이트리스트는 `preferredForm`·`createdAt`. 밖이면 `400` |
+| `keyword` | — | `preferredForm`·`englishName` 접두 검색(`REQ-DIC-002`) |
+
+응답은 다음 형식이다.
+
+```json
+{
+  "dictionaryId": 5,
+  "workspaceId": 1,
+  "versionNo": 2,
+  "status": "ACTIVE",
+  "publishedAt": "2026-09-10T11:00:00.000000Z",
+  "createdBy": 7,
+  "terms": {
+    "content": [
+      { "termId": 11, "preferredForm": "사전집", "englishName": "Dictionary" },
+      { "termId": 10, "preferredForm": "회원", "englishName": "Member" }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 2,
+    "totalPages": 1
+  }
+}
+```
+
+용어는 `preferredForm` 오름차순이다. **사전집 메타(버전·상태·확정일시)는 페이징 밖에 있고 `terms`만 페이징된다** — 용어가 수백 건까지 늘 수 있다. 조회 목록은 `TermSummary`로 읽어 `definition` 본문을 싣지 않는다. 정의 미리보기가 필요해지면 별도 필드로 추가한다(`D-41`).
+
+## **버전 이력 조회**
+
+`GET /api/workspaces/{workspaceId}/dictionary/versions?page=0&size=20` → `200 OK`
+
+`versionNo` 내림차순 고정. **용어 목록을 담지 않고 개수만 담는다.**
+
+```json
+{
+  "content": [
+    { "dictionaryId": 5, "versionNo": 2, "status": "ACTIVE", "publishedAt": "2026-09-10T11:00:00.000000Z", "createdBy": 7, "termCount": 2 },
+    { "dictionaryId": 4, "versionNo": 1, "status": "ARCHIVED", "publishedAt": "2026-09-09T10:00:00.000000Z", "createdBy": 7, "termCount": 1 }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 2,
+  "totalPages": 1
+}
+```
+
+**사전집을 만든 적 없는 워크스페이스는 빈 페이지다** — 조회의 빈 결과는 실패가 아니다.
+
+## **특정 버전 조회**
+
+`GET /api/workspaces/{workspaceId}/dictionary/versions/{versionNo}?page=0&size=20&sort=preferredForm,asc&keyword=회원` → `200 OK`
+
+활성 사전집 조회와 같은 페이징·정렬·접두 검색을 제공하며 보관 버전도 읽을 수 있다. 조회 목록에는 `definition` 본문을 싣지 않는다. **버전마다 용어가 복제되므로 그 버전에 매달린 용어가 곧 그 시점의 스냅샷이다.**
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
+| 워크스페이스에 사전집이 없음, 없는 버전 번호 | 404 | `DICTIONARY_NOT_FOUND` |
+| 참여자지만 ADMIN 미만이 반영을 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
+| 발행 기준 버전이 현재 활성 버전과 다름 | 409 | `DICTIONARY_VERSION_CONFLICT` |
+| 발행 목록이 비어 있음 | 400 | `DICTIONARY_EMPTY_TERMS` |
+| 버전 정보가 올바르지 않음(도메인 검증) | 400 | `DICTIONARY_INVALID_VERSION` |
+| 표준어가 비었거나 100자 초과 | 400 | `TERM_INVALID_PREFERRED_FORM` |
+| 영문명이 100자 초과 | 400 | `TERM_INVALID_ENGLISH_NAME` |
+| 정의가 비어 있음 | 400 | `TERM_INVALID_DEFINITION` |
+| **발행 목록 안에 같은 표준어가 두 번** | 409 | `TERM_DUPLICATE_PREFERRED_FORM` |
+| `sort`가 화이트리스트 밖 | 400 | `COMMON_INVALID_REQUEST` |
+| 요청 DTO 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
+
+> **발행 계열 에러는 이 도메인의 엔드포인트가 아니라 `POST /api/review-requests/{reviewRequestId}/revision`의 응답으로 올라온다.** 발행 위임 포트가 이 도메인의 검증을 그대로 통과시키기 때문이다.
+
+> `DICTIONARY_NOT_FOUND`가 「아직 없음」과 「없는 버전」을 겸하는 것은 의도다. 비참여자에게는 그보다 앞서 `WORKSPACE_NOT_FOUND`가 나가므로 사전집의 존재 여부가 드러나지 않는다.
+>
+> 권한 부족에 dictionary 전용 코드를 두지 않고 `WORKSPACE_ADMIN_REQUIRED`를 그대로 쓴다. 검증 주체가 `WorkspaceAccessValidator`이므로 같은 뜻의 코드를 도메인마다 늘리지 않는다.
+
+---
+
+# **DraftDocument API**
+
+사전집 대조 결과로 만들어진 문서 초안 한 건을 생성·조회·수정·삭제한다. 관련 도메인은 `draftdocument`다.
+
+## **엔드포인트**
+
+| **Method** | **Path** | **성공** |
+| --- | --- | --- |
+| POST | `/api/draft-documents/checks` | `202` |
+| GET | `/api/draft-documents/checks/{checkJobId}` | `200` |
+| GET | `/api/draft-documents` | `200` |
+| GET | `/api/draft-documents/{draftDocumentId}` | `200` |
+| PATCH | `/api/draft-documents/{draftDocumentId}` | `200` |
+| DELETE | `/api/draft-documents/{draftDocumentId}` | `204` |
+| POST | `/api/draft-documents/{draftDocumentId}/suggestion-terms` | `201` |
+| GET | `/api/draft-documents/{draftDocumentId}/suggestion-terms` | `200` |
+| PATCH | `/api/suggestion-terms/{suggestionTermId}` | `200` |
+| DELETE | `/api/suggestion-terms/{suggestionTermId}` | `204` |
+| POST | `/api/suggestion-terms/{suggestionTermId}/acceptance` | `200` |
+| POST | `/api/suggestion-terms/{suggestionTermId}/rejection` | `200` |
+| POST | `/api/draft-documents/{draftDocumentId}/examine-completion` | `200` |
+| GET | `/api/draft-documents/{draftDocumentId}/examine-progress` | `200` |
+
+**초안을 만드는 진입점은 비동기 대조 작업 하나다**(`D-45`). 클라이언트가 본문을 실어 보내던 `POST /api/draft-documents`는 **제거했다** — 초안 본문은 서버가 대상 문서의 최신 확정 버전에서 파생하는 값이고, 대조 결과인 제안어가 함께 달려야 교정할 것이 생긴다.
+
+> **리뷰 요청은 이 도메인이 아니라 ReviewRequest 도메인이 받는다** — `POST /api/draft-documents/{draftDocumentId}/review-request`(`D-44`). 초안은 그 결과로 발행되는 이벤트를 받아 `REVIEW_REQUESTED`로 전이한다.
+
+조회·수정 응답은 다음 형식이다.
+
+```json
+{
+  "draftDocumentId": 100,
+  "documentId": 10,
+  "baseVersionNo": 1,
+  "draftBody": "회원은 결제할 수 있다.",
+  "status": "EXAMINING",
+  "requestedBy": 7,
+  "createdBy": 7,
+  "createdAt": "2026-09-11T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-11T10:00:00.000000+09:00"
+}
+```
+
+`PATCH /api/draft-documents/{draftDocumentId}`는 다음 JSON으로 초안 본문을 바꾼다.
+
+```json
+{
+  "draftBody": "수정한 초안 본문"
+}
+```
+
+## **초안 목록 조회**
+
+`GET /api/draft-documents` → `200 OK`, 본문은 `PageResponse`다. 요청자가 참여한 워크스페이스에 속한 문서의 초안만 반환한다.
+
+| **파라미터** | **기본값** | **설명** |
+| --- | --- | --- |
+| `documentId` | — | 대상 문서 |
+| `status` | — | `DraftDocumentStatus` 완전 일치 |
+| `page` | `0` | 0부터 시작 |
+| `size` | `20` | 1~100 |
+| `sort` | `createdAt,desc` | 필드는 `createdAt`·`updatedAt`·`id`, 방향은 `asc`·`desc`만 허용한다 |
+
+## **제안어 등록·수정·삭제·목록**
+
+대조가 찾아낸 「원문 표현 → 표준어」 쌍을 초안 안에서 다룬다. 표준어(`suggestionTerm`)의 출처는 사전집이다(`O-3`, `DIC-4`).
+
+`POST /api/draft-documents/{draftDocumentId}/suggestion-terms` → `201 Created`
+
+```json
+{
+  "anchor": { "startOffset": 0, "endOffset": 3 },
+  "originTerm": "결제방법",
+  "suggestionTerm": "결제수단"
+}
+```
+
+`anchor`는 초안 본문에서의 구간이다. `startOffset <= endOffset`이어야 하고 음수일 수 없으며, 본문 길이를 넘으면 거절한다.
+
+`GET /api/draft-documents/{draftDocumentId}/suggestion-terms` → `200 OK`, 본문은 `PageResponse`다. 파라미터는 `status`·`page`·`size`·`sort`이고 규격은 위 초안 목록과 같다.
+
+`PATCH /api/suggestion-terms/{suggestionTermId}`는 각 필드를 **선택적으로** 받아 넘어온 것만 바꾼다.
+
+`DELETE /api/suggestion-terms/{suggestionTermId}` → `204 No Content`. **소프트 삭제**다.
+
+## **생성 정책과 데이터 격리**
+
+대조 작업을 접수할 때 대상 문서가 존재하고 요청자가 문서의 워크스페이스 참여자인지 확인한다. 같은 문서에 진행 중인 문서 초안·리뷰가 있거나 같은 워크스페이스에 진행 중인 사전 초안이 있으면 접수할 수 없다. 초안의 `baseVersionNo`는 **작업 실행 시점에 서버가 대상 문서의 현재 버전으로 채운다** — 클라이언트가 보내지 않는다.
+
+초안과 제안어의 조회·수정·삭제·판정·교정완료는 모두 문서가 속한 워크스페이스 참여자만 실행할 수 있다. 비참여자에게는 리소스 존재를 드러내지 않도록 `404`를 반환한다.
+
+초안 생성과 교정완료 시 각각 `DraftDocumentCreatedEvent`, `DraftDocumentExaminedEvent`를 발행한다. 문서 리뷰 요청 생성·취소·반영 이벤트를 받으면 초안 상태를 각각 `REVIEW_REQUESTED`, `EXAMINED`, `REVISED`로 멱등 전이한다.
+
+## **제안어 판정과 교정완료**
+
+`POST /api/suggestion-terms/{suggestionTermId}/acceptance`는 제안 용어를 채택한다. 제안 용어는 현재 활성 사전집의 표준어여야 한다. 교정중에는 거절했던 제안어도 다시 수용할 수 있다.
+
+`POST /api/suggestion-terms/{suggestionTermId}/rejection`는 다음 JSON으로 원문 표현을 유지하고 사유를 기록한다.
+
+```json
+{
+  "rejectReason": "제품 고유명사이므로 원문을 유지합니다."
+}
+```
+
+판정 응답은 `handledBy`, `rejectReason`, `updatedAt`을 포함한다. 수용하면 `status`가 `APPLIED_SUGGESTION`이고 `rejectReason`은 `null`이다. 거절하면 `status`가 `KEPT_ORIGIN`이다.
+
+`GET /api/draft-documents/{draftDocumentId}/examine-progress`는 현재 판정 건수와 저장하지 않은 미리보기 본문을 반환한다.
+
+```json
+{
+  "total": 3,
+  "pending": 1,
+  "keptOrigin": 1,
+  "appliedSuggestion": 1,
+  "previewBody": "사용자는 결제수단을 선택한다."
+}
+```
+
+`POST /api/draft-documents/{draftDocumentId}/examine-completion`는 미처리 제안어가 없을 때 교정을 완료한다. 수용된 제안어를 원문 기준 뒤쪽 위치부터 치환해 `draftBody`를 한 번에 확정하며, 이후 제안어 판정과 초안 본문 수정은 잠긴다. 수용된 앵커가 겹치면 일부 판정을 누락하지 않고 `DRAFT_DOCUMENT_INVALID_ANCHOR`로 거절한다.
+
+## **비동기 문서 대조**
+
+`POST /api/draft-documents/checks`는 다음 요청으로 최신 확정 본문과 활성 사전집의 대조 작업을 접수한다.
+
+```json
+{
+  "documentId": 10
+}
+```
+
+작업을 `PENDING`으로 저장하고 대조 요청 이벤트를 발행한 뒤 `202 Accepted`와 작업 상태를 즉시 반환한다. 같은 문서에 `PENDING` 또는 `RUNNING` 작업이 있으면 중복 접수를 거절한다.
+
+`GET /api/draft-documents/checks/{checkJobId}`는 폴링용 상태 조회 API다. 응답 형식은 다음과 같다.
+
+```json
+{
+  "checkJobId": 300,
+  "documentId": 10,
+  "status": "PENDING",
+  "draftDocumentId": null,
+  "failureReason": null,
+  "requestedBy": 7,
+  "createdAt": "2026-09-13T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-13T10:00:00.000000+09:00"
+}
+```
+
+상태는 `PENDING`·`RUNNING`·`SUCCEEDED`·`FAILED`다. 성공하면 `draftDocumentId`, 실패하면 `failureReason`이 채워진다.
+
+접수 트랜잭션이 커밋된 뒤 리스너가 작업에 상관 식별자(UUIDv4)를 새기며 `RUNNING`으로 바꾸고, **AI 워커 전용 SQS 큐로 요청을 발행한다.** 실제 대조는 외부 FastAPI 워커가 수행하고 결과는 아래 콜백으로 돌아온다. 발행 자체가 실패하면 작업을 `FAILED`로 끝낸다 — 진행 중으로 두면 같은 문서의 다음 대조 요청이 계속 막힌다.
+
+콜백이 끝내 오지 않은 작업은 주기 스위퍼가 제한 시간(`app.ai.timeout.job`) 뒤에 `FAILED`로 회수한다.
+
+워커가 없는 환경(`app.ai.dispatch.mode=in-process`, 로컬·테스트 기본값)에서는 같은 JVM의 대역이 빈 결과로 작업을 끝낸다. 접수·상태 전이·초안 생성 흐름은 그대로 검증되지만 생성된 초안에 자동 제안어는 포함되지 않는다.
+
+## **대조 완료 콜백**
+
+```
+POST /api/internal/llm/checks/{checkJobId}/result
+POST /api/internal/llm/checks/{checkJobId}/failure
+```
+
+**AI 워커가 호출하는 서버-투-서버 경로다. 인증 주체가 없다**(«요청자 식별»의 예외). 호출자 확인은 요청 본문의 `requestId`를 작업 행에 저장된 값과 대조해서 한다 — 발행할 때 만들어 메시지에 실어 보낸 1회용 값이다.
+
+```json
+// POST /api/internal/llm/checks/40/result
+{
+  "requestId": "0d5c6f6e-0000-4000-8000-000000000001",
+  "documentVersionNo": 3,
+  "suggestions": [
+    { "anchor": { "startOffset": 10, "endOffset": 12 }, "originTerm": "유저", "suggestionTerm": "이용자" }
+  ]
+}
+
+// POST /api/internal/llm/checks/40/failure
+{ "requestId": "0d5c6f6e-0000-4000-8000-000000000001", "reason": "모델 응답이 스키마를 만족하지 않습니다.", "code": "LLM_SCHEMA_VIOLATION" }
+```
+
+성공·실패 모두 **204 No Content**다. 제안어의 원문 위치가 현재 본문과 일치할 때만 문서 초안과 제안어를 한 트랜잭션으로 저장하고 작업을 `SUCCEEDED`로 마친다. `documentVersionNo`가 현재 버전과 다르면 그 사이 문서가 바뀐 것이므로 결과를 받지 않고 작업을 실패로 끝낸다.
+
+**이미 끝난 작업에 도착한 중복·지각 콜백도 204다.** 아무것도 바꾸지 않고 무시한다 — 4xx로 답하면 워커가 영원히 재시도한다. 응답 코드별 재시도 규약은 `docs/AI_CONTRACT.md` 7절에 있다.
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 문서 초안 | 404 | `DRAFT_DOCUMENT_NOT_FOUND` |
+| 초안 본문이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_BODY` |
+| 기준 문서 버전이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_INVALID_BASE_VERSION` |
+| 없거나 삭제된 제안어 | 404 | `DRAFT_DOCUMENT_SUGGESTION_TERM_NOT_FOUND` |
+| `anchor`가 올바르지 않음(역전·음수) | 400 | `DRAFT_DOCUMENT_INVALID_ANCHOR` |
+| `anchor`가 초안 본문 범위를 벗어남 | 400 | `DRAFT_DOCUMENT_ANCHOR_OUT_OF_BODY` |
+| `suggestionTerm`이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM` |
+| 수용하려는 `suggestionTerm`이 활성 사전집의 표준어가 아님 | 400 | `DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM` |
+| 해당 초안의 제안어가 아님 | 400 | `DRAFT_DOCUMENT_SUGGESTION_TERM_MISMATCHED` |
+| 거절 사유가 비어 있음 | 400 | `DRAFT_DOCUMENT_REJECT_REASON_REQUIRED` |
+| 처리하지 않은 제안어가 남아 있음 | 409 | `DRAFT_DOCUMENT_SUGGESTION_TERM_UNHANDLED_EXISTS` |
+| 교정완료 뒤 판정·본문 수정·완료를 다시 시도 | 409 | `DRAFT_DOCUMENT_ALREADY_EXAMINED` |
+| 문서 초안 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION` |
+| 같은 문서 또는 워크스페이스에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
+| 대상 문서의 리뷰가 진행 중임 | 409 | `DRAFT_DOCUMENT_UNDER_REVIEW` |
+| 초안 생성 대상 문서가 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_DOCUMENT_NOT_FOUND` |
+| 활성 사전집이 없어 대조할 수 없음 | 404 | `DRAFT_DOCUMENT_DICTIONARY_NOT_FOUND` |
+| 문서 대조 작업이 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_CHECK_NOT_FOUND` |
+| 같은 문서의 대조 작업이 이미 진행 중임 | 409 | `DRAFT_DOCUMENT_CHECK_ALREADY_RUNNING` |
+| 문서 대조 요청이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_CHECK_INVALID_REQUEST` |
+| 문서 대조 작업 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_CHECK_INVALID_STATUS` |
+| 대조 결과의 위치·원문이 현재 본문과 일치하지 않음 | 409 | `DRAFT_DOCUMENT_CHECK_INVALID_RESULT` |
+| 콜백의 `requestId`가 작업의 것과 다름 | 403 | `DRAFT_DOCUMENT_CHECK_CALLBACK_FORBIDDEN` |
+| 초안 또는 제안어가 속한 워크스페이스의 비참여자 | 404 | 대상 리소스의 `NOT_FOUND` 코드 |
+| 요청 DTO 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
+
+# **ReviewRequest API**
+
+초안에서 만든 개정안의 검토·재교정·반영 흐름을 관리한다. 리뷰 요청과 최초 개정안은 초안 흐름에서 함께 생성하며, 관련 도메인은 `reviewrequest`다.
+
+## **알아 둘 것 셋**
+
+- 리뷰 요청은 `DOCUMENT` 또는 `DICTIONARY` 유형을 갖고 `PENDING_REVIEW` 상태로 시작한다.
+- **리뷰 요청은 초안에서 시작한다.** 요청과 최초 개정안은 `POST /api/draft-documents/{id}/review-request`·`POST /api/draft-dictionaries/{id}/review-request`가 **한 트랜잭션에서 함께** 만든다(`D-44`). 요청만 만들거나 개정안만 만드는 임시 API 3개는 제거했다 — 리비전 없는 요청은 실제 흐름에 없다.
+- 정족수가 1 이상이면 승인 수가 정족수를 충족하고 변경요청이 없어야 발행할 수 있다. 정족수가 0이면 판정과 무관하게 ADMIN 이상이 발행할 수 있다.
+
+## **엔드포인트**
+
+| **Method** | **Path** | **권한** | **성공** |
+| --- | --- | --- | --- |
+| POST | `/api/draft-documents/{draftDocumentId}/review-request` | 참여자 | `201` |
+| POST | `/api/draft-dictionaries/{draftDictionaryId}/review-request` | ADMIN 이상 | `201` |
+| GET | `/api/review-requests` | 참여자 | `200` |
+| GET | `/api/review-requests/{reviewRequestId}` | 참여자 | `200` |
+| PATCH | `/api/review-requests/{reviewRequestId}` | 참여자 | `200` |
+| POST | `/api/review-requests/{reviewRequestId}/cancellation` | 요청자 또는 ADMIN 이상 | `200` |
+| POST | `/api/review-requests/{reviewRequestId}/reviewers` | 참여자 | `201` |
+| GET | `/api/review-requests/{reviewRequestId}/reviewers` | 참여자 | `200` |
+| DELETE | `/api/review-requests/{reviewRequestId}/reviewers/{reviewerId}` | 참여자 | `204` |
+| GET | `/api/review-requests/{reviewRequestId}/revision-documents` | 참여자 | `200` |
+| GET | `/api/review-requests/{reviewRequestId}/revision-dictionaries` | 참여자 | `200` |
+| POST | `/api/review-requests/{reviewRequestId}/reviews` | 참여자 | `201` |
+| GET | `/api/review-requests/{reviewRequestId}/reviews` | 참여자 | `200` |
+| GET | `/api/review-requests/{reviewRequestId}/review-progress` | 참여자 | `200` |
+| POST | `/api/reviews/{reviewId}/comments` | 참여자 | `201` |
+| GET | `/api/review-requests/{reviewRequestId}/comments` | 참여자 | `200` |
+| PATCH | `/api/comments/{commentId}/resolution` | 참여자 | `200` |
+| POST | `/api/review-requests/{reviewRequestId}/reexaminations` | 요청자 또는 ADMIN 이상 | `201` |
+| GET | `/api/review-requests/{reviewRequestId}/reexaminations` | 참여자 | `200` |
+| POST | `/api/review-requests/{reviewRequestId}/revision` | ADMIN 이상 | `200` |
+
+목록 조회는 `workspaceId`가 필수이며 `type`, `status`, `requesterId`, `reviewerMemberId`로 필터링한다. `page`는 0부터 시작하고 `size`는 1~100, `sort`는 `createdAt`, `updatedAt`, `id`와 `asc`/`desc` 조합만 허용한다.
+
+리비전 조회는 선택적인 `round` 파라미터로 재교정 회차를 지정할 수 있다. 첫 사전집의 사전 개정안은 `dictionaryId`를 생략하고 `baseVersionNo`를 `0`으로 보낸다.
+
+## **초안에서 리뷰 요청 만들기**
+
+`POST /api/draft-documents/{draftDocumentId}/review-request` → `201 Created`
+`POST /api/draft-dictionaries/{draftDictionaryId}/review-request` → `201 Created`
+
+```json
+{
+  "title": "정산 문서 리뷰",
+  "description": "정산 문서의 개정안을 검토합니다.",
+  "reviewerMemberIds": [11, 12]
+}
+```
+
+| **필드** | **타입** | **제약** | **설명** |
+| --- | --- | --- | --- |
+| `title` | String | 필수, 1~200자 | 리뷰 요청 제목 |
+| `description` | String | 선택 | 없으면 `null` |
+| `reviewerMemberIds` | Long[] | 선택 | 지정 리뷰어. 모두 워크스페이스 참여자여야 하고 중복을 허용하지 않는다. 생략하면 리뷰어 없이 시작한다 |
+
+**요청·최초 개정안·지정 리뷰어를 한 트랜잭션에서 만든다.** 이렇게 하지 않으면 개정안 없는 리뷰 요청이 남는데, 그 상태는 실제 흐름에 없다.
+
+- **문서 리뷰** — 초안이 `EXAMINED`여야 한다. 개정안은 초안의 `documentId`·`baseVersionNo`·교정된 본문을 스냅샷으로 담는다. 권한은 워크스페이스 참여자다.
+- **사전 리뷰** — 초안이 `EXAMINED`이고 **최종 등재 목록이 현재 활성 사전집과 실제로 달라야** 하며 그 정의가 비어 있지 않아야 한다(자격 판정은 초안 도메인에 위임한다 — `D-44`). 개정안의 `baseVersionNo`는 **발행 기준이 되는 현재 활성 사전집 버전**이고 첫 회차는 `0`이다. 권한은 **ADMIN 이상**이다(`G-2`).
+
+응답은 리뷰 요청 상세와 같은 형식이다(아래 "리뷰 요청 상세 조회" 참고). 만들어진 뒤 `ReviewRequestCreatedEvent`가 발행되고, 초안은 그것을 받아 `REVIEW_REQUESTED`로 전이한다.
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 초안 | 404 | `DRAFT_DOCUMENT_NOT_FOUND` · `DRAFT_DICTIONARY_NOT_FOUND` |
+| 초안이 교정완료 상태가 아님 | 409 | `DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION` · `DRAFT_DICTIONARY_NOT_EXAMINED` |
+| 최종 등재 목록이 활성 사전집과 같음 | 409 | `DRAFT_DICTIONARY_NO_CHANGED_ITEM` |
+| 정의가 빈 후보어가 있음 | 400 | `DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED` |
+| 같은 초안으로 이미 리뷰 요청을 만들었음 | 409 | `REVIEW_REQUEST_REVISION_ALREADY_EXISTS` |
+| 참여자지만 ADMIN 미만이 사전 리뷰를 요청 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
+
+## **리뷰 요청 상세 조회**
+
+`GET /api/review-requests/{reviewRequestId}` → `200 OK`
+
+응답 형식은 생성 응답과 같다. 요청이 속한 워크스페이스의 참여자만 조회할 수 있다.
+
+```json
+{
+  "reviewRequestId": 1,
+  "workspaceId": 1,
+  "type": "DOCUMENT",
+  "title": "정산 문서 리뷰",
+  "description": "정산 문서의 개정안을 검토합니다.",
+  "requesterId": 7,
+  "status": "PENDING_REVIEW",
+  "approvedAt": null,
+  "revisedAt": null,
+  "createdAt": "2026-09-14T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-14T10:00:00.000000+09:00",
+  "targetId": 42,
+  "reviewerCount": 2
+}
+```
+
+| **필드** | **타입** | **설명** |
+| --- | --- | --- |
+| `targetId` | Long \| null | `type`에 따라 대상 문서 id(`DOCUMENT`) 또는 사전집 id(`DICTIONARY`). 최신 회차 개정안 기준. 사전집이 처음 발행되는 회차라 아직 사전집 자체가 없으면 `null`(T-INT-12, `D-63`) |
+| `reviewerCount` | Int | 지정된 리뷰어 수. 정족수 판정은 워크스페이스 룰셋 기준이라(`G-4`) 이 값과 다를 수 있다 — 단순 참고용 |
+
+## **리뷰 요청 수정**
+
+`PATCH /api/review-requests/{reviewRequestId}` → `200 OK`
+
+```json
+{
+  "title": "정산 문서 리뷰",
+  "description": "정산 문서의 개정안을 검토합니다."
+}
+```
+
+`title`과 `description`은 각각 생략할 수 있고, 전달한 필드만 바뀐다. 응답 형식은 생성 응답과 같다.
+
+## **리뷰 요청 취소**
+
+`POST /api/review-requests/{reviewRequestId}/cancellation` → `200 OK`
+
+요청자 또는 ADMIN 이상만 취소할 수 있다. 반영 완료 또는 이미 취소된 요청은 다시 취소할 수 없다. 응답의 `status`는 `CANCELED`다.
+
+## **리뷰 제출과 이력 조회**
+
+`POST /api/review-requests/{reviewRequestId}/reviews` → `201 Created`
+
+```json
+{
+  "targetRound": 0,
+  "verdict": "APPROVED"
+}
+```
+
+`verdict`는 `APPROVED` 또는 `CHANGES_REQUESTED`다. 지정 리뷰어 여부와 무관하게 워크스페이스 참여자라면 리뷰할 수 있고, 같은 회원도 새 리뷰를 제출해 이전 판정을 바꿀 수 있다.
+
+`GET /api/review-requests/{reviewRequestId}/reviews?targetRound={targetRound}` → `200 OK`
+
+`targetRound`를 생략하면 전체 리뷰 이력을, 지정하면 해당 회차의 이력만 제출 순서대로 응답한다.
+
+`GET /api/review-requests/{reviewRequestId}/review-progress` → `200 OK`
+
+```json
+{
+  "requiredReviewerCount": 2,
+  "approvedCount": 2,
+  "changesRequestedCount": 0,
+  "reviseEligible": true
+}
+```
+
+집계는 회원별 최신 판정 하나만 사용하며 재교정 회차로 필터링하지 않는다. `requiredReviewerCount`는 조회 시점 워크스페이스 룰셋 값이고, 정족수가 `0`이면 변경요청 유무와 관계없이 `reviseEligible`이 `true`다.
+
+## **재교정 수행과 이력 조회**
+
+`POST /api/review-requests/{reviewRequestId}/reexaminations` → `201 Created`
+
+```json
+{
+  "proposedBody": "변경요청을 반영한 문서 본문",
+  "addressedCommentIds": [31, 32]
+}
+```
+
+변경요청 상태에서 요청자 또는 ADMIN 이상이 수행한다. 문서 리뷰는 `proposedBody`로 새 본문 스냅샷을 만들고, 사전집 리뷰는 교정한 사전 초안을 다음 회차에서 다시 참조한다. 이전 회차의 승인은 유지된다.
+
+`GET /api/review-requests/{reviewRequestId}/reexaminations` → `200 OK`
+
+응답은 회차 오름차순이며 각 항목은 `round`와 `performedAt`을 담는다.
+
+## **승인된 개정안 반영**
+
+`POST /api/review-requests/{reviewRequestId}/revision` → `200 OK`
+
+```json
+{
+  "resultVersionNo": 2,
+  "performedAt": "2026-09-13T04:00:00.000000Z"
+}
+```
+
+ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전집 버전을 기준으로 새 버전을 만들며 기존 버전을 보존한다. 같은 리뷰 요청의 동시 반영은 낙관적 락으로 하나만 허용한다.
+
+## **코멘트 추가와 조회**
+
+`POST /api/reviews/{reviewId}/comments` → `201 Created`
+
+```json
+{
+  "content": "본문 표현을 확인해 주세요.",
+  "anchor": {
+    "startOffset": 10,
+    "endOffset": 15
+  },
+  "targetItemId": null,
+  "parentId": null
+}
+```
+
+`anchor`를 생략하면 개정안 전체를 대상으로 한다. 사전 개정안에서는 `targetItemId`로 후보어를 지정할 수 있고, 답글은 `parentId`로 같은 리뷰의 상위 코멘트를 가리킨다.
+
+`GET /api/review-requests/{reviewRequestId}/comments?resolved={resolved}&targetItemId={targetItemId}` → `200 OK`
+
+`resolved`와 `targetItemId`는 선택 필터다. 응답은 최상위 코멘트의 `children`에 답글을 재귀적으로 담은 트리다.
+
+`PATCH /api/comments/{commentId}/resolution` → `200 OK`
+
+```json
+{
+  "resolved": true
+}
+```
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 문서 초안 | 404 | `DRAFT_DOCUMENT_NOT_FOUND` |
+| 초안 본문이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_BODY` |
+| 기준 문서 버전이 1보다 작음 | 400 | `DRAFT_DOCUMENT_INVALID_BASE_VERSION` |
+| 없거나 삭제된 워크스페이스, **참여자가 아닌 워크스페이스** | 404 | `WORKSPACE_NOT_FOUND` |
+| 없거나 삭제된 리뷰 요청 | 404 | `REVIEW_REQUEST_NOT_FOUND` |
+| 제목이 비어 있음 | 400 | `REVIEW_REQUEST_TITLE_REQUIRED` |
+| 요청 유형이 올바르지 않음 | 400 | `REVIEW_REQUEST_INVALID_TYPE` |
+| 요청자가 아닌 참여자가 취소를 시도 | 403 | `REVIEW_REQUEST_NOT_REQUESTER` |
+| 현재 상태에서 취소할 수 없음 | 409 | `REVIEW_REQUEST_INVALID_STATUS_TRANSITION` |
+| 목록 조회에 `workspaceId`가 없음 | 400 | `REVIEW_REQUEST_WORKSPACE_ID_REQUIRED` |
+| 리뷰어를 찾을 수 없음 | 404 | `REVIEW_REQUEST_REVIEWER_NOT_FOUND` |
+| 리뷰어가 중복 지정됨 | 409 | `REVIEW_REQUEST_DUPLICATE_REVIEWER` |
+| 개정안을 찾을 수 없음 | 404 | `REVIEW_REQUEST_REVISION_NOT_FOUND` |
+| 같은 회차의 개정안이 이미 있음 | 409 | `REVIEW_REQUEST_REVISION_ALREADY_EXISTS` |
+| 요청 유형과 개정안 종류가 다름 | 400 | `REVIEW_REQUEST_TYPE_MISMATCHED` |
+| 리뷰할 수 없는 상태에서 제출 | 409 | `REVIEW_REQUEST_NOT_REVIEWABLE_STATUS` |
+| 현재 개정안과 다른 회차에 리뷰 제출 | 400 | `REVIEW_REQUEST_STALE_TARGET_ROUND` |
+| 리뷰를 찾을 수 없음 | 404 | `REVIEW_REQUEST_REVIEW_NOT_FOUND` |
+| 코멘트를 찾을 수 없음 | 404 | `REVIEW_REQUEST_COMMENT_NOT_FOUND` |
+| 코멘트 내용이 비어 있음 | 400 | `REVIEW_REQUEST_COMMENT_CONTENT_REQUIRED` |
+| 상위 코멘트가 다른 리뷰에 속함 | 400 | `REVIEW_REQUEST_INVALID_COMMENT_PARENT` |
+| 변경요청 상태가 아닌 요청을 재교정 | 409 | `REVIEW_REQUEST_NOT_REEXAMINABLE` |
+| 발행 정족수 미충족 또는 변경요청 잔존 | 409 | `REVIEW_REQUEST_NOT_ELIGIBLE_FOR_REVISE` |
+| 이미 반영된 요청을 다시 발행 | 409 | `REVIEW_REQUEST_ALREADY_REVISED` |
+| ADMIN 미만이 반영 시도 | 403 | `REVIEW_REQUEST_ACCESS_DENIED` |
+| 같은 요청이 동시에 변경됨 | 409 | `REVIEW_REQUEST_CONCURRENT_MODIFICATION` |
+| 요청 DTO 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
+
+---
+
+# **DraftDictionary API**
+
+사전집에 반영할 용어의 유래 문서를 관리하는 사전 초안을 생성·조회·수정·삭제한다. 관련 도메인은 `draftdictionary`다.
+
+## **엔드포인트**
+
+| **Method** | **Path** | **성공** |
+| --- | --- | --- |
+| POST | `/api/draft-dictionaries/extractions` | `202` |
+| GET | `/api/draft-dictionaries/extractions/{extractionJobId}` | `200` |
+| GET | `/api/draft-dictionaries?workspaceId=&status=&page=&size=&sort=` | `200` |
+| GET | `/api/draft-dictionaries/{draftDictionaryId}` | `200` |
+| PUT | `/api/draft-dictionaries/{draftDictionaryId}/source-documents` | `200` |
+| DELETE | `/api/draft-dictionaries/{draftDictionaryId}` | `204` |
+| POST | `/api/draft-dictionaries/{draftDictionaryId}/candidate-terms` | `201` |
+| GET | `/api/draft-dictionaries/{draftDictionaryId}/candidate-terms` | `200` |
+| GET | `/api/candidate-terms/{candidateTermId}` | `200` |
+| PATCH | `/api/candidate-terms/{candidateTermId}` | `200` |
+| DELETE | `/api/candidate-terms/{candidateTermId}` | `204` |
+| POST | `/api/candidate-terms/{candidateTermId}/registration-approval` | `200` |
+| POST | `/api/candidate-terms/{candidateTermId}/synonym-merge` | `200` |
+| POST | `/api/candidate-terms/{candidateTermId}/rejection` | `200` |
+| POST | `/api/candidate-terms/{candidateTermId}/hold` | `200` |
+| POST | `/api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision` | `200` |
+| POST | `/api/draft-dictionaries/{draftDictionaryId}/examine-completion` | `200` |
+
+**초안을 만드는 진입점은 비동기 추출 작업 하나다**(`D-45`). 유래 문서만 실어 초안을 만들던 `POST /api/draft-dictionaries`는 **제거했다** — 초안은 「이전 사전집 + 추출 용어」의 통합 결과여야 하고(`G-1`), 그 통합은 추출 작업 실행이 수행한다.
+
+> **리뷰 요청은 이 도메인이 아니라 ReviewRequest 도메인이 받는다** — `POST /api/draft-dictionaries/{draftDictionaryId}/review-request`(`D-44`). 초안 상태만 바꾸고 `ReviewRequest`를 만들지 않던 반쪽 엔드포인트를 여기서 걷어내고, 초안은 그 결과로 발행되는 이벤트를 받아 `REVIEW_REQUESTED`로 전이한다.
+
+조회·유래 문서 수정 응답은 다음 형식이다.
+
+```json
+{
+  "draftDictionaryId": 100,
+  "workspaceId": 1,
+  "dictionaryId": null,
+  "sourceDocumentIds": [10, 20],
+  "status": "EXAMINING",
+  "createdBy": 7,
+  "createdAt": "2026-09-11T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-11T10:00:00.000000+09:00"
+}
+```
+
+`PUT /api/draft-dictionaries/{draftDictionaryId}/source-documents`는 `sourceDocumentIds`를 전체 교체한다.
+
+## **워크스페이스 기준 목록 조회**
+
+`GET /api/draft-dictionaries?workspaceId={workspaceId}&status=&page=0&size=20&sort=createdAt,desc` → `200 OK`(T-INT-20, `D-64`)
+
+**워크스페이스만 갖고 시작하는 화면**(사전 초안 교정 화면 등)이 "이 워크스페이스의 진행 중 사전 초안"을 찾을 방법이 없었던 문제를 해소한다. `DraftDocument API`의 목록 조회와 같은 패턴이다. `status`는 선택(`EXAMINING`/`EXAMINED`/`REVIEW_REQUESTED`/`REVISED`), 참여자만 조회 가능(비참여자는 `WORKSPACE_NOT_FOUND`). `sort` 화이트리스트는 `createdAt`·`updatedAt`·`id`. 응답은 `PageResponse<DraftDictionaryResponse>`이며 각 항목은 단건 조회와 같은 형식이다(위 "조회·유래 문서 수정 응답" 참고).
+
+## **후보어 등록·수정·삭제·목록**
+
+초안 안의 후보어를 다룬다. **`REQ-DIC-004`(용어 수동 추가·수정·삭제)의 구현 자리가 여기다** — 확정 사전집의 `Term`을 직접 고치는 경로는 없고, 교정 중인 초안에서만 항목을 더하고 고친다(`R-11`).
+
+`POST /api/draft-dictionaries/{draftDictionaryId}/candidate-terms` → `201 Created`
+
+```json
+{
+  "form": "결제수단",
+  "proposedDefinition": "회원이 결제에 사용하는 수단",
+  "proposedEnglishName": "PaymentMethod",
+  "occurredDocumentIds": [10, 20],
+  "occurrenceCount": 7,
+  "contextSnippets": ["회원은 결제수단을 등록할 수 있다."],
+  "variantForms": [],
+  "type": "SYNONYM"
+}
+```
+
+`form`만 필수다. `occurrenceCount`는 1 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다. `variantForms`는 선택이다(생략 시 빈 목록). `type`은 사람이 고른 분류(`SYNONYM`·`HOMOGRAPH`·`VARIANT`)이며 **선택이다** — 추출이 만든 후보어에는 분류가 없으므로 비어 있을 수 있다.
+
+응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다. `variantForms`는 추출기가 같은 개념으로 묶어서 돌려준 표기 변형 전체(대표 표기인 `form` 포함)를 담는다 — 추출 파이프라인을 거치지 않고 수동으로 등록·수정한 항목은 보통 빈 배열이다(`D-65`). `type`은 등록·수정 시 사람이 고른 분류이고 추출 생성분에서는 `null`이다.
+
+> **`createdBy`를 담지 않는다**(`docs/plan/DRAFT_PLAN.md`). 초안 화면이 후보어별 작성자를 더 이상 보여주지 않기 때문이다 — 작성자는 초안 하나에 한 명이고 그것은 초안 응답의 `createdBy`로 충분하다. DB 컬럼은 감사 용도로 남아 있다. `handledBy`는 판정을 내린 처리자이며, 판정 자체가 사용 안 함이 되어 새로 채워지지 않는다.
+
+```json
+{
+  "candidateTermId": 500,
+  "draftDictionaryId": 100,
+  "origin": "EXTRACTED",
+  "sourceTermId": null,
+  "form": "결제수단",
+  "proposedDefinition": "회원이 결제에 사용하는 수단",
+  "proposedEnglishName": "PaymentMethod",
+  "occurrenceCount": 7,
+  "status": "PENDING",
+  "type": "SYNONYM",
+  "createdBy": 7,
+  "handledBy": null,
+  "rejectReason": null,
+  "mergeTargetTermId": null,
+  "resultTermId": null,
+  "occurredDocumentIds": [10, 20],
+  "contextSnippets": ["회원은 결제수단을 등록할 수 있다."],
+  "variantForms": ["결제수단", "결제 방법"],
+  "createdAt": "2026-09-11T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-11T10:00:00.000000+09:00"
+}
+```
+
+`GET /api/draft-dictionaries/{draftDictionaryId}/candidate-terms` → `200 OK`, 본문은 `PageResponse`다.
+
+| **파라미터** | **기본값** | **설명** |
+| --- | --- | --- |
+| `status` | — | `CandidateTermStatus` 완전 일치 |
+| `form` | — | 표기 부분 일치 |
+| `minOccurrenceCount` | — | 출현 횟수 하한(이상) |
+| `page` | `0` | 0부터 시작 |
+| `size` | `20` | — |
+| `sort` | `occurrenceCount,desc` | `{필드},{asc\|desc}` |
+
+`PATCH /api/candidate-terms/{candidateTermId}`는 `form`·`proposedDefinition`·`proposedEnglishName`·`type`을 **선택적으로** 받아 넘어온 필드만 바꾼다. 초안이 `EXAMINING`이면 후보어 상태와 관계없이 수정할 수 있다.
+
+`DELETE /api/candidate-terms/{candidateTermId}` → `204 No Content`. **소프트 삭제**이며 이후 조회에서 빠진다.
+
+`sort` 필드는 `occurrenceCount`, `form`, `createdAt`, `updatedAt`, `id`만 허용하고 방향은 `asc`, `desc`만 허용한다. 화이트리스트 밖 값은 `400`이다.
+
+## **후보어 판정과 교정 완료**
+
+후보어 판정은 초안이 `EXAMINING`일 때만 가능하다. 등재 승인, 동의어 편입, 거절, 보류를 지원하며 교정 중에는 이미 판정한 후보어도 다시 판정할 수 있다. 판정 결과에는 처리자 `handledBy`와 판정에 따른 `rejectReason`, `mergeTargetTermId`가 저장된다. 다른 판정으로 바꾸면 이전 판정에만 쓰이던 메타데이터는 제거된다.
+
+| **판정** | **요청** | **필수 조건** |
+| --- | --- | --- |
+| `POST /api/candidate-terms/{candidateTermId}/registration-approval` | 본문 없음 | `proposedDefinition`이 비어 있지 않음 |
+| `POST /api/candidate-terms/{candidateTermId}/synonym-merge` | `{"mergeTargetTermId": 300}` | `mergeTargetTermId`가 존재함 |
+| `POST /api/candidate-terms/{candidateTermId}/rejection` | `{"rejectReason": "오등록"}` | `rejectReason`이 비어 있지 않음 |
+| `POST /api/candidate-terms/{candidateTermId}/hold` | 본문 없음 | — |
+
+> ⚠️ **위 판정 5종(등재 승인·동의어 편입·거절·보류·일괄)은 사용 안 함이다**(`docs/plan/DRAFT_PLAN.md`). 사전집 초안이 단일 페이지로 바뀌면서 후보어별 판정이 화면에서 사라졌고, 새 초안·리뷰 요청 경로는 이 엔드포인트를 호출하지 않는다. **지우지 않은 이유는 이미 판정이 기록된 초안 행이 DB에 있어서**이며, `CandidateTermStatus`도 같은 이유로 남아 있다. 새로 붙이는 화면에서 호출하지 않는다.
+
+`POST /api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision`는 다음과 같이 같은 판정을 여러 후보어에 적용한다. 일부 항목이 실패해도 나머지 항목을 계속 처리하고 항목별 성공·실패를 응답한다.
+
+```json
+{
+  "candidateTermIds": [500, 501],
+  "decision": "REJECTED",
+  "rejectReason": "오등록",
+  "mergeTargetTermId": null
+}
+```
+
+```json
+{
+  "succeeded": [500],
+  "failed": [
+    {
+      "candidateTermId": 501,
+      "code": "DRAFT_DICTIONARY_CANDIDATE_TERM_NOT_FOUND",
+      "message": "후보어를 찾을 수 없습니다."
+    }
+  ]
+}
+```
+
+`POST /api/draft-dictionaries/{draftDictionaryId}/examine-completion`은 **모든 후보어가 대표어와 정의를 가졌을 때** 초안을 `EXAMINED`로 바꾼다. 교정 완료와 리뷰 요청은 별도 단계다.
+
+> **조건이 「판정 상태」에서 「전체 후보어의 유효성」으로 바뀌었다**(`docs/plan/DRAFT_PLAN.md`). 예전에는 `PENDING` 후보어가 0건인지 물었는데, 초안 화면에서 판정을 걷어낸 뒤 모든 후보어가 `PENDING`에 머무르므로 그 조건은 영구히 거짓이다. 대표어(`form`)는 생성 시 필수라 실제로 막는 것은 대개 정의이며, 비어 있으면 `400 DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED`다.
+>
+> **교정 진행률 조회(`GET .../examine-progress`)는 제거했다.** 상태별 건수를 돌려주던 엔드포인트인데, 판정이 사라진 뒤 `pending`이 늘 후보어 전체 수와 같아 준비 여부를 뜻하지 않게 됐고 소비자도 0곳이 됐다. 준비 여부를 알려면 후보어 목록의 `proposedDefinition`이 비었는지 본다. **문서 초안 쪽 `GET /api/draft-documents/{id}/examine-progress`는 그대로다** — 제안어 판정은 남아 있어 그 값이 여전히 유효하다.
+
+**리뷰 요청 자격은 이 도메인이 판정하고, 요청 생성은 ReviewRequest 도메인이 한다**(`D-44`). `POST /api/draft-dictionaries/{draftDictionaryId}/review-request`(«ReviewRequest API»)가 요청을 받으면 이 도메인에 자격 판정을 위임한다 — **초안에 남아 있는 모든 후보어**의 표기·영문명·정의 집합이 현재 활성 사전집과 **실제로 달라야** 하고, 모든 후보어에 대표어와 정의가 있어야 한다.
+
+> **판정 상태로 거르지 않는다**(`docs/plan/DRAFT_PLAN.md`). 예전에는 `REGISTRATION_APPROVED`·`KEPT`만 최종 등재 대상으로 골랐는데, 판정이 사라진 뒤 그 조건으로는 목록이 항상 비어 버린다. **초안에 남아 있다는 것이 곧 등재 의사**이고, 빼고 싶은 후보어는 판정이 아니라 삭제(`DELETE /api/candidate-terms/{id}`, 소프트 삭제)로 뺀다. 발행 시점의 용어 목록도 같은 규칙을 쓴다.
+>
+> 표기 묶음(`variantForms`)의 비대표 표현은 **용어가 되지 않는다** — 대표 표기 `form` 하나만 차기 사전집의 행이 된다.
+
+초안은 `ReviewRequest`가 만들어진 뒤 `ReviewRequestCreatedEvent`를 받아 `REVIEW_REQUESTED`로 전이한다.
+
+## **용어 추출 작업 접수와 조회**
+
+`POST /api/draft-dictionaries/extractions`는 용어 추출 작업을 비동기로 접수하고 `202 Accepted`를 응답한다. 워크스페이스 관리자 이상만 요청할 수 있으며, 전달한 문서 중 현재 활성 사전집 기준과 정렬되고 직접 편집되지 않은 문서만 작업 대상에 남긴다. 대상 문서가 하나도 없거나 같은 워크스페이스에 진행 중인 초안·추출 작업이 있으면 요청을 거절한다.
+
+```json
+{
+  "workspaceId": 1,
+  "dictionaryId": null,
+  "sourceDocumentIds": [10, 20]
+}
+```
+
+`dictionaryId`는 기존 사전집이 없는 첫 회차에 `null`이다. 응답과 `GET /api/draft-dictionaries/extractions/{extractionJobId}`의 폴링 응답은 다음 형식이다.
+
+```json
+{
+  "extractionJobId": 300,
+  "workspaceId": 1,
+  "dictionaryId": null,
+  "sourceDocumentIds": [10, 20],
+  "status": "PENDING",
+  "draftDictionaryId": null,
+  "failureReason": null,
+  "requestedBy": 7,
+  "createdAt": "2026-09-13T10:00:00.000000+09:00",
+  "updatedAt": "2026-09-13T10:00:00.000000+09:00"
+}
+```
+
+상태는 `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`다. 성공하면 `draftDictionaryId`로 생성된 초안을 확인할 수 있고, 실패하면 `failureReason`에 원인이 기록된다.
+
+접수 트랜잭션이 커밋된 뒤 리스너가 작업에 상관 식별자(UUIDv4)를 새기며 `RUNNING`으로 바꾸고, **AI 워커 전용 SQS 큐로 요청을 발행한다.** 실제 추출은 외부 FastAPI 워커가 수행하고 결과는 아래 콜백으로 돌아온다. 발행 자체가 실패하면 작업을 `FAILED`로 끝낸다 — 진행 중으로 두면 그 워크스페이스의 다음 추출 요청이 계속 막힌다.
+
+콜백이 끝내 오지 않은 작업은 주기 스위퍼가 제한 시간(`app.ai.timeout.job`) 뒤에 `FAILED`로 회수한다.
+
+워커가 없는 환경(`app.ai.dispatch.mode=in-process`, 로컬·테스트 기본값)에서는 같은 JVM의 대역이 빈 결과로 작업을 끝낸다. 이전 사전집 용어를 승계한 초안 생성과 작업 상태 전이 계약은 그대로 검증된다.
+
+## **추출 완료 콜백**
+
+```
+POST /api/internal/llm/extractions/{extractionJobId}/result
+POST /api/internal/llm/extractions/{extractionJobId}/failure
+```
+
+**AI 워커가 호출하는 서버-투-서버 경로다. 인증 주체가 없다**(«요청자 식별»의 예외). 호출자 확인은 요청 본문의 `requestId`를 작업 행에 저장된 값과 대조해서 한다.
+
+```json
+// POST /api/internal/llm/extractions/30/result
+{
+  "requestId": "0d5c6f6e-0000-4000-8000-000000000001",
+  "sourceDocumentIds": [10, 20],
+  "terms": [
+    {
+      "form": "결제",
+      "proposedDefinition": "재화나 용역의 대가를 지급하는 행위",
+      "proposedEnglishName": "Payment",
+      "occurredDocumentIds": [10],
+      "occurrenceCount": 3,
+      "contextSnippets": ["회원은 결제할 수 있다."],
+      "variantForms": ["결제", "페이먼트"]
+    }
+  ]
+}
+
+// POST /api/internal/llm/extractions/30/failure
+{ "requestId": "0d5c6f6e-0000-4000-8000-000000000001", "reason": "모델 응답이 스키마를 만족하지 않습니다.", "code": "LLM_SCHEMA_VIOLATION" }
+```
+
+성공·실패 모두 **204 No Content**다. `sourceDocumentIds`는 작업이 지시한 집합과 완전히 같아야 하며, 다르면 결과를 받지 않는다. **이미 끝난 작업에 도착한 중복·지각 콜백도 204**로 무시한다. 응답 코드별 재시도 규약은 `docs/AI_CONTRACT.md` 7절에 있다.
+
+## **에러**
+
+| **상황** | **status** | **code** |
+| --- | --- | --- |
+| 없거나 삭제된 사전 초안 | 404 | `DRAFT_DICTIONARY_NOT_FOUND` |
+| 유래 문서가 없음 | 400 | `DRAFT_DICTIONARY_SOURCE_DOCUMENT_REQUIRED` |
+| 유래 문서가 중복됨 | 400 | `DRAFT_DICTIONARY_DUPLICATE_SOURCE_DOCUMENT` |
+| 없거나 삭제된 후보어 | 404 | `DRAFT_DICTIONARY_CANDIDATE_TERM_NOT_FOUND` |
+| 후보어 표기가 비었거나 올바르지 않음 | 400 | `DRAFT_DICTIONARY_INVALID_FORM` |
+| 출현 횟수가 음수 | 400 | `DRAFT_DICTIONARY_INVALID_OCCURRENCE_COUNT` |
+| 같은 초안에 같은 표기가 이미 있음 | 409 | `DRAFT_DICTIONARY_DUPLICATE_CANDIDATE_FORM` |
+| 교정 중이 아닌 후보어를 수정 | 409 | `DRAFT_DICTIONARY_CANDIDATE_TERM_NOT_EXAMINABLE` |
+| 해당 초안의 후보어가 아님 | 400 | `DRAFT_DICTIONARY_CANDIDATE_TERM_MISMATCHED` |
+| 대표어가 빈 후보어가 있음 | 400 | `DRAFT_DICTIONARY_CANDIDATE_FORM_REQUIRED` |
+| 정의가 빈 후보어가 있음 | 400 | `DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED` |
+| 동의어 편입 대상이 없음 | 400 | `DRAFT_DICTIONARY_MERGE_TARGET_REQUIRED` |
+| 거절 사유가 비어 있음 | 400 | `DRAFT_DICTIONARY_REJECT_REASON_REQUIRED` |
+| 지원하지 않는 후보어 판정 | 400 | `DRAFT_DICTIONARY_INVALID_DECISION` |
+| 교정 중인 초안이 아님 | 409 | `DRAFT_DICTIONARY_NOT_EXAMINABLE` |
+| 이미 교정 완료됨 | 409 | `DRAFT_DICTIONARY_ALREADY_EXAMINED` |
+| 교정 완료 전 리뷰 요청 | 409 | `DRAFT_DICTIONARY_NOT_EXAMINED` |
+| 이미 리뷰를 요청함 | 409 | `DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED` |
+| ~~미판정 후보어가 존재함~~ | 409 | ~~`DRAFT_DICTIONARY_CANDIDATE_TERM_UNDECIDED_EXISTS`~~ — 사용 안 함(`DRAFT_PLAN.md`). 판정이 준비 조건에서 빠져 더 이상 발생하지 않는다 |
+| 활성 사전집과 달라진 등재 대상이 없음 | 409 | `DRAFT_DICTIONARY_NO_CHANGED_ITEM` |
+| 진행 중인 초안이 있음 | 409 | `DRAFT_DICTIONARY_ALREADY_EXISTS` |
+| 용어 추출 요청 값이 올바르지 않음 | 400 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_REQUEST` |
+| 용어 추출 작업을 찾을 수 없음 | 404 | `DRAFT_DICTIONARY_EXTRACTION_NOT_FOUND` |
+| 진행 중인 용어 추출 작업이 있음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_ALREADY_RUNNING` |
+| 용어 추출 작업 상태를 변경할 수 없음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_STATUS` |
+| 추출 가능한 문서가 없음 | 409 | `DRAFT_DICTIONARY_NO_EXTRACTABLE_DOCUMENT` |
+| 용어 추출 결과가 올바르지 않음 | 409 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_RESULT` |
+| 콜백의 `requestId`가 작업의 것과 다름 | 403 | `DRAFT_DICTIONARY_EXTRACTION_CALLBACK_FORBIDDEN` |
+| 요청 DTO 검증 실패 | 400 | `COMMON_INVALID_REQUEST` |
+
+---
+
+# **Notification API**
+
+도메인 이벤트로 만들어진 알림을 조회·읽음 처리하고, 워크스페이스의 알림 수신 설정을 관리한다. 관련 도메인은 `notification`이다.
+
+**알림은 이 API로 만들지 않는다.** 생성 경로는 HTTP가 아니라 이벤트다 — 리뷰 요청이 만들어지거나 판정이 제출되거나 개정안이 반영되면 `notification`이 그 이벤트를 비동기로 받아 행을 만든다(`NFR-NTF-003`). 그래서 `POST`가 없다.
+
+## **알아 둘 것 셋**
+
+- **남의 알림은 `404`다.** 존재하지만 내 것이 아닌 알림에 `403`을 주면 그 알림의 존재가 드러난다(`NFR-WS-001`). 비참여 워크스페이스도 같다.
+- **읽음 처리는 멱등이다.** 이미 읽은 알림에 다시 `read`를 걸어도 `200`이고 `readAt`은 처음 읽은 시각 그대로다.
+- **수신 설정과 채널은 MVP1에 없다**(`D-54`). 전달 수단이 인앱 하나뿐이라 고를 것이 없다. 응답에 `channels`가 없는 이유이기도 하다. Slack·메일은 `REQ-NTF-005`~`006`으로 MVP2다.
+
+## **엔드포인트**
+
+| **Method** | **Path** | **성공** | **권한** |
+| --- | --- | --- | --- |
+| GET | `/api/workspaces/{workspaceId}/notifications` | `200` | 참여자 |
+| GET | `/api/workspaces/{workspaceId}/notifications/unread-count` | `200` | 참여자 |
+| PATCH | `/api/workspaces/{workspaceId}/notifications/{notificationId}/read` | `200` | 수신자 본인 |
+| PATCH | `/api/workspaces/{workspaceId}/notifications/read-all` | `200` | 참여자 |
+
+## **알림 목록 조회**
+
+`GET /api/workspaces/{workspaceId}/notifications?page=0&size=20&unreadOnly=false`
+
+**항상 요청자 본인이 수신자인 알림만** 돌려준다. `recipientId`를 파라미터로 받지 않는 이유다.
+
+페이징은 «페이징·정렬 규격»을 따른다. `sort` 화이트리스트는 `createdAt` 하나이고 기본값은 `createdAt,desc`다 — 알림은 최신순으로만 보므로 다른 축을 열면 인덱스 없는 정렬이 생긴다. `unreadOnly=true`면 안 읽은 것만 거른다.
+
+```json
+{
+  "content": [
+    {
+      "notificationId": 42,
+      "workspaceId": 1,
+      "type": "REVISED",
+      "targetType": "REVIEW_REQUEST",
+      "targetId": 7,
+      "title": "기획 정책 정의서 개정안이 반영되었습니다",
+      "message": "r5 → r6",
+      "read": false,
+      "readAt": null,
+      "createdAt": "2026-09-13T10:12:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+`read`와 `readAt`은 항상 함께 움직인다 — `read: false`면 `readAt`은 반드시 `null`이다. 클라이언트는 둘 중 하나만 봐도 된다.
+
+**버튼 문구와 이동 경로는 응답에 없다.** `type`과 `targetType`·`targetId`에서 화면이 파생한다(`D-49`).
+
+## **미읽음 수 조회**
+
+`GET /api/workspaces/{workspaceId}/notifications/unread-count`
+
+헤더 벨의 표시용이다. 목록을 받아 세지 않게 하려고 따로 둔다.
+
+```json
+{ "unreadCount": 3 }
+```
+
+## **읽음 처리**
+
+`PATCH /api/workspaces/{workspaceId}/notifications/{notificationId}/read`
+
+요청 본문이 없다. 갱신된 알림을 목록 항목과 같은 형식으로 돌려준다. 이미 읽었으면 아무것도 바뀌지 않고 `200`이다.
+
+## **모두 읽음**
+
+`PATCH /api/workspaces/{workspaceId}/notifications/read-all`
+
+요청자 본인의 안 읽은 알림을 한 번에 읽음으로 바꾼다. 알림 패널의 「모두 읽음」이 쓴다.
+
+```json
+{ "updated": 5 }
+```
+
+## **에러**
+
+| 상황 | 상태 | 코드 |
+| --- | --- | --- |
+| 알림이 없거나 내 것이 아님 | 404 | `NOTIFICATION_NOT_FOUND` |
+| 참여하지 않은 워크스페이스 | 404 | `WORKSPACE_NOT_FOUND` |
+| 요청 DTO 검증 실패, `memberId` 누락, `sort` 화이트리스트 밖 | 400 | `COMMON_INVALID_REQUEST` |
 
 ---

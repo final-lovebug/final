@@ -7,14 +7,22 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Participant;
 import com.ubidict.backend.workspace.domain.Permission;
+import com.ubidict.backend.workspace.domain.event.WorkspaceDeletedEvent;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import com.ubidict.backend.workspace.fixture.ParticipantFixture;
 import com.ubidict.backend.workspace.infra.ParticipantRepository;
+import com.ubidict.backend.workspace.service.model.CreateWorkspaceCommand;
+import com.ubidict.backend.workspace.service.model.RenameWorkspaceCommand;
+import com.ubidict.backend.workspace.service.model.UpdateRuleSetCommand;
+import com.ubidict.backend.workspace.service.model.WorkspaceResult;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 
+@RecordApplicationEvents
 class WorkspaceServiceTest extends IntegrationTestSupport {
 
     private static final Long OWNER_ID = 1L;
@@ -25,6 +33,9 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private ParticipantRepository participantRepository;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @DisplayName("워크스페이스를 만들면 생성자가 OWNER 참여자로 함께 등록된다.")
     @Test
@@ -164,6 +175,47 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
 
         // then
         assertThat(workspaceService.readMine(OWNER_ID)).isEmpty();
+    }
+
+    @DisplayName("워크스페이스를 삭제하면 삭제 이벤트를 발행한다.")
+    @Test
+    void delete_publishesEvent() {
+        // given
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+
+        // when
+        workspaceService.delete(created.workspaceId(), OWNER_ID);
+
+        // then
+        assertThat(applicationEvents.stream(WorkspaceDeletedEvent.class))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.workspaceId()).isEqualTo(created.workspaceId());
+                    assertThat(event.occurredAt()).isNotNull();
+                });
+    }
+
+    @DisplayName("참여자 수를 넘는 룰셋은 수정할 수 없다.")
+    @Test
+    void changeRuleSet_exceedsParticipantCount() {
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        assertThatThrownBy(() ->
+                        workspaceService.changeRuleSet(new UpdateRuleSetCommand(created.workspaceId(), 2, 0, OWNER_ID)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_REVIEWER_COUNT_EXCEEDS_PARTICIPANTS);
+    }
+
+    @DisplayName("룰셋을 올리면 즉시 새 값이 조회된다.")
+    @Test
+    void changeRuleSet_isReflectedImmediately() {
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        workspaceService.changeRuleSet(new UpdateRuleSetCommand(created.workspaceId(), 1, 1, OWNER_ID));
+
+        WorkspaceResult result = workspaceService.read(created.workspaceId(), OWNER_ID);
+
+        assertThat(result.requiredDocumentReviewerCount()).isEqualTo(1);
+        assertThat(result.requiredDictionaryReviewerCount()).isEqualTo(1);
     }
 
     private void joinAs(Long workspaceId, Long memberId, Permission permission) {

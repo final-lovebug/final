@@ -7,7 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.domain.AuthErrorCode;
+import com.ubidict.backend.member.exception.AuthErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;

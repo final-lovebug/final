@@ -97,4 +97,14 @@ class WorkspaceTest {
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_INVALID_NAME);
         assertThat(workspace.getName()).isEqualTo("개발팀");
     }
+
+    @DisplayName("룰셋을 바꾸면 새 값이 반영된다.")
+    @Test
+    void changeRuleSet_replacesValues() {
+        Workspace workspace = Workspace.create("개발팀", CREATED_BY);
+
+        workspace.changeRuleSet(new RuleSet(2, 3));
+
+        assertThat(workspace.getRuleSet()).isEqualTo(new RuleSet(2, 3));
+    }
 }

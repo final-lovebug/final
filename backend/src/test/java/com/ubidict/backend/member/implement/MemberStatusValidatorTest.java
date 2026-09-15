@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.domain.Member;
-import com.ubidict.backend.member.domain.MemberErrorCode;
 import com.ubidict.backend.member.domain.OAuthProvider;
+import com.ubidict.backend.member.exception.MemberErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

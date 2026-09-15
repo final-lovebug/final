@@ -1,18 +1,22 @@
 services:
-  grafana-lgtm:
-    image: 'grafana/otel-lgtm:latest'
+  # AI 워커 요청 큐(SQS)의 로컬 대체(D-70). 포트를 고정하는 이유는
+  # spring-boot-docker-compose 가 LocalStack 커넥션 정보를 자동 주입하지 않기 때문이다 —
+  # application-dev.yml 이 이 주소를 직접 가리킨다.
+  localstack:
+    image: 'localstack/localstack:4'
+    environment:
+      - 'SERVICES=sqs'
+      - 'EAGER_SERVICE_LOADING=1'
+      - 'DEBUG=0'
     ports:
-      - '3000:3000'
+      - '4566:4566'
+  grafana-lgtm:
+    image: 'grafana/otel-lgtm:0.32.1'
+    ports:
+      # 루트 통합 Compose의 Grafana UI와 공존할 수 있도록 host 포트는 Docker가 배정한다.
+      - '3000'
       - '4317'
       - '4318'
-  mongo:
-    image: 'mongo:8.0'
-    environment:
-      - 'MONGO_INITDB_DATABASE=ubidict'
-      - 'MONGO_INITDB_ROOT_PASSWORD=ubidict'
-      - 'MONGO_INITDB_ROOT_USERNAME=ubidict'
-    ports:
-      - '27017'
   mysql:
     image: 'mysql:8.4'
     environment:
@@ -23,6 +27,6 @@ services:
     ports:
       - '3306'
   redis:
-    image: 'redis:latest'
+    image: 'redis:8.2-alpine'
     ports:
       - '6379'

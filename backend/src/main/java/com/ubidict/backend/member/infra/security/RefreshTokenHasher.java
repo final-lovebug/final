@@ -1,7 +1,7 @@
 package com.ubidict.backend.member.infra.security;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.member.domain.AuthErrorCode;
+import com.ubidict.backend.member.exception.AuthErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

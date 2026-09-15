@@ -1,0 +1,54 @@
+package com.ubidict.backend.draftdictionary.service.model;
+
+import com.ubidict.backend.draftdictionary.domain.CandidateTerm;
+import com.ubidict.backend.draftdictionary.domain.CandidateTermOrigin;
+import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
+import com.ubidict.backend.draftdictionary.domain.CandidateTermType;
+import java.time.OffsetDateTime;
+import java.util.List;
+
+public record CandidateTermResult(
+        Long candidateTermId,
+        Long draftDictionaryId,
+        CandidateTermOrigin origin,
+        Long sourceTermId,
+        String form,
+        String proposedDefinition,
+        String proposedEnglishName,
+        Integer occurrenceCount,
+        CandidateTermStatus status,
+        CandidateTermType type,
+        Long createdBy,
+        Long handledBy,
+        String rejectReason,
+        Long mergeTargetTermId,
+        Long resultTermId,
+        List<Long> occurredDocumentIds,
+        List<String> contextSnippets,
+        List<String> variantForms,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt) {
+    public static CandidateTermResult from(CandidateTerm e) {
+        return new CandidateTermResult(
+                e.getId(),
+                e.getDraftDictionaryId(),
+                e.getOrigin(),
+                e.getSourceTermId(),
+                e.getForm(),
+                e.getProposedDefinition(),
+                e.getProposedEnglishName(),
+                e.getOccurrenceCount(),
+                e.getStatus(),
+                e.getType(),
+                e.getCreatedBy(),
+                e.getHandledBy(),
+                e.getRejectReason(),
+                e.getMergeTargetTermId(),
+                e.getResultTermId(),
+                List.copyOf(e.getOccurredDocumentIds()),
+                List.copyOf(e.getContextSnippets()),
+                List.copyOf(e.getVariantForms()),
+                e.getCreatedAt(),
+                e.getUpdatedAt());
+    }
+}

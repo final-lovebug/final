@@ -31,7 +31,7 @@ class GoogleOAuth2LoginSuccessHandlerTest {
         // given
         OAuth2User oAuth2User = new DefaultOAuth2User(
                 List.of(new SimpleGrantedAuthority("ROLE_USER")),
-                Map.of("email", "member@example.com", "name", "member1", "sub", "google-1"),
+                Map.of("email", "member@example.com", "sub", "google-1"),
                 "sub");
         OAuth2AuthenticationToken authentication =
                 new OAuth2AuthenticationToken(oAuth2User, oAuth2User.getAuthorities(), "google");
@@ -44,9 +44,7 @@ class GoogleOAuth2LoginSuccessHandlerTest {
 
         // then
         verify(oAuthExchangeCodeRedisRepository)
-                .save(
-                        anyString(),
-                        eq(new OAuthExchangeEntry("member@example.com", "member1", OAuthProvider.GOOGLE, "google-1")));
+                .save(anyString(), eq(new OAuthExchangeEntry("member@example.com", OAuthProvider.GOOGLE, "google-1")));
         assertThat(response.getRedirectedUrl()).startsWith("http://localhost:3000/oauth/callback?code=");
     }
 }
