@@ -72,7 +72,8 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 ```json
 {
   "code": "COMMON_RESOURCE_NOT_FOUND",
-  "message": "요청한 리소스를 찾을 수 없습니다."
+  "message": "요청한 리소스를 찾을 수 없습니다.",
+  "traceId": "8f3a1c2d4e5b6a7c8d9e0f1a2b3c4d5e"
 }
 ```
 
@@ -82,11 +83,12 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 {
   "code": "COMMON_INVALID_REQUEST",
   "message": "요청 값이 올바르지 않습니다.",
-  "errors": [{ "field": "title", "message": "must not be blank" }]
+  "errors": [{ "field": "title", "message": "must not be blank" }],
+  "traceId": "8f3a1c2d4e5b6a7c8d9e0f1a2b3c4d5e"
 }
 ```
 
-> `NFR-CMN-003`은 `traceId`도 요구한다. `docs/LOG.md`가 MDC와 「에러 응답에 trace id 포함」을 이미 규정하므로, **인증·공통 설정 태스크(`T-INT-3`)에서 `ErrorResponse`에 한 필드로 추가한다.** 그때까지는 위 형식이다.
+> **`traceId`는 그 요청의 추적 식별자다**(`NFR-CMN-003`·`D-96`). 이 값으로 Grafana에서 해당 요청의 트레이스와 로그를 그대로 찾을 수 있으므로, 문의·장애 신고에는 이 값을 함께 받는다. **추적 문맥이 없으면 필드가 통째로 빠진다** — 클라이언트는 없을 수 있다고 보고 다뤄야 한다.
 
 ---
 
