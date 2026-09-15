@@ -110,7 +110,7 @@ CodeDeploy 훅(EC2 위에서 인스턴스 자신의 IAM 역할로 실행): `Appl
 | 5 | fastapi용 ALB 타깃그룹·리스너 규칙이 없음 | 타깃그룹 `lovebug-tg-fastapi`(8000, 헬스체크 `/health`) 생성 + 인스턴스 등록 + 443·**80** 리스너 양쪽에 경로 정확일치 규칙(`/health`·`/extract`·`/contrast`·`/jobs/extract`·`/jobs/contrast`) 추가(그 외는 기존대로 스프링/HTTPS 리다이렉트) | ✅ 완료 |
 | 6 | CodeDeploy 앱 `lovebug`엔 스프링 전용 배포그룹(`lovebug-codedeploy`, ASG 블루/그린)만 있음 | 같은 앱 아래 신규 배포그룹 `lovebug-fastapi-codedeploy`(**IN_PLACE**, EC2 태그 `Name=lovebug-fastapi`로 직접 타깃 — ASG 아님, 단일 인스턴스라서) 생성 | ✅ 완료 |
 | 7 | `/lovebug/llm/*`(EC2 역할이 권한을 받아야 할 경로, IAM 정책은 여전히 `/prod/llm/*`를 가리키고 있어 위 2번과 함께 고쳐야 함)에 파라미터가 하나도 없음 | `/lovebug/llm/GEMINI_API_KEY_1` 등 생성 필요 — **실제 키 값은 이 세션이 절대 안 넣는다** | ⬜ **사용자가 할 일** |
-| 8 | 인스턴스에 CodeDeploy 에이전트가 있는지 미확인 — user-data 비어있고, 이 세션 IAM으로는 `ssm:DescribeInstanceInformation` 권한이 없어 내부 확인 불가 | 첫 배포 시도로 확인(없으면 `Unable to find AWS CodeDeploy agent`로 즉시 실패) | ⬜ **미확인, 첫 시도에서 드러남** |
+| 8 | 인스턴스에 CodeDeploy 에이전트가 없거나 응답하지 않음 — **2026-09-15 첫 실제 배포 시도(`d-L5YZJ3OTK`)로 확정.** `BeforeBlockTraffic`에서 `CodeDeploy agent was not able to receive the lifecycle event` 에러, 우리 `appspec.yml` 훅은 전혀 실행 안 됨 | 사용자가 EC2에 직접 접속해 `codedeploy-agent` 설치(아래 "PR #75 머지 → 첫 실제 배포 시도" 절의 설치 명령 참고) | ❌ **확정된 블로커 — 사용자가 할 일** |
 | 9 | `deploy/appspec.yaml`+`taskdef.json`이 ECS 전용 스키마 | EC2 포맷(`appspec.yml`+`hooks`+쉘 스크립트)으로 전면 교체, 스프링 것 그대로 이식 | ✅ 완료 |
 | 10 | 인스턴스가 ARM64인데 빌드 워크플로는 아키텍처 명시 없음(기본 x86_64) | `ubuntu-24.04-arm` 러너 + `platforms: linux/arm64`로 네이티브 빌드(스프링과 동일) | ✅ 완료 |
 | 11 | `lovebug/fastapi` 리포가 IMMUTABLE인데 워크플로가 `latest` 태그도 push — 두 번째 배포부터 실패 | `latest` 제거, `$GITHUB_SHA` 단일 태그만 | ✅ 완료 |
@@ -309,3 +309,225 @@ gitlink가 실제 디렉터리로 바뀌면서 `ubidict-py-deploy.yml`이 `main`
 (`/lovebug/llm/GEMINI_API_KEY_1`), CodeDeploy 에이전트 설치 확인. 이 셋 없이는 push든
 수동 트리거든 배포가 끝까지 성공할 수 없다 — 이 세션은 IAM 쓰기·시크릿 등록을 실행하지
 않는다(루트 `CLAUDE.md` "운영 DB·AWS 리소스에 영향을 주는 명령 실행 금지").
+
+### PR #75 머지 → 첫 실제 배포 시도 → 실패 (2026-09-15, 표 8번 확정)
+
+사용자가 IAM 정책 수정 + Gemini 키 등록을 AWS 콘솔에서 완료했다고 확인(2026-09-15)한
+뒤 PR #75를 머지. **머지 push가 `ubidict-py-deploy.yml`의 `push: branches: [main]`
+트리거에 걸려 자동으로 첫 배포가 시작됐다**(수동 트리거 필요 없었음):
+
+- ✅ **build 단계 성공**(41초) — 이미지가 ECR `lovebug/fastapi`에 정상 push됨(즉 표
+  2번의 IAM 수정이 실제로 반영됐다는 뜻은 아님 — build 단계는 ECR push 권한만 쓰고,
+  EC2 역할의 ECR **pull** 권한은 별개라 여기서는 검증되지 않는다)
+- ✅ merge가 스프링(`deploy.yml`)·프론트(`front-cd.yml`)는 전혀 안 건드림 재확인(실행
+  이력에 변화 없음) — `paths` 필터가 설계대로 동작
+- ❌ **CodeDeploy 배포(`d-L5YZJ3OTK`) 실패** — `BeforeBlockTraffic` 단계에서 막히고
+  `ApplicationStop`부터 `AfterAllowTraffic`까지 전부 `Skipped`(우리 `appspec.yml` 훅은
+  하나도 실행조차 안 됐다). 에러:
+  ```
+  errorCode: UnknownError
+  message: "CodeDeploy agent was not able to receive the lifecycle event.
+             Check the CodeDeploy agent logs on your host and make sure
+             the agent is running and can connect to the CodeDeploy server."
+  deploymentInfo.errorInformation.code: HEALTH_CONSTRAINTS
+  ```
+  **표 8번이 확정됐다** — CodeDeploy 에이전트가 `lovebug-fastapi` 인스턴스에 없거나
+  실행 중이 아니다. IAM/SSM/Gemini 키 문제가 전혀 아니라 애초에 에이전트가 없어서 우리
+  배포 스크립트(`stop_container.sh`/`start_container.sh`/`validate.sh`)는 한 줄도
+  실행되지 못했다.
+
+**사용자가 직접 해야 함(신규 확정)**: EC2 Instance Connect 또는 Session Manager로
+`lovebug-fastapi`(`i-069a154f01e676a57`)에 접속해 CodeDeploy 에이전트 설치:
+```bash
+sudo apt update && sudo apt install -y ruby-full wget
+cd /home/ubuntu
+wget https://aws-codedeploy-ap-northeast-2.s3.ap-northeast-2.amazonaws.com/latest/install
+chmod +x ./install
+sudo ./install auto
+sudo systemctl status codedeploy-agent   # active (running) 확인
+```
+인스턴스 역할(`lovebug-ec2-fastapi`)에 `AmazonSSMManagedInstanceCore`가 이미 붙어 있어
+**Session Manager 접속이 SSH 키 없이 가능할 가능성이 높다**(EC2 콘솔 → 인스턴스 선택 →
+"연결" → "Session Manager" 탭 → "연결" 버튼) — SSM 에이전트 자체가 응답하는지는 이
+세션이 확인 못 함(`ssm:DescribeInstanceInformation` 권한 없음). 안 되면 SSH(키
+`lovebug-pem`, 22번 포트는 NAT 인스턴스 보안그룹에서만 허용돼 있어 바스천 경유 필요).
+
+설치 후 다시 `main`에 아무 커밋(예: 이 `task.md` 갱신)을 push하거나
+`gh workflow run "ubidict-py Deploy" --ref main`으로 재시도하면 된다.
+
+### 진짜 원인 — 에이전트가 아니라 IAM 인스턴스 프로파일 자체가 안 붙어 있었다 (2026-09-16)
+
+사용자가 에이전트를 설치하고 나니 로그에 더 구체적인 에러가 찍혔다:
+
+```
+ERROR [codedeploy-agent]: InstanceAgent::Plugins::CodeDeployPlugin::CommandPoller:
+Missing credentials - please check if this instance was started with an IAM instance profile
+```
+
+`aws ec2 describe-instances`로 직접 확인 — **`lovebug-fastapi` 인스턴스에 IAM
+인스턴스 프로파일이 현재 전혀 연결돼 있지 않았다**(`IamInstanceProfile.Arn: null`).
+`aws ec2 describe-iam-instance-profile-associations`도 빈 배열. 에이전트 로그 메시지가
+말 그대로 사실이었다 — 역할 자체가 안 붙어 있어 인스턴스 메타데이터로 자격 증명을
+못 받아온 것. (참고: 이전 조사 때는 `lovebug-ec2-fastapi`가 붙어 있는 것으로
+확인됐었다 — 그 사이 콘솔 작업 중 분리된 것으로 추정, 원인은 불명.)
+
+**조치(사용자가 콘솔에서 직접)**: EC2 콘솔 → 인스턴스 선택 → 작업(Actions) →
+보안(Security) → "IAM 역할 수정(Modify IAM role)" → `lovebug-ec2-fastapi` 선택 →
+업데이트. 이후 `sudo systemctl restart codedeploy-agent`로 에이전트 재시작.
+
+## 배포 성공 확인 (2026-09-16)
+
+여러 차례 재시도(`main`에 직접 커밋된 `21c797a`·`d52546c` 핫픽스 포함, 이 세션이 관여
+안 한 시도도 다수) 끝에 CodeDeploy 배포 `d-ZA4MW0QTK`가 **전체 lifecycle 훅 성공**
+(`ApplicationStop`→`DownloadBundle`→`BeforeInstall`→`Install`→`AfterInstall`→
+`ApplicationStart`→`ValidateService` 전부 `Succeeded`, `ValidateService`가 인스턴스
+내부에서 `curl localhost:8000/health`로 검증까지 통과).
+
+**단, 그 사이 EC2 인스턴스 자체가 교체돼 있었다** — 이전 `i-069a154f01e676a57`가 아니라
+새 인스턴스 `i-06dff037d2928927c`(2026-09-15 22:23 KST 기동, IAM 역할
+`lovebug-ec2-fastapi` 정상 연결 확인)가 지금의 `lovebug-fastapi`다. 배포 자체는
+성공했는데 ALB 쪽 `curl /health`가 503을 냈던 이유: **이 배포그룹은
+`deploymentOption: WITHOUT_TRAFFIC_CONTROL`(`LoadBalancerInfo: null`)이라 CodeDeploy가
+ALB 타깃그룹 등록을 자동으로 안 한다** — 예전 인스턴스는 누군가 수동으로 등록해 뒀던
+것이고, 교체된 새 인스턴스는 등록이 안 된 채 남아 있었다(`lovebug-tg-fastapi` 타깃 0개).
+
+**조치**: 사용자가 새 인스턴스를 타깃그룹에 수동 등록(`aws elbv2 register-targets` 또는
+콘솔 "대상 그룹 → 등록"). 등록 직후 확인:
+
+```
+$ aws elbv2 describe-target-health --target-group-arn ... (lovebug-tg-fastapi)
+TargetHealth.State: healthy
+
+$ curl http://lovebug-alb-1930145637.ap-northeast-2.elb.amazonaws.com/health
+HTTP 200
+{"status":"ok","model":"gemini-3.5-flash"}
+```
+
+**✅ ubidict-py EC2 배포 최초 성공.** ALB → 타깃그룹 → 컨테이너까지 plain HTTP로 정상
+동작 확인. `GEMINI_API_KEY_1`·`GEMINI_MODEL_1`이 SSM에서 정상적으로 읽혀 `/health`
+응답에 실제 모델명이 찍히는 것까지 확인했다(env var 대소문자 문제·`GEMINI_MODEL_1`
+넘버링 문제 등 `main`에 직접 반영된 핫픽스들이 실제로 필요했다는 뜻).
+
+**남은 후속 과제(모두 이번 배포 성공과 무관, 별도 작업)**:
+- `/api/internal/llm/**` 보안 노출(위 표 12번·"다음에 할 것" 절 참고) — 아직 미해결
+- 인스턴스가 교체될 때마다 타깃그룹 재등록이 수동이라는 문제 — Auto Scaling Group으로
+  바꾸거나, CodeDeploy 배포그룹에 `LoadBalancerInfo`를 연결해 자동화하는 것을 고려할 것
+- `mode: stub`으로 `/jobs/extract` 먼저 확인(비용 없음) → `mode: real`로 실제 확인은
+  아직 안 함(이번엔 `/health`까지만 검증)
+
+## OpenTelemetry / Grafana Cloud 연동 — 실행 계획 (2026-09-16, 아직 미착수)
+
+`모니터링` 결정 표(위)가 예전부터 "OpenTelemetry는 미정 — 나중에 추가할 자리만"으로
+열어 뒀고, 미결 사항 목록에도 "[ ] OpenTelemetry 계측 여부/방식 결정되면 추가(지금은
+의존성 자체를 안 넣음)"로 남아 있었다. `final/backend`가 이미 같은 Grafana Cloud로
+trace·log·metric 세 신호를 OTLP로 보내는 걸 실제로 확인했으니(아래 "참고 — 백엔드
+패턴" 절), 그걸 그대로 재사용하는 방향으로 이번에 구체적인 실행 계획을 세운다.
+**코드는 아직 하나도 안 건드렸다 — 이 절은 계획만이다.**
+
+### 목표
+
+ubidict-py도 trace·log·metric을 OTLP로 같은 Grafana Cloud 인스턴스에 보낸다 —
+새 관측 스택을 따로 만들지 않고 백엔드가 이미 쓰는 것에 합류한다.
+
+### 참고 — 백엔드 패턴(`final/backend/src/main/resources/application-prod.yml`에서 그대로 읽음)
+
+- 엔드포인트·인증은 SSM `/lovebug/otel/endpoint`·`/lovebug/otel/auth`에서 온다.
+  `auth`는 `instanceID:token` 원문이고, 쓰는 쪽이 직접 base64 인코딩해
+  `Authorization: Basic <base64>` 헤더를 만들어야 한다(백엔드는 이걸
+  `OtlpAuthHeaderEnvironmentPostProcessor`라는 커스텀 코드로 한다).
+- 신호별 엔드포인트는 `{otel.endpoint}/v1/traces`·`/v1/logs`·`/v1/metrics` — 베이스
+  URL 뒤에 신호별 경로를 직접 붙인다.
+- 샘플링은 `OTEL_SAMPLE_RATIO`(기본 `0.1`)로 트레이스만 조절.
+- 킬스위치 `/lovebug/otel/enabled` — 파라미터가 없으면 켠 것으로 본다(현재 실제로
+  이 파라미터는 없다 — 즉 지금 상태 그대로 켜는 게 기본값과 일치).
+- 리소스 속성으로 `service.version`(배포 이미지 태그)·`deployment.environment.name=prod`를
+  싣는다 — 어느 배포가 낸 신호인지 추적하기 위함.
+
+### ubidict-py에서 다른 점 — Python은 훨씬 가볍게 갈 수 있다
+
+Java/Spring과 달리 Python OTel SDK는 **표준 `OTEL_*` 환경변수를 그대로 읽는다** —
+백엔드의 `OtlpAuthHeaderEnvironmentPostProcessor` 같은 커스텀 코드가 필요 없다(단,
+`Authorization` 헤더의 base64 인코딩 자체는 여전히 `start_container.sh`에서 해 줘야
+한다 — 원문을 SSM이 그대로 주기 때문). `opentelemetry-instrument`라는 실행 래퍼로
+uvicorn을 감싸기만 하면 FastAPI HTTP 요청(`/health`·`/extract`·`/contrast`·
+`/jobs/*`)의 트레이스는 코드 변경 없이 나온다.
+
+### Phase 1 — 최소 계측(HTTP 요청 트레이스 + 로그 브리지)
+
+- [ ] **(제안, 승인 필요 — 루트 `CLAUDE.md` "새 의존성은 사전 제안·승인")**
+      `pyproject.toml`에 추가할 의존성:
+      - `opentelemetry-distro` (`opentelemetry-instrument` 실행 래퍼 포함)
+      - `opentelemetry-exporter-otlp-proto-http`(OTLP HTTP 익스포터 — 백엔드와 같은
+        프로토콜, gRPC 포트가 아니라 HTTP 포트로 나간다는 뜻)
+      - `opentelemetry-instrumentation-fastapi`(HTTP 요청 자동 계측)
+      - `opentelemetry-instrumentation-botocore`(boto3/SQS 호출 자동 계측 — 설치만
+        하면 `receive_message`/`send_message`/`delete_message`가 스팬으로 잡힌다,
+        커스텀 코드 불필요)
+      - `opentelemetry-instrumentation-logging`(Python `logging` 모듈 → OTLP 로그
+        브리지 — `main.py`에 이미 있는 `logging.basicConfig`를 그대로 살리면서 로그도
+        Grafana Cloud로 보낼 수 있다)
+- [ ] `Dockerfile`의 `CMD`를 `["opentelemetry-instrument", "uvicorn", "app.main:app",
+      "--host", "0.0.0.0", "--port", "8000"]`로 변경(`opentelemetry-instrument`가
+      환경변수를 읽어 자동 계측을 부팅한 뒤 원래 커맨드를 실행)
+- [ ] `deploy/scripts/start_container.sh`에 SSM 조회 + 환경변수 배선 추가(RDS 정보를
+      읽는 기존 블록과 같은 자리에):
+  ```bash
+  OTEL_RAW_ENDPOINT=$(aws ssm get-parameter --name /lovebug/otel/endpoint --with-decryption \
+    --region "$REGION" --query Parameter.Value --output text 2>/dev/null || true)
+  OTEL_RAW_AUTH=$(aws ssm get-parameter --name /lovebug/otel/auth --with-decryption \
+    --region "$REGION" --query Parameter.Value --output text 2>/dev/null || true)
+
+  if [ -n "$OTEL_RAW_ENDPOINT" ] && [ -n "$OTEL_RAW_AUTH" ]; then
+    OTEL_AUTH_HEADER="Authorization=Basic $(printf '%s' "$OTEL_RAW_AUTH" | base64 -w0)"
+    OTEL_ARGS=(
+      -e OTEL_SERVICE_NAME=ubidict-py
+      -e OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="${OTEL_RAW_ENDPOINT}/v1/traces"
+      -e OTEL_EXPORTER_OTLP_LOGS_ENDPOINT="${OTEL_RAW_ENDPOINT}/v1/logs"
+      -e OTEL_EXPORTER_OTLP_METRICS_ENDPOINT="${OTEL_RAW_ENDPOINT}/v1/metrics"
+      -e OTEL_EXPORTER_OTLP_HEADERS="$OTEL_AUTH_HEADER"
+      -e OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      -e OTEL_TRACES_SAMPLER=traceidratio
+      -e OTEL_TRACES_SAMPLER_ARG=0.1
+      -e OTEL_RESOURCE_ATTRIBUTES="deployment.environment.name=prod,service.version=$TAG"
+      -e OTEL_LOGS_EXPORTER=otlp
+      -e OTEL_METRICS_EXPORTER=otlp
+      -e OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+    )
+  else
+    echo "경고: /lovebug/otel/* 파라미터를 못 읽었다 — 관측 없이 기동한다." >&2
+    OTEL_ARGS=(-e OTEL_SDK_DISABLED=true)
+  fi
+  ```
+  (`docker run` 호출의 `"${ENV_ARGS[@]}"` 옆에 `"${OTEL_ARGS[@]}"`도 추가)
+- [ ] **사용자가 직접(AWS 콘솔/CLI)**: `lovebug-ec2-fastapi` 인라인 정책에 새 Sid
+      추가 — 기존 `RdsSharedParams`와 같은 패턴:
+  ```json
+  {"Sid": "OtelSharedParams", "Effect": "Allow", "Action": ["ssm:GetParameter", "ssm:GetParameters"],
+    "Resource": "arn:aws:ssm:ap-northeast-2:416121583617:parameter/lovebug/otel/*"}
+  ```
+  (`DecryptParam` Sid는 이미 `kms:ViaService=ssm...`로 범위가 잡혀 있어 추가 조치 불필요)
+
+### Phase 2 — 커스텀 스팬(선택, Phase 1 이후 필요성 보고 결정)
+
+- [ ] SQS 컨슈머 루프(`app/queue_consumer.py`)는 HTTP 요청이 아니라 백그라운드
+      asyncio 태스크라 자동 계측이 안 잡는다 — 메시지 하나 처리할 때마다
+      `tracer.start_as_current_span("process_llm_job")`으로 수동 스팬을 열어야
+      실제로 무슨 일이 오래 걸리는지(멱등성 조회·DB 읽기·Gemini 호출·콜백) 트레이스에서
+      보인다
+- [ ] Gemini 호출(`app/pipeline/llm.py`·`contrast_llm.py`)에 수동 스팬 — 모델 폴백
+      체인이 몇 번째 키/모델에서 성공했는지를 스팬 속성으로 남기면 실패 원인 추적이
+      쉬워진다
+- [ ] 메트릭(선택) — 잡 처리 시간·성공/실패 카운터를 OTel Metrics API로 직접 만들지,
+      로그 기반 메트릭으로 충분한지는 Phase 1 배포 후 실제로 Grafana Cloud에서 뭐가
+      부족한지 보고 결정
+
+### 검증
+
+1. Phase 1 배포 후 `curl .../health` 몇 번 호출 → Grafana Cloud(Tempo/Explore)에서
+   `service.name=ubidict-py`로 트레이스가 잡히는지 확인
+2. 로그 브리지가 되는지 — 기존 `usage_log.py`/`contrast_usage_log.py`의 stdout JSON
+   로그는 그대로 두고, Python `logging` 경유 로그(`main.py`의 `logging.basicConfig`
+   로거)가 Grafana Cloud Loki에도 나타나는지 확인
+3. `/lovebug/otel/*` 파라미터를 못 읽는 상황(IAM 조치 전)에서도 컨테이너가
+   `OTEL_SDK_DISABLED=true`로 정상 기동하는지 확인 — 관측 때문에 서비스가 죽으면 안
+   된다(백엔드의 `D-98`과 같은 원칙)
