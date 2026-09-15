@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/httpClient'
+import { fetchAllPages } from '../../../shared/api/fetchAllPages'
 import type { Page } from '../../../shared/types/common'
 import type {
   DraftDocument,
@@ -110,10 +111,12 @@ export async function fetchLatestDraftDocument(
 export async function fetchSuggestionTermsOfDraft(
   draftDocumentId: string,
 ): Promise<SuggestionTerm[]> {
-  // 한 문서의 제안어가 100건을 넘는 경우는 실무상 드물어 첫 페이지만 읽는다 —
-  // 넘어가면 페이징 UI가 필요하다(후속 과제).
-  const page = await httpClient.get<Page<SuggestionTermApiResponse>>(
-    `/api/draft-documents/${draftDocumentId}/suggestion-terms?page=0&size=100&sort=createdAt,asc`,
+  // 제안어는 전부 판정해야 교정이 끝나므로 일부만 읽으면 화면이 "미해결 0건"을 잘못
+  // 보여 준다. 상한 크기로 끝까지 페이징한다.
+  const terms = await fetchAllPages<SuggestionTermApiResponse>((page, size) =>
+    httpClient.get<Page<SuggestionTermApiResponse>>(
+      `/api/draft-documents/${draftDocumentId}/suggestion-terms?page=${page}&size=${size}&sort=createdAt,asc`,
+    ),
   )
-  return page.content.map(toSuggestionTerm)
+  return terms.map(toSuggestionTerm)
 }
