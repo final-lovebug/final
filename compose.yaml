@@ -118,7 +118,11 @@ services:
       - 'SQS_REQUEST_QUEUE_URL=http://localstack:4566/000000000000/lovebug-llm-request'
       - 'AWS_ACCESS_KEY_ID=test'
       - 'AWS_SECRET_ACCESS_KEY=test'
-      - 'BACKEND_CALLBACK_BASE_URL=http://backend:8080'
+      # 워커는 완료를 동기 HTTP 콜백으로 알린다(D-68). 기본값이 host.docker.internal 인 이유는
+      # backend 서비스를 주석으로 내려 백엔드가 호스트에서 돌기 때문이다 — 컨테이너 안에서
+      # 'backend' 는 DNS 로 풀리지 않아 콜백이 Name or service not known 으로 실패한다.
+      # backend 서비스를 되살려 컨테이너로 띄울 때는 http://backend:8080 으로 덮어쓴다.
+      - 'BACKEND_CALLBACK_BASE_URL=${BACKEND_CALLBACK_BASE_URL:-http://host.docker.internal:8080}'
     healthcheck:
       # python:3.11-slim에는 curl이 없으므로 표준 라이브러리로 health endpoint를 확인한다.
       test: >-
