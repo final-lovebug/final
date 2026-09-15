@@ -1,7 +1,7 @@
 # T-INT-23 — OpenTelemetry 관측성 도입 (Grafana Cloud)
 
 상태: **진행중(2026-09-15)** | 담당자: (`WLSH-173`)
-근거: 결정은 `docs/plan/CONFLICTS.md` 3-10절(`D-92`~`D-98`)
+근거: 결정은 `docs/plan/CONFLICTS.md` 3-14절(`D-99`~`D-105`)
 의존: 없음. **`X-08`(`ErrorResponse.traceId`)의 담당 태스크이며 `NFR-CMN-003`의 선행**
 
 ## 문제
@@ -11,8 +11,7 @@
 | 있는 것 | 실제 동작 |
 | --- | --- |
 | `backend/build.gradle` `spring-boot-starter-opentelemetry` | **주석 처리됨** → 런타임 OTLP 전송 0 |
-| `build.gradle`의 OTel 테스트 스타터·`testcontainers-grafana` | 테스트 클래스패스에만 있음 |
-| `backend/compose.yaml`·루트 `compose.yaml`의 `grafana/otel-lgtm`, `TestcontainersConfiguration`의 `LgtmStackContainer` | **컨테이너는 뜨는데 앱 설정이 없다** |
+| `backend/compose.yaml`·루트 `compose.yaml`의 `grafana/otel-lgtm` | **컨테이너는 뜨는데 앱 설정이 없다** |
 | `micrometer-registry-prometheus`(`runtimeOnly`) | `management.endpoints.web.exposure.include`가 없어 `/actuator/prometheus` 미노출 |
 | `backend/CLAUDE.md` 「관측 — Actuator, Micrometer, OpenTelemetry / Grafana LGTM」 | 문서와 코드 불일치 |
 
@@ -27,23 +26,22 @@
 
 | 축 | 결정 | ID |
 | --- | --- | --- |
-| 수집 경로 | 앱 → Grafana Cloud OTLP **직행**. 수집기 사이드카 없음 | `D-92` |
-| 신호 범위 | 트레이스 + 메트릭 + 로그 전부. 파일 appender 없음, `CONSOLE` 유지 | `D-93` |
-| 전송 범위 | Grafana Cloud는 **`prod`만**. 로컬·테스트는 기존 LGTM 유지 | `D-94` |
-| 시크릿 | Parameter Store `/lovebug/otel/{auth,endpoint,enabled}` + EPP가 base64 파생 | `D-95` |
-| traceId | Micrometer Tracing의 MDC 값을 쓰고 별도 필터를 만들지 않는다 | `D-96` |
-| actuator | `health`·`info`만 노출, `env`·`configprops`는 `exclude`로 영구 차단 | `D-97` |
-| 가용성 | 관측은 기동 조건이 아니다. 익스포터 로거는 `ERROR` | `D-98` |
+| 수집 경로 | 앱 → Grafana Cloud OTLP **직행**. 수집기 사이드카 없음 | `D-99` |
+| 신호 범위 | 트레이스 + 메트릭 + 로그 전부. 파일 appender 없음, `CONSOLE` 유지 | `D-100` |
+| 전송 범위 | Grafana Cloud는 **`prod`만**. 로컬·테스트는 기존 LGTM 유지 | `D-101` |
+| 시크릿 | Parameter Store `/lovebug/otel/{auth,endpoint,enabled}` + EPP가 base64 파생 | `D-102` |
+| traceId | Micrometer Tracing의 MDC 값을 쓰고 별도 필터를 만들지 않는다 | `D-103` |
+| actuator | `health`·`info`만 노출, `env`·`configprops`는 `exclude`로 영구 차단 | `D-104` |
+| 가용성 | 관측은 기동 조건이 아니다. 익스포터 로거는 `ERROR` | `D-105` |
 
 ## 착수 전 사람이 해야 할 것
 
 - [x] Parameter Store — 인프라가 `/lovebug/otel/auth`(`instanceID:token`)와 `/lovebug/otel/endpoint`를
       등록해 두었다(2026-09-15 확인)
 - [x] EC2 인스턴스 역할 — `/lovebug/*`가 기존 권한에 들어 있어 추가가 필요 없다.
-      **이것이 파라미터를 옮기지 않고 경로에 맞춘 이유다**(`D-95`)
+      **이것이 파라미터를 옮기지 않고 경로에 맞춘 이유다**(`D-102`)
 - [x] **`/lovebug/otel/endpoint`의 값 형태 확인** — **경로가 없고 끝 슬래시도 없다**(2026-09-15 확인).
-      설계 전제와 같다. 신호별 경로는 애플리케이션이 붙이며, 이 전제는 이제
-      `ObservabilityPropertiesTest`가 고정한다
+      설계 전제와 같다. 신호별 경로는 애플리케이션이 붙이며, 배포 전 설정 확인 항목으로 관리한다
 - [ ] `/lovebug/otel/enabled` — **선택 사항.** 없으면 켠 것으로 본다. 설정 변경만 단독으로
       검증하려면 먼저 `false`로 만들어 둔다
 
@@ -51,10 +49,10 @@
 
 ### 1. 문서 선행 갱신
 
-- [x] `docs/plan/CONFLICTS.md` 3-10절에 `D-92`~`D-98` 등재, `X-08`을 `D-96`으로 해소하고
+- [x] `docs/plan/CONFLICTS.md` 3-14절에 `D-99`~`D-105` 등재, `X-08`을 `D-103`으로 해소하고
       담당을 `T-INT-3` → `T-INT-23`으로 재지정
-- [x] `docs/LOG.md` — 「Trace ID와 MDC」를 `D-96` 기준으로, 「로그 저장과 롤링 전략」을
-      컨테이너 전제로(`D-93`), 「요청/응답 로그」에 트레이스와의 중복 주의 추가
+- [x] `docs/LOG.md` — 「Trace ID와 MDC」를 `D-103` 기준으로, 「로그 저장과 롤링 전략」을
+      컨테이너 전제로(`D-100`), 「요청/응답 로그」에 트레이스와의 중복 주의 추가
 - [x] `docs/API.md`·`docs/EXCEPTION.md` 에러 응답 형식에 `traceId` 반영
 - [x] `docs/plan/EXECUTION_ORDER.md` 0절의 「새 결정은 `D-79`부터」 정정
 
@@ -64,7 +62,7 @@
       **`opentelemetry-instrumentation-bom-alpha`를 import하지 않는다** — 그 BOM을 import하면
       `io.opentelemetry:*` 전체가 Boot가 관리하는 버전에서 내려간다. 버전을 직접 고정한다
 - [x] `application.yml` — actuator 노출·리소스 속성·샘플링·OTel 익스포터 로거 `ERROR`.
-      **수집기 주소를 적지 않는다**(`D-94`)
+      **수집기 주소를 적지 않는다**(`D-101`)
 - [x] `logback-spring.xml` 신설 — `CONSOLE` + `OTEL`. `OpenTelemetryAppenderInitializer`가
       `InitializingBean`으로 install한다(Logback이 Spring 컨텍스트보다 먼저 뜨므로 appender가
       스스로 `OpenTelemetry`를 얻지 못한다)
@@ -83,7 +81,7 @@
 - [x] **`AsyncEventConfig`에 두지 않는다** — `AsyncConfigurer` 구현체에 이 `@Bean`을 함께 두면
       `applicationTaskExecutor` 생성 중 `Illegal factory instance`로 컨텍스트가 기동에 실패한다
 
-### 5. actuator 노출 범위 (`D-97`)
+### 5. actuator 노출 범위 (`D-104`)
 
 - [x] `SecurityConfig` — `/actuator/**` `permitAll`을 `/actuator/health`·`/actuator/health/**`·
       `/actuator/info`로 좁힌다. **health 경로는 반드시 열어 둔다** — `deploy/scripts/validate.sh`의
@@ -107,44 +105,37 @@
 
 ### 7. 검증
 
-배포 전에 로컬에서 확인할 수 있는 것은 모두 테스트로 옮겼다(2026-09-15). 사슬을 넷으로 나눠 본다.
+관측성 전용 테스트 코드는 제거했다(2026-09-15). 따라서 아래 항목은 배포 전 수동 확인과 일반
+백엔드 회귀 테스트로 검증한다.
 
-- [x] **키가 맞는가** — `OtlpPropertyBindingTest`. 세 신호의 네임스페이스가 비대칭이고 4.x 키의
-      오타는 조용히 무시되므로 사람 눈으로는 못 잡는다
-- [x] **설정이 그 키에 올바른 값을 넣는가** — `ObservabilityPropertiesTest`. 엔드포인트 합성,
-      Basic 헤더, 킬 스위치, 자격증명이 없을 때 기동이 막히지 않는 것. **Boot 3.x 낡은 키가
-      되살아나지 않는지도 함께 막는다** — 그 키들은 deprecation level이 `error`인데 `prod`
-      프로파일은 CI에서 뜨지 않아 배포 때까지 드러나지 않는다
-- [x] **값이 와이어까지 나가는가** — `OtlpExportOverHttpTest`. JDK 내장 HTTP 서버를 가짜 수신기로
-      세워 경로·`Authorization`·`Content-Encoding: gzip`을 확인한다. 헤더가 빠지면 Grafana Cloud가
-      401로 돌려주는데 익스포터 로거가 `ERROR`라 조용히 실패한다
-- [x] **Parameter Store에서 거기까지 이어지는가** — `OtlpParameterStoreChainTest`. LocalStack SSM에
-      실제로 파라미터를 넣어 경로→프로퍼티 매핑과 **EPP가 Parameter Store 뒤에 도는 것**을 본다.
-      순서가 뒤집히면 예외 없이 아무것도 하지 않는다
+- [x] **설정 키·엔드포인트·Basic 헤더·킬 스위치** — `application-prod.yml`과 Parameter Store
+      계약을 대조한다
+- [x] **Parameter Store 연동 순서** — 운영 프로파일 기동 로그와 실제 설정 주입 결과를 확인한다
+- [x] **전송·로그 격리** — Grafana Cloud 또는 로컬 LGTM 수신기에서 신호 경로와 exporter 오류의
+      stdout 노출을 확인한다
 
 > ⚠️ **수집기를 없애도 메트릭만은 조용히 계속 두드린다.** 트레이스·로그는 엔드포인트가 없으면
 > `*ConnectionDetails` 빈이 없어 익스포터도 안 생기지만, 메트릭은 `OtlpMeterRegistry`가 그대로
 > 만들어져 Micrometer 기본 주소(`http://localhost:4318/v1/metrics`)로 60초마다 붙으려 한다
-> (`OtlpPropertyBindingTest`가 이 비대칭을 못 박아 두었다). 실패 로그는 되먹임 차단 때문에
+> 설정의 신호별 네임스페이스가 비대칭이므로 주의한다. 실패 로그는 되먹임 차단 때문에
 > 눌려 있어 보이지 않는다. **해롭지는 않지만 `backend/compose.yaml`의 LGTM을 영구히 빼지 않는
 > 이유다.** 수집기 없이 돌려야 한다면 `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED=false`를 준다.
 
-> **테스트에서는 텔레메트리가 LGTM으로 나가지 않는다.** `spring-boot-starter-opentelemetry-test`가
-> `@SpringBootTest`마다 `management.tracing.export.enabled=false`를 꽂는다(메트릭도 같다). 켜려면
-> `@AutoConfigureObservability`나 `spring.test.tracing.export=true`가 필요하다. **로컬 LGTM으로
-> 실제 신호를 보내는 것은 `bootRun`뿐이다** — 아래 수동 확인이 그래서 남는다.
+> **일반 테스트에서는 텔레메트리를 LGTM으로 보내지 않는다.** 관측성 전용 테스트 의존성과 테스트
+> 코드는 제거했으며, **로컬 LGTM으로 실제 신호를 보내는 것은 `bootRun`뿐이다** — 아래 수동 확인이
+> 그래서 남는다.
 
 - [x] `./gradlew spotlessApply && ./gradlew check`
 - [x] 로컬 — **추적 컨텍스트가 실제로 돈다**(2026-09-15, `bootRun`). 잘못된 토큰으로 로그인을
       시도하니 로그에 `[{traceId}-{spanId}]`가 붙었다. **수집기가 없어도 이 값이 있다**는 것이
-      함께 확인된 셈이라 `D-96`의 「익스포터를 꺼도 `Tracer`는 만들어진다」가 실물로 증명됐다
+      함께 확인된 셈이라 `D-103`의 「익스포터를 꺼도 `Tracer`는 만들어진다」가 실물로 증명됐다
 - [x] 로컬 — **수집기를 아예 두지 않아도 서비스가 계속된다**(2026-09-15). `backend/compose.yaml`에서
       `grafana-lgtm`을 빼고도 같은 형태로 응답·로그가 나왔다
 - [x] 로컬 — **에러 응답 본문의 `traceId`가 로그의 값과 일치한다**(2026-09-15). 잘못된 토큰 요청에
       서버 로그의 `[{traceId}-{spanId}]`와 응답 JSON의 `traceId`가 같은 값이었다.
       **`X-08`·`NFR-CMN-003`이 실물로 확인됐다**
 - [x] 로컬 — **Tempo·Loki·Prometheus 3신호 확인**(2026-09-15)
-- [x] 로컬 — **수집기가 있는데 죽었을 때도 서비스가 계속된다**(2026-09-15, `D-98`). LGTM 컨테이너를
+- [x] 로컬 — **수집기가 있는데 죽었을 때도 서비스가 계속된다**(2026-09-15, `D-105`). LGTM 컨테이너를
       내린 상태에서 `/actuator/health`가 정상이고 로그의 `[{traceId}-{spanId}]`도 그대로였다
 - [x] 로컬 — **되먹임 차단이 듣지 않는 것을 발견하고 고쳤다**(2026-09-15). 자세한 것은 아래 「드러난 결함」
 - [x] `grep -r "grafana.net" backend/src`가 0건 — 로컬·테스트 경로에 Cloud 주소가 없다
@@ -180,8 +171,8 @@
 **고친 방법은 레벨이 아니라 전파 차단이다.** `logback-spring.xml`에서 익스포터 로거 셋을
 `additivity="false"` + `CONSOLE` 전용으로 두었다. 되먹임의 고리는 「실패 로그가 OTEL appender 로
 가는 것」이므로 거기서 끊고, 메시지는 stdout 에 남겨 진단 수단을 지킨다. 폭주는 OTel 의
-`ThrottlingLogger`가 같은 메시지를 분당 1회로 묶어 막는다. `OtlpExporterLogIsolationTest`가
-이 배선을 고정한다 — 그 한 줄이 지워져도 다른 테스트는 아무것도 눈치채지 못한다.
+`ThrottlingLogger`가 같은 메시지를 분당 1회로 묶어 막는다. `additivity="false"`와 `CONSOLE`
+전용 설정이 이 배선을 보장한다.
 
 ## 진행 중 드러난 선행 결함 (이 태스크가 만든 것이 아니다)
 

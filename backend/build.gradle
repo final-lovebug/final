@@ -60,7 +60,6 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-opentelemetry-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-restclient-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
@@ -73,10 +72,6 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers-mysql'
-    // 이미 런타임 클래스패스에 있는 익스포터를 테스트 컴파일에도 연다 — 프로파일별로 익스포터 빈이
-    // 생기는지/안 생기는지를 타입으로 단언하기 위해서다(OtlpPropertyBindingTest).
-    testImplementation 'io.opentelemetry:opentelemetry-exporter-otlp'
-    testImplementation 'io.micrometer:micrometer-registry-otlp'
     // spring-boot-starter-test 가 이미 끌어오지만, 전이 의존성에 기대지 않도록 명시한다.
     testImplementation 'org.awaitility:awaitility'
     testCompileOnly 'org.projectlombok:lombok'

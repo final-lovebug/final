@@ -29,7 +29,7 @@ spring:
   profiles:
     active: dev
 
-# 관측(T-INT-23). 세 신호를 OTLP 로 내보내고 수집기 주소는 어느 파일에도 적지 않는다(D-94) —
+# 관측(T-INT-23). 세 신호를 OTLP 로 내보내고 수집기 주소는 어느 파일에도 적지 않는다(D-101) —
 # 로컬은 spring-boot-docker-compose 의 OTLP 커넥션 디테일이, 테스트는 @ServiceConnection
 # LgtmStackContainer 가 실제로 매핑된 포트를 읽어 주입한다. 그래서 compose 의 LGTM 은 호스트 포트를
 # 고정하지 않는다. Grafana Cloud 주소와 자격증명은 prod 에만 둔다.
@@ -44,7 +44,7 @@ management:
       exposure:
         include: health,info
         # prod 의 spring.config.import: aws-parameterstore:/lovebug/ 가 경로 하위를 통째로 끌어오므로
-        # Grafana Cloud 쓰기 토큰이 otel.auth 프로퍼티로 Environment 에 올라온다(D-95). exclude 가
+        # Grafana Cloud 쓰기 토큰이 otel.auth 프로퍼티로 Environment 에 올라온다(D-102). exclude 가
         # include 를 이기므로 나중에 누가 노출 목록을 넓혀도 이 둘은 닫힌 채 남는다.
         exclude: env,configprops
   endpoint:
@@ -61,7 +61,7 @@ management:
       # 로컬·테스트는 전량 수집한다. prod 는 비용 때문에 낮춘다.
       probability: 1.0
 
-# 익스포터 실패 로그의 되먹임 차단은 logback-spring.xml 이 맡는다(D-98). 로거 레벨로는 끊을 수 없다 —
+# 익스포터 실패 로그의 되먹임 차단은 logback-spring.xml 이 맡는다(D-105). 로거 레벨로는 끊을 수 없다 —
 # HttpExporter 가 연결 실패를 SEVERE 로, HTTP 상태코드 실패(401 등)를 WARNING 으로 찍어서
 # 레벨을 올리면 진단에 필요한 쪽만 가려진다.
 

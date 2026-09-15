@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  컨테이너로 운영하므로 파일 appender 를 두지 않는다(docs/LOG.md, D-93).
+  컨테이너로 운영하므로 파일 appender 를 두지 않는다(docs/LOG.md, D-100).
 
     CONSOLE — stdout. OTLP 가 끊겼을 때와 기동 중 죽었을 때 `docker logs` 가 마지막 방어선이라
               지우지 않는다.

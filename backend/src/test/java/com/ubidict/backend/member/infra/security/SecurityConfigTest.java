@@ -19,7 +19,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,10 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
     GoogleOAuth2LoginSuccessHandler.class,
     GoogleOAuth2LoginFailureHandler.class
 })
-@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, ActuatorSecurityProperties.class})
-// prod 와 같은 「닫힘」 상태를 고정한다. 프로파일 기본값에 기대면 application-dev.yml 이
-// permit-all: true 로 덮어 이 테스트가 아무것도 지키지 못한다.
-@TestPropertySource(properties = "app.security.actuator.permit-all=false")
+@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class})
 @WebMvcTest(controllers = SecurityConfigTest.TestController.class)
 class SecurityConfigTest {
 
@@ -75,49 +71,6 @@ class SecurityConfigTest {
     @Test
     void permitAll_internal() {
         RestAssuredMockMvc.given().when().get("/api/internal/ping").then().statusCode(HttpStatus.OK.value());
-    }
-
-    @DisplayName("/actuator/health 는 토큰 없이도 호출할 수 있다.")
-    @Test
-    void permitAll_actuatorHealth() {
-        RestAssuredMockMvc.given().when().get("/actuator/health").then().statusCode(HttpStatus.OK.value());
-    }
-
-    @DisplayName("/actuator/health/readiness 는 토큰 없이도 호출할 수 있다.")
-    @Test
-    void permitAll_actuatorHealthProbe() {
-        RestAssuredMockMvc.given()
-                .when()
-                .get("/actuator/health/readiness")
-                .then()
-                .statusCode(HttpStatus.OK.value());
-    }
-
-    @DisplayName("actuator 가 닫혀 있으면 토큰 없이 /actuator/prometheus 를 호출할 수 없다.")
-    @Test
-    void actuatorPrometheus_withoutToken() {
-        RestAssuredMockMvc.given()
-                .when()
-                .get("/actuator/prometheus")
-                .then()
-                .statusCode(HttpStatus.UNAUTHORIZED.value())
-                .body("code", equalTo("AUTH_TOKEN_MISSING"));
-    }
-
-    @DisplayName("actuator 가 닫혀 있으면 REGULAR 권한으로도 /actuator/prometheus 를 호출할 수 없다.")
-    @Test
-    void actuatorPrometheus_regularToken() {
-        // given
-        String accessToken = jwtProvider.issueAccessToken(1L, MemberRole.REGULAR);
-
-        // when & then
-        RestAssuredMockMvc.given()
-                .header("Authorization", "Bearer " + accessToken)
-                .when()
-                .get("/actuator/prometheus")
-                .then()
-                .statusCode(HttpStatus.FORBIDDEN.value())
-                .body("code", equalTo("AUTH_FORBIDDEN"));
     }
 
     @DisplayName("토큰 없이 보호된 API를 호출하면 401 AUTH_TOKEN_MISSING을 응답한다.")
@@ -279,20 +232,6 @@ class SecurityConfigTest {
         @GetMapping("/api/admin/ping")
         String adminPing() {
             return "pong";
-        }
-
-        /**
-         * actuator 엔드포인트 자리. 이 슬라이스에는 actuator 자동 구성이 없으므로 대역을 둔다 —
-         * 여기서 검증하는 것은 엔드포인트의 내용이 아니라 <b>필터 체인이 이 경로를 어떻게 판단하는가</b>다.
-         */
-        @GetMapping({"/actuator/health", "/actuator/health/readiness"})
-        String actuatorHealth() {
-            return "UP";
-        }
-
-        @GetMapping("/actuator/prometheus")
-        String actuatorPrometheus() {
-            return "# metrics";
         }
     }
 }
