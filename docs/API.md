@@ -896,10 +896,12 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 ```json
 {
+  "dictionaryId": 5,
+  "workspaceId": 1,
   "versionNo": 2,
   "status": "ACTIVE",
   "publishedAt": "2026-09-10T11:00:00.000000Z",
-  "publishedBy": 7,
+  "createdBy": 7,
   "terms": {
     "content": [
       { "termId": 11, "preferredForm": "사전집", "englishName": "Dictionary" },
@@ -924,8 +926,8 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 ```json
 {
   "content": [
-    { "versionNo": 2, "status": "ACTIVE", "publishedAt": "2026-09-10T11:00:00.000000Z", "publishedBy": 7, "termCount": 2 },
-    { "versionNo": 1, "status": "ARCHIVED", "publishedAt": "2026-09-09T10:00:00.000000Z", "publishedBy": 7, "termCount": 1 }
+    { "dictionaryId": 5, "versionNo": 2, "status": "ACTIVE", "publishedAt": "2026-09-10T11:00:00.000000Z", "createdBy": 7, "termCount": 2 },
+    { "dictionaryId": 4, "versionNo": 1, "status": "ARCHIVED", "publishedAt": "2026-09-09T10:00:00.000000Z", "createdBy": 7, "termCount": 1 }
   ],
   "page": 0,
   "size": 20,
@@ -1250,7 +1252,7 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 | 없거나 삭제된 초안 | 404 | `DRAFT_DOCUMENT_NOT_FOUND` · `DRAFT_DICTIONARY_NOT_FOUND` |
 | 초안이 교정완료 상태가 아님 | 409 | `DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION` · `DRAFT_DICTIONARY_NOT_EXAMINED` |
 | 최종 등재 목록이 활성 사전집과 같음 | 409 | `DRAFT_DICTIONARY_NO_CHANGED_ITEM` |
-| 최종 등재 대상의 정의가 비어 있음 | 400 | `DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED` |
+| 정의가 빈 후보어가 있음 | 400 | `DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED` |
 | 같은 초안으로 이미 리뷰 요청을 만들었음 | 409 | `REVIEW_REQUEST_REVISION_ALREADY_EXISTS` |
 | 참여자지만 ADMIN 미만이 사전 리뷰를 요청 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
 
@@ -1450,7 +1452,6 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | POST | `/api/candidate-terms/{candidateTermId}/rejection` | `200` |
 | POST | `/api/candidate-terms/{candidateTermId}/hold` | `200` |
 | POST | `/api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision` | `200` |
-| GET | `/api/draft-dictionaries/{draftDictionaryId}/examine-progress` | `200` |
 | POST | `/api/draft-dictionaries/{draftDictionaryId}/examine-completion` | `200` |
 
 **초안을 만드는 진입점은 비동기 추출 작업 하나다**(`D-45`). 유래 문서만 실어 초안을 만들던 `POST /api/draft-dictionaries`는 **제거했다** — 초안은 「이전 사전집 + 추출 용어」의 통합 결과여야 하고(`G-1`), 그 통합은 추출 작업 실행이 수행한다.
@@ -1501,7 +1502,9 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 
 `form`만 필수다. `occurrenceCount`는 1 이상이고, 같은 초안 안에서 `form`이 중복되면 `409`다. `variantForms`는 선택이다(생략 시 빈 목록). `type`은 사람이 고른 분류(`SYNONYM`·`HOMOGRAPH`·`VARIANT`)이며 **선택이다** — 추출이 만든 후보어에는 분류가 없으므로 비어 있을 수 있다.
 
-응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다. `variantForms`는 추출기가 같은 개념으로 묶어서 돌려준 표기 변형 전체(대표 표기인 `form` 포함)를 담는다 — 추출 파이프라인을 거치지 않고 수동으로 등록·수정한 항목은 보통 빈 배열이다(`D-65`). `type`은 등록·수정 시 사람이 고른 분류이고 추출 생성분에서는 `null`이다. `createdBy`는 등록자, `handledBy`는 판정을 내린 처리자로 서로 다르다.
+응답은 다음 형식이다. `origin`은 `EXTRACTED`(추출된 신규)와 `EXISTING`(이전 사전집에서 승계) 둘이고, `EXISTING`이면 `sourceTermId`가 원본 `Term`을 가리킨다(`D-20`). 수동 등록은 `EXTRACTED`다. `variantForms`는 추출기가 같은 개념으로 묶어서 돌려준 표기 변형 전체(대표 표기인 `form` 포함)를 담는다 — 추출 파이프라인을 거치지 않고 수동으로 등록·수정한 항목은 보통 빈 배열이다(`D-65`). `type`은 등록·수정 시 사람이 고른 분류이고 추출 생성분에서는 `null`이다.
+
+> **`createdBy`를 담지 않는다**(`docs/plan/DRAFT_PLAN.md`). 초안 화면이 후보어별 작성자를 더 이상 보여주지 않기 때문이다 — 작성자는 초안 하나에 한 명이고 그것은 초안 응답의 `createdBy`로 충분하다. DB 컬럼은 감사 용도로 남아 있다. `handledBy`는 판정을 내린 처리자이며, 판정 자체가 사용 안 함이 되어 새로 채워지지 않는다.
 
 ```json
 {
@@ -1556,6 +1559,8 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | `POST /api/candidate-terms/{candidateTermId}/rejection` | `{"rejectReason": "오등록"}` | `rejectReason`이 비어 있지 않음 |
 | `POST /api/candidate-terms/{candidateTermId}/hold` | 본문 없음 | — |
 
+> ⚠️ **위 판정 5종(등재 승인·동의어 편입·거절·보류·일괄)은 사용 안 함이다**(`docs/plan/DRAFT_PLAN.md`). 사전집 초안이 단일 페이지로 바뀌면서 후보어별 판정이 화면에서 사라졌고, 새 초안·리뷰 요청 경로는 이 엔드포인트를 호출하지 않는다. **지우지 않은 이유는 이미 판정이 기록된 초안 행이 DB에 있어서**이며, `CandidateTermStatus`도 같은 이유로 남아 있다. 새로 붙이는 화면에서 호출하지 않는다.
+
 `POST /api/draft-dictionaries/{draftDictionaryId}/candidate-terms/bulk-decision`는 다음과 같이 같은 판정을 여러 후보어에 적용한다. 일부 항목이 실패해도 나머지 항목을 계속 처리하고 항목별 성공·실패를 응답한다.
 
 ```json
@@ -1580,23 +1585,17 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 }
 ```
 
-`GET /api/draft-dictionaries/{draftDictionaryId}/examine-progress`는 다음 상태별 건수를 응답한다.
+`POST /api/draft-dictionaries/{draftDictionaryId}/examine-completion`은 **모든 후보어가 대표어와 정의를 가졌을 때** 초안을 `EXAMINED`로 바꾼다. 교정 완료와 리뷰 요청은 별도 단계다.
 
-```json
-{
-  "total": 7,
-  "pending": 1,
-  "kept": 1,
-  "approved": 1,
-  "merged": 1,
-  "rejected": 1,
-  "onHold": 1
-}
-```
+> **조건이 「판정 상태」에서 「전체 후보어의 유효성」으로 바뀌었다**(`docs/plan/DRAFT_PLAN.md`). 예전에는 `PENDING` 후보어가 0건인지 물었는데, 초안 화면에서 판정을 걷어낸 뒤 모든 후보어가 `PENDING`에 머무르므로 그 조건은 영구히 거짓이다. 대표어(`form`)는 생성 시 필수라 실제로 막는 것은 대개 정의이며, 비어 있으면 `400 DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED`다.
+>
+> **교정 진행률 조회(`GET .../examine-progress`)는 제거했다.** 상태별 건수를 돌려주던 엔드포인트인데, 판정이 사라진 뒤 `pending`이 늘 후보어 전체 수와 같아 준비 여부를 뜻하지 않게 됐고 소비자도 0곳이 됐다. 준비 여부를 알려면 후보어 목록의 `proposedDefinition`이 비었는지 본다. **문서 초안 쪽 `GET /api/draft-documents/{id}/examine-progress`는 그대로다** — 제안어 판정은 남아 있어 그 값이 여전히 유효하다.
 
-`POST /api/draft-dictionaries/{draftDictionaryId}/examine-completion`은 `PENDING` 후보어가 0건일 때 초안을 `EXAMINED`로 바꾼다. 교정 완료와 리뷰 요청은 별도 단계다.
+**리뷰 요청 자격은 이 도메인이 판정하고, 요청 생성은 ReviewRequest 도메인이 한다**(`D-44`). `POST /api/draft-dictionaries/{draftDictionaryId}/review-request`(«ReviewRequest API»)가 요청을 받으면 이 도메인에 자격 판정을 위임한다 — **초안에 남아 있는 모든 후보어**의 표기·영문명·정의 집합이 현재 활성 사전집과 **실제로 달라야** 하고, 모든 후보어에 대표어와 정의가 있어야 한다.
 
-**리뷰 요청 자격은 이 도메인이 판정하고, 요청 생성은 ReviewRequest 도메인이 한다**(`D-44`). `POST /api/draft-dictionaries/{draftDictionaryId}/review-request`(«ReviewRequest API»)가 요청을 받으면 이 도메인에 자격 판정을 위임한다 — 최종 등재 대상(`REGISTRATION_APPROVED`, `KEPT`)의 표기·영문명·정의 집합이 현재 활성 사전집과 **실제로 달라야** 하고, 그 정의가 비어 있지 않아야 한다. 승인 건수만으로 변경 여부를 판단하지 않으므로 기존 용어 수정·제외도 변경으로 인식한다.
+> **판정 상태로 거르지 않는다**(`docs/plan/DRAFT_PLAN.md`). 예전에는 `REGISTRATION_APPROVED`·`KEPT`만 최종 등재 대상으로 골랐는데, 판정이 사라진 뒤 그 조건으로는 목록이 항상 비어 버린다. **초안에 남아 있다는 것이 곧 등재 의사**이고, 빼고 싶은 후보어는 판정이 아니라 삭제(`DELETE /api/candidate-terms/{id}`, 소프트 삭제)로 뺀다. 발행 시점의 용어 목록도 같은 규칙을 쓴다.
+>
+> 표기 묶음(`variantForms`)의 비대표 표현은 **용어가 되지 않는다** — 대표 표기 `form` 하나만 차기 사전집의 행이 된다.
 
 초안은 `ReviewRequest`가 만들어진 뒤 `ReviewRequestCreatedEvent`를 받아 `REVIEW_REQUESTED`로 전이한다.
 
@@ -1683,7 +1682,8 @@ POST /api/internal/llm/extractions/{extractionJobId}/failure
 | 같은 초안에 같은 표기가 이미 있음 | 409 | `DRAFT_DICTIONARY_DUPLICATE_CANDIDATE_FORM` |
 | 교정 중이 아닌 후보어를 수정 | 409 | `DRAFT_DICTIONARY_CANDIDATE_TERM_NOT_EXAMINABLE` |
 | 해당 초안의 후보어가 아님 | 400 | `DRAFT_DICTIONARY_CANDIDATE_TERM_MISMATCHED` |
-| 등재 승인 후보어의 정의가 비어 있음 | 400 | `DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED` |
+| 대표어가 빈 후보어가 있음 | 400 | `DRAFT_DICTIONARY_CANDIDATE_FORM_REQUIRED` |
+| 정의가 빈 후보어가 있음 | 400 | `DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED` |
 | 동의어 편입 대상이 없음 | 400 | `DRAFT_DICTIONARY_MERGE_TARGET_REQUIRED` |
 | 거절 사유가 비어 있음 | 400 | `DRAFT_DICTIONARY_REJECT_REASON_REQUIRED` |
 | 지원하지 않는 후보어 판정 | 400 | `DRAFT_DICTIONARY_INVALID_DECISION` |
@@ -1691,7 +1691,7 @@ POST /api/internal/llm/extractions/{extractionJobId}/failure
 | 이미 교정 완료됨 | 409 | `DRAFT_DICTIONARY_ALREADY_EXAMINED` |
 | 교정 완료 전 리뷰 요청 | 409 | `DRAFT_DICTIONARY_NOT_EXAMINED` |
 | 이미 리뷰를 요청함 | 409 | `DRAFT_DICTIONARY_ALREADY_REVIEW_REQUESTED` |
-| 미판정 후보어가 존재함 | 409 | `DRAFT_DICTIONARY_CANDIDATE_TERM_UNDECIDED_EXISTS` |
+| ~~미판정 후보어가 존재함~~ | 409 | ~~`DRAFT_DICTIONARY_CANDIDATE_TERM_UNDECIDED_EXISTS`~~ — 사용 안 함(`DRAFT_PLAN.md`). 판정이 준비 조건에서 빠져 더 이상 발생하지 않는다 |
 | 활성 사전집과 달라진 등재 대상이 없음 | 409 | `DRAFT_DICTIONARY_NO_CHANGED_ITEM` |
 | 진행 중인 초안이 있음 | 409 | `DRAFT_DICTIONARY_ALREADY_EXISTS` |
 | 용어 추출 요청 값이 올바르지 않음 | 400 | `DRAFT_DICTIONARY_EXTRACTION_INVALID_REQUEST` |

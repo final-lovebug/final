@@ -1,54 +1,107 @@
-import { Link, useParams } from 'react-router-dom'
-import { Card, Pill } from '../../shared/ui'
+import { useNavigate, useParams } from 'react-router-dom'
+import {
+  Card,
+  DataTable,
+  Pill,
+  ScreenSubtitle,
+  ScreenTitle,
+  Td,
+  Th,
+  Tr,
+} from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
 import { useDocuments } from '../../features/document/hooks/useDocuments'
 import { useDocumentReviewRequests } from '../../features/review/hooks/useDocumentReviewRequests'
+import type { PillTone } from '../../shared/ui'
+import type { ReviewRequestStatus } from '../../features/review/model/types'
 
-// "문서 > 개정안" 사이드바 목록. review 도메인의 리뷰 요청 목록과 document 도메인의 문서
-// 목록, 두 훅의 결과를 여기(페이지)에서 조합한다 — features 간 직접 참조를 피하면서도
-// 화면에는 "어떤 문서의 개정안인지" 제목을 보여줘야 하기 때문이다
+const STATUS_TONE: Record<ReviewRequestStatus, PillTone> = {
+  PENDING_REVIEW: 'accent',
+  IN_REVIEW: 'accent',
+  CHANGES_REQUESTED: 'warn',
+  APPROVED: 'success',
+  REVISED: 'neutral',
+  CANCELED: 'neutral',
+}
+
+const STATUS_LABEL: Record<ReviewRequestStatus, string> = {
+  PENDING_REVIEW: '검토 대기',
+  IN_REVIEW: '검토 중',
+  CHANGES_REQUESTED: '변경 요청',
+  APPROVED: '승인',
+  REVISED: '반영 완료',
+  CANCELED: '취소',
+}
+
+// "문서 > 개정안" 사이드바 목록(프로토타입에는 없던 화면). review 도메인의 리뷰 요청 목록과
+// document 도메인의 문서 목록, 두 훅의 결과를 여기(페이지)에서 조합한다 — features 간 직접
+// 참조를 피하면서도 "어떤 문서의 개정안인지"를 보여줘야 하기 때문이다
 // (frontend/docs/ARCHITECTURE.md 의존성 규칙 참고).
 export function DocumentReviewRequestListPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
-  const { data: reviewRequests, isLoading } = useDocumentReviewRequests(workspaceId)
+  const navigate = useNavigate()
+  const { data: reviewRequests, isLoading, isError } = useDocumentReviewRequests(workspaceId)
   const { data: documents } = useDocuments(workspaceId)
 
   const documentTitleById = new Map(documents?.map((doc) => [doc.id, doc.title]) ?? [])
 
   return (
     <div>
-      <h1 className="mb-1 font-display text-[19px] font-bold text-text">개정안</h1>
-      <p className="mb-5 text-[12.5px] text-text-tertiary">
+      <ScreenTitle>개정안</ScreenTitle>
+      <ScreenSubtitle>
         초안 작업이 끝나 리뷰어의 코멘트를 기다리고 있는 문서 개정안 목록입니다.
-      </p>
+      </ScreenSubtitle>
 
       {isLoading && <p className="text-sm text-text-tertiary">불러오는 중…</p>}
+      {isError && <p className="text-sm text-danger">개정안 목록을 불러오지 못했습니다.</p>}
       {reviewRequests?.length === 0 && (
         <p className="text-sm text-text-tertiary">진행 중인 개정안이 없습니다.</p>
       )}
 
-      <div className="flex flex-col gap-3">
-        {reviewRequests?.map((request) => (
-          <Link
-            key={request.reviewRequestId}
-            to={routes.documentReviewThread(
-              workspaceId,
-              request.documentId,
-              request.reviewRequestId,
-            )}
-          >
-            <Card className="flex items-center gap-3 p-4 hover:shadow-card-hover">
-              <div className="flex-1">
-                <p className="text-[11px] text-text-quaternary">
-                  {documentTitleById.get(request.documentId) ?? request.documentId}
-                </p>
-                <p className="font-semibold text-text">{request.title}</p>
-              </div>
-              <Pill tone="accent">리뷰어 {request.reviewerCount}명</Pill>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {reviewRequests && reviewRequests.length > 0 && (
+        <Card className="overflow-hidden">
+          <DataTable>
+            <thead>
+              <tr>
+                <Th>개정안</Th>
+                <Th>대상 문서</Th>
+                <Th>상태</Th>
+                <Th>리뷰어</Th>
+                <Th>요청일</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {reviewRequests.map((request) => (
+                <Tr
+                  key={request.reviewRequestId}
+                  clickable
+                  onClick={() =>
+                    navigate(
+                      routes.documentReviewThread(
+                        workspaceId,
+                        request.documentId,
+                        request.reviewRequestId,
+                      ),
+                    )
+                  }
+                >
+                  <Td className="font-bold text-text">{request.title}</Td>
+                  <Td>{documentTitleById.get(request.documentId) ?? request.documentId}</Td>
+                  <Td>
+                    <Pill tone={STATUS_TONE[request.status]}>
+                      {STATUS_LABEL[request.status] ?? request.status}
+                    </Pill>
+                  </Td>
+                  <Td>{request.reviewerCount}명</Td>
+                  <Td className="text-text-quaternary">
+                    {new Date(request.createdAt).toLocaleDateString('ko-KR')}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </DataTable>
+        </Card>
+      )}
     </div>
   )
 }

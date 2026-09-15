@@ -1,22 +1,49 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Card, Pill } from '../../shared/ui'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import {
+  Banner,
+  Button,
+  Card,
+  ColFlex,
+  DataTable,
+  Pill,
+  PrThread,
+  TabRow,
+  Td,
+  TextInput,
+  Th,
+  Toolbar,
+  ToolbarSpacer,
+  Tr,
+  TwoCol,
+} from '../../shared/ui'
 import { cx } from '../../shared/lib/cx'
 import { routes } from '../../shared/config/routes'
+import { ApiError } from '../../shared/api/httpClient'
 import { useAuthStore } from '../../shared/stores/authStore'
 import { useSuggestions } from '../../features/document/hooks/useSuggestions'
 import { useResolveSuggestion } from '../../features/document/hooks/useResolveSuggestion'
 import { useSuggestionHistory } from '../../features/document/hooks/useSuggestionHistory'
 import { useDocument } from '../../features/document/hooks/useDocument'
-import { SUGGESTION_PARAGRAPHS } from '../../features/document/model/suggestionFixtures'
+import { useCheckJob } from '../../features/document/hooks/useCheckJob'
+import { useCreateCheckJob } from '../../features/document/hooks/useCreateCheckJob'
+import { buildSuggestionSegments } from '../../features/document/model/suggestionSegments'
 import type { SuggestionTerm } from '../../features/document/model/types'
 import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
 import { useRequestDocumentReview } from '../../features/review/hooks/useRequestDocumentReview'
 
-// ui/main.js renderReviewDocScreen() 이식. 본문은 문서별 고정 조각(SUGGESTION_PARAGRAPHS)을
-// 그대로 옮겼다 — 실제 문서 본문에서 정확한 위치(anchor)를 찾아 치환 후보를 표시하는 로직은
-// 아직 없다(SuggestionTerm.anchor가 지금은 자리표시자 값). 본문과 위치가 진짜로 연결되려면
-// 백엔드의 대조(DictionaryContrast, MVP1 제외) 결과가 필요하다.
+type SideTab = 'suggestions' | 'history'
+
+// ui/main.js renderReviewDocScreen() 이식 — 본문 하이라이트 + 우측 제안 목록 2단
+// (`REQ-CHK-004`).
+//
+// **본문은 초안 본문(`draftBody`)이고 하이라이트는 제안어의 anchor로 그린다**(T-INT-17).
+// 프로토타입은 문서별로 하드코딩한 문단 조각을 썼기 때문에 그 2개 문서 바깥에서는 아무것도
+// 보이지 않았다 — 대조(DictionaryContrast)가 실제로 붙으면서 데이터 기반으로 바꿨다.
+//
+// 대조를 한 번도 돌리지 않은 문서에는 초안이 없다. 그 경우 「최신 사전집으로 갱신」으로
+// 대조 작업(DD-5)을 접수하고 완료까지 폴링한다 — 문서 상세 화면에서 접수해 들어오면
+// 작업 id가 쿼리로 넘어온다.
 export function DocumentReviewPage() {
   const { workspaceId = '', documentId = '' } = useParams<{
     workspaceId: string
@@ -25,101 +52,145 @@ export function DocumentReviewPage() {
   const navigate = useNavigate()
   const currentMember = useAuthStore((state) => state.currentMember)
   const { data: document } = useDocument(workspaceId, documentId)
-  const { data: suggestions } = useSuggestions(documentId)
+  const { data: contrast, isLoading: isLoadingContrast } = useSuggestions(documentId)
   const { data: history } = useSuggestionHistory(documentId)
   const { data: members } = useWorkspaceMembers(workspaceId)
   const resolveSuggestion = useResolveSuggestion(documentId)
   const requestReview = useRequestDocumentReview(workspaceId)
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const [sideTab, setSideTab] = useState<'suggestions' | 'history'>('suggestions')
 
-  const byId = new Map(suggestions?.map((s) => [s.id, s]) ?? [])
-  const resolvedCount = suggestions?.filter((s) => s.status !== 'PENDING').length ?? 0
-  const totalCount = suggestions?.length ?? 0
+  const [searchParams] = useSearchParams()
+  const [checkJobId, setCheckJobId] = useState<string | null>(() => searchParams.get('checkJob'))
+  const createCheckJob = useCreateCheckJob(workspaceId, documentId)
+  const { job: checkJob, isPollingExhausted } = useCheckJob(checkJobId)
+
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [sideTab, setSideTab] = useState<SideTab>('suggestions')
+  const [rejectReason, setRejectReason] = useState('')
+
+  const draft = contrast?.draft ?? null
+  const suggestions = contrast?.suggestions ?? []
+  const resolvedCount = suggestions.filter((s) => s.status !== 'PENDING').length
+  const totalCount = suggestions.length
   const allResolved = totalCount > 0 && resolvedCount === totalCount
-  const paragraph = SUGGESTION_PARAGRAPHS[documentId] ?? []
+  const segments = draft ? buildSuggestionSegments(draft.draftBody, suggestions) : []
+  const isChecking = checkJob?.status === 'PENDING' || checkJob?.status === 'RUNNING'
+
+  function handleRunCheck() {
+    createCheckJob.mutate(undefined, { onSuccess: (created) => setCheckJobId(created.id) })
+  }
 
   function handleCompleteReview() {
     if (!document || !currentMember) return
     const reviewerMemberIds = (members ?? [])
-      .filter((m) => m.id !== currentMember.id)
-      .map((m) => m.id)
+      .filter((member) => member.id !== currentMember.id)
+      .map((member) => member.id)
 
     // 요청자는 인증 주체에서 해석되므로 보내지 않는다. 대상 초안(draftDocumentId)은
     // api가 documentId로 찾아준다.
     requestReview.mutate(
+      { documentId, title: `${document.title} 개정 반영`, reviewerMemberIds },
       {
-        documentId,
-        title: `${document.title} 개정 반영`,
-        reviewerMemberIds,
-      },
-      {
-        onSuccess: (reviewRequest) => {
-          navigate(routes.documentReviewThread(workspaceId, documentId, reviewRequest.id))
-        },
+        onSuccess: (reviewRequest) =>
+          navigate(routes.documentReviewThread(workspaceId, documentId, reviewRequest.id)),
       },
     )
   }
 
-  function renderSpan(suggestion: SuggestionTerm) {
+  function openSuggestion(suggestion: SuggestionTerm) {
+    setActiveId(suggestion.id)
+    setRejectReason(suggestion.rejectReason ?? '')
+  }
+
+  function renderSuggestionSpan(suggestion: SuggestionTerm, text: string) {
     if (suggestion.status !== 'PENDING') {
+      const applied = suggestion.status === 'APPLY_SUGGESTION'
       return (
         <span
-          key={suggestion.id}
-          title={`원래: ${suggestion.originTerm} · 근거: ${suggestion.suggestionTerm}`}
-          className="cursor-default border-b-[1.5px] border-dashed border-text-faint"
+          title={
+            applied
+              ? `적용됨 — "${suggestion.originTerm}" → "${suggestion.suggestionTerm}"`
+              : `유지됨 — ${suggestion.rejectReason ?? '사유 없음'}`
+          }
+          className={cx(
+            'cursor-default border-b-[1.5px] border-dashed',
+            applied ? 'border-success text-success' : 'border-text-faint',
+          )}
         >
-          {suggestion.originTerm}
+          {text}
         </span>
       )
     }
 
     const isOpen = activeId === suggestion.id
     return (
-      <span key={suggestion.id} className="relative">
+      <span className="relative">
         <span
-          onClick={() => setActiveId(isOpen ? null : suggestion.id)}
+          onClick={() => (isOpen ? setActiveId(null) : openSuggestion(suggestion))}
           className={cx(
             'cursor-pointer font-semibold text-accent-strong underline',
             isOpen && 'bg-accent-bg',
           )}
         >
-          {suggestion.originTerm}
+          {text}
         </span>
         {isOpen && (
-          <Card className="absolute left-0 top-full z-10 mt-2 w-[280px] p-4 text-xs leading-[1.6] shadow-pop">
-            <p className="mb-3 font-bold">
+          <span className="absolute left-0 top-full z-10 mt-2 block w-[300px] rounded-md border border-border bg-surface p-4 text-[12.5px] leading-[1.6] shadow-pop">
+            <span className="mb-3 block font-bold">
               {suggestion.originTerm} → {suggestion.suggestionTerm}
-            </p>
-            <div className="flex gap-2">
+            </span>
+
+            <span className="mb-3 flex gap-2">
               <Button
                 size="sm"
                 variant="primary"
-                onClick={() => {
-                  resolveSuggestion.mutate({
-                    suggestionId: suggestion.id,
-                    status: 'APPLY_SUGGESTION',
-                  })
-                  setActiveId(null)
-                }}
+                disabled={resolveSuggestion.isPending}
+                onClick={() =>
+                  resolveSuggestion.mutate(
+                    { suggestionId: suggestion.id, decision: 'APPLY_SUGGESTION' },
+                    { onSuccess: () => setActiveId(null) },
+                  )
+                }
               >
                 적용
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  resolveSuggestion.mutate({
-                    suggestionId: suggestion.id,
-                    status: 'KEEP_ORIGINAL',
-                  })
-                  setActiveId(null)
-                }}
+                // 실 API가 사유를 필수로 받는다(@NotBlank) — 비어 있으면 400이라 미리 막는다.
+                disabled={resolveSuggestion.isPending || rejectReason.trim() === ''}
+                onClick={() =>
+                  resolveSuggestion.mutate(
+                    {
+                      suggestionId: suggestion.id,
+                      decision: 'KEEP_ORIGINAL',
+                      rejectReason: rejectReason.trim(),
+                    },
+                    { onSuccess: () => setActiveId(null) },
+                  )
+                }
               >
                 무시
               </Button>
-            </div>
-          </Card>
+            </span>
+
+            <span className="mb-1 block text-[10.5px] text-text-quaternary">
+              무시 사유 (무시할 때만 필요)
+            </span>
+            <TextInput
+              value={rejectReason}
+              onChange={(event) => setRejectReason(event.target.value)}
+              placeholder="예: 제품 고유명사라 원문을 유지합니다"
+              className="py-[6px] text-xs"
+            />
+
+            {resolveSuggestion.isError && (
+              <span className="mt-2 block text-[11px] text-danger">
+                {resolveSuggestion.error instanceof ApiError
+                  ? resolveSuggestion.error.message
+                  : '판정에 실패했습니다.'}
+              </span>
+            )}
+          </span>
         )}
       </span>
     )
@@ -127,72 +198,138 @@ export function DocumentReviewPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-3">
-        <Pill tone="warn">AI 검토</Pill>
+      <Toolbar>
+        <Pill tone="warn" size="lg">
+          AI 검토
+        </Pill>
         {document && <Pill tone="outline">r{document.currentVersionNo}</Pill>}
         {document?.badge && (
           <Pill tone={document.badge === 'danger' ? 'danger' : 'neutral'}>
             {document.badge === 'danger' ? '재검사 필요' : '뒤처짐'}
           </Pill>
         )}
-        <div className="flex-1" />
-        {!allResolved && (
-          <span className="text-[11.5px] text-text-quaternary">
-            제안 {resolvedCount}/{totalCount}건 처리 — 전부 처리해야 리뷰를 요청할 수 있습니다
+        {draft && (
+          <span className="text-[11.5px] text-text-tertiary">
+            제안 {resolvedCount}/{totalCount}건 처리
           </span>
         )}
-        <Button
-          variant="primary"
-          disabled={!allResolved || requestReview.isPending}
-          onClick={handleCompleteReview}
-        >
-          {requestReview.isPending ? '리뷰 요청 중…' : '검토 완료 · 리뷰 요청'}
-        </Button>
-      </div>
 
-      <div className="flex items-start gap-5">
-        <Card className="flex-1 p-[26px] text-sm leading-[2.1] text-[#2A2D33]">
-          {paragraph.length === 0 && (
-            <p className="text-text-tertiary">이 문서에는 아직 검토할 제안이 없습니다.</p>
-          )}
-          {paragraph.map((part, idx) => (
-            <span key={idx}>
-              {'text' in part
-                ? part.text
-                : byId.has(part.suggestionId)
-                  ? renderSpan(byId.get(part.suggestionId)!)
-                  : null}
-            </span>
-          ))}
-          <p className="mt-6 text-[10.5px] text-text-faint">
-            수락하면 새 버전으로 커밋됩니다 · 검토본은 따로 만들지 않습니다 · 리뷰어는
-            [처리 내역] 탭에서 이 기록을 봅니다
+        <ToolbarSpacer />
+
+        {!draft && !isLoadingContrast && (
+          <Button
+            variant="outline"
+            disabled={createCheckJob.isPending || isChecking}
+            onClick={handleRunCheck}
+          >
+            {createCheckJob.isPending ? '접수 중…' : isChecking ? '대조 중…' : '최신 사전집으로 갱신'}
+          </Button>
+        )}
+        {draft && (
+          <Button
+            variant="primary"
+            disabled={!allResolved || requestReview.isPending}
+            title={allResolved ? undefined : '제안을 전부 처리해야 리뷰를 요청할 수 있습니다'}
+            onClick={handleCompleteReview}
+          >
+            {requestReview.isPending ? '리뷰 요청 중…' : '검토 완료 · 리뷰 요청'}
+          </Button>
+        )}
+      </Toolbar>
+
+      {createCheckJob.isError && (
+        <Card className="mb-4 border-danger-border bg-danger-bg p-4">
+          <p className="text-[12.5px] font-semibold text-danger">
+            대조 작업을 접수하지 못했습니다.
+          </p>
+          <p className="mt-1 text-xs text-text-secondary">
+            {createCheckJob.error instanceof ApiError
+              ? createCheckJob.error.message
+              : '알 수 없는 오류가 발생했습니다.'}
           </p>
         </Card>
+      )}
 
-        <Card className="w-[320px] shrink-0 p-[18px]">
-          <div className="flex gap-4 border-b border-border-soft">
-            <button
-              type="button"
-              onClick={() => setSideTab('suggestions')}
-              className={cx(
-                'border-b-2 border-transparent pb-[9px] text-[12.5px] text-text-quaternary',
-                sideTab === 'suggestions' && 'border-accent font-bold text-text',
-              )}
-            >
-              제안 {suggestions?.length ?? 0}건
-            </button>
-            <button
-              type="button"
-              onClick={() => setSideTab('history')}
-              className={cx(
-                'border-b-2 border-transparent pb-[9px] text-[12.5px] text-text-quaternary',
-                sideTab === 'history' && 'border-accent font-bold text-text',
-              )}
-            >
-              처리 내역
-            </button>
+      {checkJob && !draft && (
+        <Card className="mb-4 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Pill tone={checkJob.status === 'FAILED' ? 'danger' : 'warn'}>
+              {checkJob.status === 'PENDING'
+                ? '대기 중'
+                : checkJob.status === 'RUNNING'
+                  ? '대조 중'
+                  : checkJob.status === 'SUCCEEDED'
+                    ? '완료'
+                    : '실패'}
+            </Pill>
+            <span className="text-[11.5px] text-text-quaternary">작업 #{checkJob.id}</span>
           </div>
+          {isChecking && (
+            <p className="text-[12.5px] text-text-tertiary">
+              AI 워커가 최신 사전집과 본문을 대조하고 있습니다. 완료되면 이 화면이 자동으로
+              갱신됩니다.
+            </p>
+          )}
+          {isPollingExhausted && (
+            <p className="text-[12.5px] text-warn">
+              5분 동안 끝나지 않아 상태 확인을 중단했습니다. 작업은 서버에서 계속 진행되거나
+              제한 시간 뒤 실패로 회수됩니다.
+            </p>
+          )}
+          {checkJob.status === 'FAILED' && (
+            <p className="text-[12.5px] text-danger">
+              대조에 실패했습니다 — {checkJob.failureReason ?? '원인이 기록되지 않았습니다.'}
+            </p>
+          )}
+        </Card>
+      )}
+
+      <TwoCol>
+        <ColFlex>
+          <Card className="whitespace-pre-wrap px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
+            {isLoadingContrast && <p className="text-text-tertiary">불러오는 중…</p>}
+            {!isLoadingContrast && !draft && (
+              <p className="text-text-tertiary">
+                아직 이 문서의 대조 결과가 없습니다. 위의 「최신 사전집으로 갱신」으로 대조를
+                실행하세요.
+              </p>
+            )}
+            {draft && segments.length === 0 && (
+              <p className="text-text-tertiary">초안 본문이 비어 있습니다.</p>
+            )}
+            {segments.map((segment, index) =>
+              segment.kind === 'text' ? (
+                <span key={index}>{segment.text}</span>
+              ) : (
+                <span key={index}>
+                  {renderSuggestionSpan(segment.suggestion, segment.text)}
+                </span>
+              ),
+            )}
+
+            {draft && totalCount === 0 && (
+              <Banner tone="neutral" className="mt-6">
+                대조 결과 제안된 용어가 없습니다 — 본문이 이미 최신 사전집 기준과 맞습니다.
+              </Banner>
+            )}
+            {draft && (
+              <p className="mt-6 text-[10.5px] text-text-faint">
+                수락하면 새 버전으로 커밋됩니다 · 검토본은 따로 만들지 않습니다 · 리뷰어는
+                [처리 내역] 탭에서 이 기록을 봅니다
+              </p>
+            )}
+          </Card>
+        </ColFlex>
+
+        <PrThread className="w-[320px] rounded-md border border-border bg-surface p-[18px]">
+          <TabRow
+            tabs={[
+              { value: 'suggestions', label: `제안 ${totalCount}건` },
+              { value: 'history', label: '처리 내역' },
+            ]}
+            value={sideTab}
+            onChange={setSideTab}
+          />
 
           {sideTab === 'suggestions' ? (
             <>
@@ -200,20 +337,26 @@ export function DocumentReviewPage() {
                 처리 {resolvedCount}/{totalCount}
               </p>
               <div className="flex flex-col gap-[7px] text-xs">
-                {suggestions?.map((s) => (
+                {totalCount === 0 && (
+                  <p className="text-text-tertiary">표시할 제안이 없습니다.</p>
+                )}
+                {suggestions.map((suggestion) => (
                   <div
-                    key={s.id}
-                    onClick={() => s.status === 'PENDING' && setActiveId(s.id)}
+                    key={suggestion.id}
+                    onClick={() =>
+                      suggestion.status === 'PENDING' && openSuggestion(suggestion)
+                    }
                     className={cx(
-                      'cursor-pointer rounded-md border-[1.5px] px-[10px] py-2',
-                      s.id === activeId
+                      'rounded-[7px] border-[1.5px] px-[10px] py-2',
+                      suggestion.status === 'PENDING' ? 'cursor-pointer' : 'cursor-default',
+                      suggestion.id === activeId
                         ? 'border-accent bg-accent-bg-strong'
                         : 'border-border-strong',
-                      s.status !== 'PENDING' && 'text-text-quaternary',
+                      suggestion.status !== 'PENDING' && 'text-text-quaternary',
                     )}
                   >
-                    {s.originTerm} → {s.suggestionTerm}
-                    {s.status !== 'PENDING' && (
+                    {suggestion.originTerm} → {suggestion.suggestionTerm}
+                    {suggestion.status !== 'PENDING' && (
                       <span className="ml-1 font-semibold text-success">✓</span>
                     )}
                   </div>
@@ -222,53 +365,51 @@ export function DocumentReviewPage() {
             </>
           ) : (
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full border-collapse text-xs">
-                <thead>
-                  <tr>
-                    {['원래', '결과', '처리'].map((h) => (
-                      <th
-                        key={h}
-                        className="border-b border-border-soft px-2 py-2 text-left text-[10.5px] text-text-quaternary"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {history?.map((h) => (
-                    <tr key={h.original}>
-                      <td className="border-b border-border-faint px-2 py-2">
-                        {h.action === 'ignored' && (
-                          <span className="mr-1 inline-block h-[5px] w-[5px] rounded-full bg-danger" />
-                        )}
-                        {h.original}
-                      </td>
-                      <td className="border-b border-border-faint px-2 py-2">
-                        {h.result}
-                      </td>
-                      <td
-                        className={cx(
-                          'border-b border-border-faint px-2 py-2',
-                          h.action === 'applied' && 'font-semibold text-success',
-                          h.action === 'manual' && 'font-semibold text-accent-strong',
-                          h.action === 'ignored' && 'text-text-tertiary',
-                        )}
-                      >
-                        {h.action === 'applied'
-                          ? '적용'
-                          : h.action === 'manual'
-                            ? `직접 입력 → "${h.manualValue}"`
-                            : `무시 — "${h.reason}"`}
-                      </td>
+              {(!history || history.length === 0) && (
+                <p className="text-xs text-text-tertiary">아직 처리한 제안이 없습니다.</p>
+              )}
+              {history && history.length > 0 && (
+                <DataTable className="text-xs">
+                  <thead>
+                    <tr>
+                      <Th className="px-2 text-[10.5px]">원래</Th>
+                      <Th className="px-2 text-[10.5px]">결과</Th>
+                      <Th className="px-2 text-[10.5px]">처리</Th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {history.map((item) => (
+                      <Tr key={`${item.original}-${item.result}`}>
+                        <Td className="px-2 py-2">
+                          {item.action === 'ignored' && (
+                            <span className="mr-1 inline-block h-[5px] w-[5px] rounded-full bg-danger" />
+                          )}
+                          {item.original}
+                        </Td>
+                        <Td className="px-2 py-2">{item.result}</Td>
+                        <Td
+                          className={cx(
+                            'px-2 py-2',
+                            item.action === 'applied' && 'font-semibold text-success',
+                            item.action === 'manual' && 'font-semibold text-accent-strong',
+                            item.action === 'ignored' && 'text-text-tertiary',
+                          )}
+                        >
+                          {item.action === 'applied'
+                            ? '적용'
+                            : item.action === 'manual'
+                              ? `직접 입력 → "${item.manualValue}"`
+                              : `무시 — "${item.reason}"`}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </tbody>
+                </DataTable>
+              )}
             </div>
           )}
-        </Card>
-      </div>
+        </PrThread>
+      </TwoCol>
     </div>
   )
 }

@@ -66,7 +66,7 @@ src/
 │       ├── hooks/          # service: api를 useQuery/useMutation으로 감싸 유스케이스 단위로 노출
 │       └── components/     # 해당 도메인 전용 UI 조각 (다른 도메인에서 재사용하지 않음)
 ├── shared/              # 여러 도메인이 공유하는 것
-│   ├── ui/               # 디자인 시스템 컴포넌트 — Tailwind 유틸리티 기반 (Button, Card, Pill, Avatar, Modal, DataTable ...)
+│   ├── ui/               # 디자인 시스템 컴포넌트 — Tailwind 유틸리티 기반 (ui/style.css 컴포넌트 클래스 이식분)
 │   ├── api/               # 공용 http client, 인증 헤더/401 처리 등 통신 공통 로직
 │   ├── stores/             # Zustand 전역 클라이언트 상태 (인증 세션, 알림 패널 열림 여부, 현재 워크스페이스 등)
 │   ├── lib/               # 순수 유틸리티(포맷터, 날짜 등), 프레임워크 의존 없음
@@ -190,6 +190,32 @@ features/{domain}/components -> features/{domain}/hooks (또는 model 타입만 
 연결한다(`CURRENT_DICTIONARY_REVISION_ID` 상수, `features/review/model/fixtures.ts`).
 
 ## **디자인 시스템 컴포넌트 매핑 (`ui/style.css` → `shared/ui`)**
+
+> **2026-09-14 갱신.** 화면마다 표·툴바·배너 마크업을 손으로 다시 쓰다 보니 여백과 구분선이
+> 조금씩 어긋나 있었다. `ui/style.css`의 컴포넌트 클래스를 한 벌씩 React 컴포넌트로 옮기고
+> 모든 화면이 그것만 쓰게 정리했다. 현재 `shared/ui` 목록은 다음과 같다.
+>
+> | `ui/style.css` | `shared/ui` |
+> | --- | --- |
+> | `.btn` 계열 | `Button` |
+> | `.card` | `Card` |
+> | `.pill` / `.pill-lg` / `.tone-*` | `Pill` |
+> | `.avatar` / `.avatar-*` | `Avatar` |
+> | `.logo-mark` | `LogoMark` |
+> | `table.dtable` | `DataTable` · `Th` · `Td` · `Tr` |
+> | `.toolbar` / `.spacer` / `.filter-chip` / `.segmented` | `Toolbar` · `ToolbarSpacer` · `FilterChip` · `Segmented` |
+> | `.banner` / `.banner-*` | `Banner` |
+> | `.field-label` / `.input-box` / `.req-mark` | `FieldLabel` · `TextInput` · `TextArea` |
+> | `.checkbox` / `.radio-dot` / `.toggle` | `Checkbox` · `RadioDot` · `Toggle` |
+> | `.screen-title` / `.screen-subtitle` / `.two-col` / `.col-flex` / `.detail-panel` / `.quote-block` | `ScreenTitle` · `ScreenSubtitle` · `TwoCol` · `ColFlex` · `DetailPanel` · `QuoteBlock` |
+> | `.tab-row` / `.tab-item` / `.settings-tabs` | `TabRow` |
+> | `.modal-overlay` / `.modal-box` | `Modal` |
+> | `.pr-thread` / `.comment-card` / `.comment-*` | `PrThread` · `CommentCard` |
+> | `.timeline-item` | `TimelineItem` |
+>
+> 프로토타입에서 **정적 div였던 컨트롤은 실제로 동작한다** — `Checkbox`·`Toggle`은
+> `onChange`를 받으면 버튼으로, 없으면 읽기 전용 표시로 렌더된다(서버가 값을 정하는 자리와
+> 사용자가 바꾸는 자리를 같은 컴포넌트로 쓰기 위한 것이다).
 
 | `ui/style.css` 클래스 | `shared/ui` 컴포넌트(안) |
 | --- | --- |

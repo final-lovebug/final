@@ -18,8 +18,6 @@ export const routes = {
     `/workspaces/${workspaceId}/documents/${documentId}`,
   documentHistory: (workspaceId: string, documentId: string) =>
     `/workspaces/${workspaceId}/documents/${documentId}/history`,
-  termExtraction: (workspaceId: string, documentId: string) =>
-    `/workspaces/${workspaceId}/documents/${documentId}/extract`,
   documentReview: (workspaceId: string, documentId: string) =>
     `/workspaces/${workspaceId}/documents/${documentId}/review`,
   documentReviewThread: (
@@ -31,6 +29,10 @@ export const routes = {
   dictionary: (workspaceId: string) => `/workspaces/${workspaceId}/dictionary`,
   dictionaryDraft: (workspaceId: string) =>
     `/workspaces/${workspaceId}/dictionary/draft`,
+  // 용어 추출은 문서 하나가 아니라 워크스페이스의 최종본 전체를 대상으로 한다
+  // (ui/main.js도 사전집 그룹에 뒀다) — 문서 스코프 경로에서 옮겼다.
+  termExtraction: (workspaceId: string) =>
+    `/workspaces/${workspaceId}/dictionary/extract`,
   dictionaryHistory: (workspaceId: string) =>
     `/workspaces/${workspaceId}/dictionary/history`,
   dictionaryRevision: (workspaceId: string, revisionId: string) =>

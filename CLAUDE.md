@@ -76,7 +76,13 @@
 - 시크릿은 **환경변수 또는 AWS 파라미터 스토어**로 주입한다. 저장소에 커밋 금지.
 - Compose 파일은 **역할에 따라 둘로 나눈다.** 파일명은 `compose.yaml`을 쓰고, `docker-compose.yml`을 새로 만들지 않는다. 포트·이미지 태그를 임의로 바꾸지 않는다.
   - **`backend/compose.yaml` — 로컬 실행용.** `spring-boot-docker-compose`(`developmentOnly`)가 관리한다. `bootRun`이 컨테이너를 자동으로 띄우고 접속 정보를 주입하므로 `docker compose up -d`를 직접 실행하지 않는다.
-  - **루트 `compose.yaml` — 전체 통합 테스트용.** 아직 없으며 추후 추가 예정이다.
+  - **루트 `compose.yaml` — 전체 통합 테스트용.** `backend/Dockerfile`·`frontend/Dockerfile`로 이미지를 빌드해 MySQL·Redis·LocalStack·Grafana LGTM과 함께 띄운다. 이쪽은 `docker compose up -d`로 직접 기동한다. **MongoDB는 없다** — 미사용으로 결정돼 제거했다(`Y-22`·`NFR-INF-001`).
+    - 첫 실행은 `docker compose build backend`와 `docker compose build frontend`를 **따로** 먼저 돌린다. LGTM 스택과 Gradle·Vite 빌드가 겹치면 Docker Desktop 기본 메모리에서 빌드가 OOM으로 죽는다.
+    - 노출 포트는 **앱 포트만** — backend `8080`, frontend `5173`, Grafana UI `3000`. DB와 LocalStack은 Compose 네트워크 내부로만 접근한다(큐 확인은 `docker compose exec localstack awslocal sqs ...`).
+    - **`bootRun`·Vite dev 서버와 동시에 띄우지 않는다.** Compose 프로젝트는 분리되지만 호스트 포트 3000·8080·5173이 겹쳐 `port is already allocated`로 죽는다.
+    - 접속 정보는 전부 환경변수로 주입한다. `application.properties`에 적지 않는다.
+    - **`SPRING_PROFILES_ACTIVE=local,dev`로 띄운다.** 순서가 의미를 갖는다 — `local`이 `DevAuthController`(`@Profile("local")`)와 `app.auth.cookie.secure=false`를 얹고, 뒤에 온 `dev`가 충돌 키를 이겨 `app.ai.dispatch.mode=sqs`(LocalStack 경로)를 유지한다. `dev` 단독이면 개발용 로그인 백도어가 없어 Google 로그인을 실제로 성공시키기 전까지 모든 도메인 API가 401이다.
+    - `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET`은 기본값이 없다. 루트 `.env`(`.gitignore` 등록됨)나 셸 환경변수로 넘긴다. **값이 없어도 스택은 뜬다** — Google 로그인만 실패하며, `local` 프로파일의 `/api/auth/dev/login`으로 토큰을 받아 나머지 흐름을 볼 수 있다.
   - 로컬 오버라이드가 필요하면 `compose.override.yaml`을 쓰고 `.gitignore`에 등록한다.
 - 어떤 경우에도 운영·공용 환경의 `ddl-auto`를 `create`/`create-drop`/`update`로 설정하지 않는다.
 
@@ -89,7 +95,7 @@
 - ~~**Flyway 마이그레이션 없음.**~~ **해소** — `V1__create_workspace_and_participant.sql`을 추가했다. Repository 테스트는 `RepositoryTestSupport`를 통해 Flyway가 만든 스키마를 쓴다. `BaseEntityAuditingTest`만 테스트 전용 엔티티를 쓰므로 `flyway.enabled=false` + `ddl-auto=create-drop`을 유지한다.
 - ~~**`SecurityConfig` 없음.**~~ **해소** — `member/infra/security/SecurityConfig`와 `JwtAuthenticationFilter`·`JwtAuthenticationEntryPoint`·`JwtAccessDeniedHandler`·`SecurityConfigTest`가 들어왔다(Google OAuth2 로그인 연동, `WLSH-75`·`WLSH-122`).
 - ~~**인증 정합이 아직 남아 있다.**~~ **해소** — `T-INT-3`이 둘을 함께 정리했다. ① **프로파일을 `local`·`dev`·`prod`·`test` 넷으로 분리**했고 `src/test/resources/application.yml`의 수동 복제를 걷어냈다(`NFR-INF-002`·`D-46`). ② **컨트롤러 18개가 받던 `memberId` 요청 파라미터 74곳을 제거**하고 `@AuthenticationPrincipal`로 인증 주체에서 해석한다(`NFR-USR-001`). 컨트롤러 테스트의 `@AutoConfigureMockMvc(addFilters = false)`는 유지하되 `@WithLoginMember`로 principal을 주입한다 — 인증·인가 흐름 자체는 `SecurityConfigTest`가 단독으로 검증한다.
-- **AI 워커(FastAPI) 구현이 이 저장소에 없다.** 백엔드의 책임은 계약·발행·콜백 수신·타임아웃 회수까지이며(`docs/AI_CONTRACT.md`), **워커가 뜨기 전에는 `app.ai.dispatch.mode=sqs`인 환경에서 추출·대조 작업이 제한 시간 뒤 실패로 회수된다.** 로컬에서 흐름을 보려면 기본값(`in-process`)을 쓰면 대역이 빈 결과로 즉시 끝낸다.
+- **AI 워커(FastAPI) 구현이 이 저장소에 없다.** 백엔드의 책임은 계약·발행·콜백 수신·타임아웃 회수까지이며(`docs/AI_CONTRACT.md`), **워커가 뜨기 전에는 `app.ai.dispatch.mode=sqs`인 환경에서 추출·대조 작업이 제한 시간 뒤 실패로 회수된다.** 로컬에서 흐름을 보려면 기본값(`in-process`)을 쓰면 대역이 즉시 끝낸다 — **추출 대역은 고정 후보어 2건을 돌려주고**(`InProcessExtractionWorker`) 대조 대역은 빈 결과로 끝낸다.
 - **콜백 보호가 1회용 토큰과 네트워크 격리에 의존한다.** `/api/internal/**`은 인증 필터를 통과하며, 방어는 작업마다 발행되는 `requestId` 대조뿐이다(`D-70`). **배포 전에 보안 그룹·인그레스로 이 경로를 워커 출발지로 제한해야 하고, 그것이 없으면 `NFR-AI-002`가 미충족이다.**
 - **`ErrorResponse`에 `traceId`가 없다.** `NFR-CMN-003`과 `docs/LOG.md`의 「에러 응답에는 trace id를 포함한다」가 아직 미충족이다(`docs/plan/CONFLICTS.md` `X-08`). 마무리 통합에서 범위 밖으로 뒀으므로 담당 태스크를 다시 정해야 한다.
 - ~~**메시징 배포 대상 미확정.**~~ **해소** — Kafka는 제거했고 **로컬·테스트는 Spring `ApplicationEvent` 인메모리 어댑터, AWS 배포는 SQS**로 확정했다(`docs/plan/CONFLICTS.md` `D-24`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 `EventPublisher` 포트는 그대로 쓴다. 추출·대조 같은 오래 걸리는 작업은 **DB 작업 테이블**(대기·실행중·성공·실패)로 관리하고 상태 조회는 폴링이다. ~~SQS 어댑터와 로컬 대체 컨테이너는 배포 준비 시점에 추가한다.~~ **추가했다(2026-09-14, `T-INT-6`)** — `compose.yaml`과 `TestcontainersConfiguration`에 LocalStack이 들어왔다. **큐는 둘이다** — 도메인 이벤트 큐와 **AI 워커 요청 큐**(`D-67`). 추출·대조는 이제 인메모리 스텁이 아니라 **외부 FastAPI 워커**가 실행하고 완료를 동기 HTTP 콜백으로 알린다(`D-66`). 선택 축도 갈렸다 — LLM 경로는 `app.ai.dispatch.mode`이고 `app.messaging.mode`와 독립이다. 이벤트 발행 규약은 `docs/ARCHITECTURE.md`를 따른다.

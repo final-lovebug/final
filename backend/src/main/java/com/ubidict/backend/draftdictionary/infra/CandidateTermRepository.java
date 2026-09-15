@@ -20,6 +20,9 @@ public interface CandidateTermRepository extends JpaRepository<CandidateTerm, Lo
 
     List<CandidateTerm> findAllByDraftDictionaryIdAndDeletedAtIsNull(Long draftDictionaryId);
 
+    /** 발행 목록(G-1)용. 표기 순으로 고정해 리비전 간 비교가 흔들리지 않게 한다. */
+    List<CandidateTerm> findAllByDraftDictionaryIdAndDeletedAtIsNullOrderByFormAsc(Long draftDictionaryId);
+
     boolean existsByDraftDictionaryIdAndFormAndDeletedAtIsNull(Long draftDictionaryId, String form);
 
     @Query("""

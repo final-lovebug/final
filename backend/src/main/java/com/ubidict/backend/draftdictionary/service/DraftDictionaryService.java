@@ -12,7 +12,6 @@ import com.ubidict.backend.draftdictionary.implement.DraftDictionaryWriter;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionarySearchQuery;
-import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdictionary.service.model.UpdateSourceDocumentsCommand;
 import com.ubidict.backend.workspace.implement.WorkspaceAccessValidator;
 import lombok.RequiredArgsConstructor;
@@ -111,12 +110,5 @@ public class DraftDictionaryService {
     public void validateReviewReadiness(Long draftDictionaryId) {
         DraftDictionary draftDictionary = draftDictionaryReader.read(draftDictionaryId);
         readinessValidator.validateReviewRequest(draftDictionary, candidateTermReader.readAll(draftDictionaryId));
-    }
-
-    @Transactional(readOnly = true)
-    public ExamineProgressResult readExamineProgress(Long id, Long memberId) {
-        DraftDictionary draftDictionary = draftDictionaryReader.read(id);
-        workspaceAccessValidator.validateParticipant(draftDictionary.getWorkspaceId(), memberId);
-        return ExamineProgressResult.from(candidateTermReader.readAll(id));
     }
 }

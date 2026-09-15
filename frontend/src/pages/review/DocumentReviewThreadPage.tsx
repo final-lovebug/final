@@ -1,6 +1,19 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Avatar, Button, Card, Pill } from '../../shared/ui'
+import {
+  Avatar,
+  Banner,
+  Button,
+  Card,
+  ColFlex,
+  CommentCard,
+  Pill,
+  PrThread,
+  TextArea,
+  Toolbar,
+  ToolbarSpacer,
+  TwoCol,
+} from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
 import { toRelativeTime } from '../../shared/lib/relativeTime'
 import { useReviewThreadComments } from '../../features/review/hooks/useReviewThreadComments'
@@ -33,8 +46,11 @@ function toneFor(memberId: string): AvatarTone {
  * 재교정·반영이 전부 리뷰 요청 스코프다(`GET /api/review-requests/{id}/...`). 코멘트를
  * 새로 달 때만 reviewId가 필요한데, 그건 검토 제출과 한 트랜잭션으로 묶여 있다(`D-63`).
  *
- * 본문의 하이라이트는 아직 없다 — 대조 결과의 위치(anchor)를 본문 위에 표시하는 렌더링은
- * `T-INT-10` 제안 클러스터와 `T-INT-17`에서 함께 다룬다.
+ * **본문에 anchor 하이라이트를 그리지 않는다**(프로토타입의 `term-flag-*`에 해당하는 것).
+ * 제안어의 anchor는 **교정 전** 초안 본문(`draftBody`) 기준인데, 개정안이 들고 있는
+ * `proposedBody`는 교정완료 시점에 치환이 끝난 본문이라 두 좌표계가 어긋난다. 잘못된
+ * 위치를 강조하는 것보다 「처리 내역」으로 무엇이 바뀌었는지 보여주는 편이 정확하다 —
+ * 본문 위 표시는 문장 분할·오프셋 규격(`REQ-DOC-005`)이 선행돼야 한다(`D-61`).
  */
 export function DocumentReviewThreadPage() {
   const {
@@ -84,18 +100,17 @@ export function DocumentReviewThreadPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="font-display text-lg font-bold text-text">
-            {reviewRequest?.title ?? (document?.title ?? '문서') + ' 개정 반영'}
-          </h1>
-          {reviewRequest && <Pill tone="neutral">{reviewRequest.status}</Pill>}
-          {revision !== null && revision !== undefined && revision.reexamineRound > 0 && (
-            <span className="text-[11px] text-text-quaternary">
-              재교정 {revision.reexamineRound}회차
-            </span>
-          )}
-        </div>
+      <Toolbar>
+        <h1 className="font-display text-lg font-bold text-text">
+          {reviewRequest?.title ?? (document?.title ?? '문서') + ' 개정 반영'}
+        </h1>
+        {reviewRequest && <Pill tone="neutral">{reviewRequest.status}</Pill>}
+        {revision !== null && revision !== undefined && revision.reexamineRound > 0 && (
+          <span className="text-[11px] text-text-quaternary">
+            재교정 {revision.reexamineRound}회차
+          </span>
+        )}
+        <ToolbarSpacer />
         <div className="flex gap-[10px]">
           {reviewRequest?.status === 'CHANGES_REQUESTED' && (
             <Button
@@ -139,7 +154,7 @@ export function DocumentReviewThreadPage() {
             반영
           </Button>
         </div>
-      </div>
+      </Toolbar>
 
       {progress && (
         <p className="mb-4 text-[11px] text-text-quaternary">
@@ -148,12 +163,20 @@ export function DocumentReviewThreadPage() {
         </p>
       )}
 
-      <div className="flex items-start gap-5">
-        <Card className="flex-1 p-[26px] text-sm leading-[2.1] text-[#2A2D33]">
-          <p className="whitespace-pre-wrap">{document?.content}</p>
-        </Card>
+      <TwoCol>
+        <ColFlex>
+          <Card className="px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
+            <p className="whitespace-pre-wrap">
+              {revision?.proposedBody ?? document?.content}
+            </p>
+            <Banner tone="neutral" className="mt-6 text-[11.5px]">
+              개정안 본문입니다 — 교정에서 수용한 치환이 이미 반영돼 있습니다. 무엇이 어떻게
+              바뀌었는지는 문서 버전 이력의 「처리 내역」에서 확인하세요.
+            </Banner>
+          </Card>
+        </ColFlex>
 
-        <div className="flex w-[340px] shrink-0 flex-col gap-3">
+        <PrThread>
           <ReviewerPanel
             reviewRequestId={reviewRequestId}
             members={(members ?? []).map((member) => ({
@@ -168,23 +191,16 @@ export function DocumentReviewThreadPage() {
           )}
           {comments?.map((comment) => {
             const name = nameByMemberId.get(comment.authorId) ?? '—'
-            const mine = comment.authorId === currentMember?.id
             return (
-              <Card
+              <CommentCard
                 key={comment.id}
-                className={mine ? 'border-[1.5px] border-accent p-[14px]' : 'p-[14px]'}
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <Avatar initial={name.charAt(0)} tone={toneFor(comment.authorId)} size={22} />
-                  <span className="text-[12.5px] font-bold">{name}</span>
-                  <span className="text-[10.5px] text-text-quaternary">
-                    {toRelativeTime(comment.createdAt)}
-                  </span>
-                </div>
-                <p className="text-[12.5px] leading-[1.6] text-text-secondary">
-                  {comment.content}
-                </p>
-              </Card>
+                name={name}
+                initial={name.charAt(0)}
+                tone={toneFor(comment.authorId)}
+                time={toRelativeTime(comment.createdAt)}
+                text={comment.content}
+                mine={comment.authorId === currentMember?.id}
+              />
             )
           })}
           {pending.map((comment, idx) => (
@@ -205,12 +221,12 @@ export function DocumentReviewThreadPage() {
           ))}
 
           <div className="flex flex-col gap-2">
-            <textarea
+            <TextArea
               value={commentDraft}
               onChange={(event) => setCommentDraft(event.target.value)}
               placeholder="댓글 남기기… (Approve / Change request 할 때 함께 제출됩니다)"
               rows={2}
-              className="rounded-[10px] border border-border-strong bg-surface-muted px-3 py-[10px] text-[12.5px] text-text placeholder:text-text-quaternary"
+              className="rounded-[10px] bg-surface-muted text-[12.5px]"
             />
             <Button
               size="sm"
@@ -222,8 +238,8 @@ export function DocumentReviewThreadPage() {
               담기
             </Button>
           </div>
-        </div>
-      </div>
+        </PrThread>
+      </TwoCol>
     </div>
   )
 }

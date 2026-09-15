@@ -3,7 +3,6 @@ package com.ubidict.backend.draftdictionary.presentation;
 import com.ubidict.backend.common.presentation.PageResponse;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionaryStatus;
 import com.ubidict.backend.draftdictionary.presentation.dto.DraftDictionaryResponse;
-import com.ubidict.backend.draftdictionary.presentation.dto.ExamineProgressResponse;
 import com.ubidict.backend.draftdictionary.presentation.dto.UpdateSourceDocumentsRequest;
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
@@ -65,13 +64,6 @@ public class DraftDictionaryController {
         draftDictionaryService.delete(draftDictionaryId, memberId);
 
         return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/{draftDictionaryId}/examine-progress")
-    public ResponseEntity<ExamineProgressResponse> examineProgress(
-            @PathVariable Long draftDictionaryId, @AuthenticationPrincipal Long memberId) {
-        return ResponseEntity.ok(
-                ExamineProgressResponse.from(draftDictionaryService.readExamineProgress(draftDictionaryId, memberId)));
     }
 
     @PostMapping("/{draftDictionaryId}/examine-completion")

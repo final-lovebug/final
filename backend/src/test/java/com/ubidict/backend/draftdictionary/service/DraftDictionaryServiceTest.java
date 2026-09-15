@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.ubidict.backend.common.exception.BusinessException;
-import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionaryStatus;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
@@ -13,10 +12,8 @@ import com.ubidict.backend.draftdictionary.fixture.DraftDictionaryFixture;
 import com.ubidict.backend.draftdictionary.infra.DraftDictionaryRepository;
 import com.ubidict.backend.draftdictionary.service.model.AddCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
-import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionarySearchQuery;
-import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdictionary.service.model.UpdateSourceDocumentsCommand;
 import com.ubidict.backend.support.IntegrationTestSupport;
 import com.ubidict.backend.workspace.domain.Permission;
@@ -134,12 +131,13 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
                 .isEmpty();
     }
 
-    @DisplayName("미판정 후보어가 없으면 교정을 완료한다.")
+    @DisplayName("판정하지 않은 후보어만 있어도 대표어와 정의가 채워져 있으면 교정을 완료한다.")
     @Test
     void completeExamine() {
+        // 교정 완료 조건은 판정 여부가 아니라 후보어가 온전한지다(D-87). 초안 화면에서 개별 판정을
+        // 걷어냈으므로 새 후보어는 계속 PENDING이고, 예전 조건을 그대로 두면 흐름이 영구히 막힌다.
         Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
-        Long candidateTermId = addCandidate(draftDictionaryId, "보류어", "보류 정의");
-        decide(candidateTermId, CandidateTermStatus.ON_HOLD);
+        addCandidate(draftDictionaryId, "미판정어", "미판정 정의");
 
         DraftDictionaryResult result =
                 draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, MEMBER_ID));
@@ -147,17 +145,17 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
         assertThat(result.status()).isEqualTo(DraftDictionaryStatus.EXAMINED);
     }
 
-    @DisplayName("미판정 후보어가 있으면 교정을 완료할 수 없다.")
+    @DisplayName("정의가 빈 후보어가 있으면 교정을 완료할 수 없다.")
     @Test
-    void completeExamine_pendingCandidate() {
+    void completeExamine_definitionMissing() {
         Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
-        addCandidate(draftDictionaryId, "미판정어", "미판정 정의");
+        addCandidate(draftDictionaryId, "정의없는어", null);
 
         assertThatThrownBy(() -> draftDictionaryService.completeExamine(
                         new CompleteExamineCommand(draftDictionaryId, MEMBER_ID)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_CANDIDATE_TERM_UNDECIDED_EXISTS);
+                .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_CANDIDATE_DEFINITION_REQUIRED);
     }
 
     @DisplayName("이미 교정 완료된 초안을 다시 완료할 수 없다.")
@@ -177,8 +175,7 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
     @Test
     void validateReviewReadiness() {
         Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
-        Long candidateTermId = addCandidate(draftDictionaryId, "신규어", "신규 정의");
-        decide(candidateTermId, CandidateTermStatus.REGISTRATION_APPROVED);
+        addCandidate(draftDictionaryId, "신규어", "신규 정의");
         draftDictionaryService.completeExamine(new CompleteExamineCommand(draftDictionaryId, MEMBER_ID));
 
         assertThatCode(() -> draftDictionaryService.validateReviewReadiness(draftDictionaryId))
@@ -208,30 +205,6 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_NO_CHANGED_ITEM);
     }
 
-    @DisplayName("후보어 상태별 교정 진행률을 조회한다.")
-    @Test
-    void readExamineProgress() {
-        Long draftDictionaryId = createDraft(List.of(10L)).draftDictionaryId();
-        addCandidate(draftDictionaryId, "미판정어", "정의1");
-        Long approvedId = addCandidate(draftDictionaryId, "승인어", "정의2");
-        Long rejectedId = addCandidate(draftDictionaryId, "거절어", "정의3");
-        Long holdId = addCandidate(draftDictionaryId, "보류어", "정의4");
-        decide(approvedId, CandidateTermStatus.REGISTRATION_APPROVED);
-        candidateTermService.decide(
-                new DecideCandidateTermCommand(rejectedId, MEMBER_ID, CandidateTermStatus.REJECTED, "오등록", null));
-        decide(holdId, CandidateTermStatus.ON_HOLD);
-
-        ExamineProgressResult result = draftDictionaryService.readExamineProgress(draftDictionaryId, MEMBER_ID);
-
-        assertThat(result.total()).isEqualTo(4);
-        assertThat(result.pending()).isOne();
-        assertThat(result.approved()).isOne();
-        assertThat(result.rejected()).isOne();
-        assertThat(result.onHold()).isOne();
-        assertThat(result.kept()).isZero();
-        assertThat(result.merged()).isZero();
-    }
-
     /**
      * 초안을 만드는 진입점은 비동기 추출 작업뿐이므로(D-45) 교정 이후 흐름만 보는 테스트는 초안을 직접 만든다. 생성 자체는
      * DraftDictionaryExtractionExecutionServiceTest가, 유래 문서 검증은 DraftDictionaryTest가 검증한다.
@@ -250,9 +223,5 @@ class DraftDictionaryServiceTest extends IntegrationTestSupport {
                 .add(new AddCandidateTermCommand(
                         draftDictionaryId, form, definition, null, List.of(10L), 1, List.of("문맥"), MEMBER_ID))
                 .candidateTermId();
-    }
-
-    private void decide(Long candidateTermId, CandidateTermStatus status) {
-        candidateTermService.decide(new DecideCandidateTermCommand(candidateTermId, MEMBER_ID, status, null, null));
     }
 }

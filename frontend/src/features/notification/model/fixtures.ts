@@ -1,14 +1,11 @@
-import type {
-  NotificationChannelSummary,
-  NotificationSettings,
-  NotificationTypeSetting,
-} from './types'
+import type { NotificationChannelSummary, NotificationTypeSetting } from './types'
 
-// 알림 **목록**은 실연동됐다(T-INT-13a) — 여기 남은 건 아직 대응 백엔드가 없는
-// 알림 **설정** 화면의 목업뿐이다(`D-54`로 채널 개념이 제거돼 되살릴 API가 없다).
+// 알림 **목록**은 실연동됐다(T-INT-13a). 여기 남은 건 알림 **설정** 화면이 보여 주는
+// **고정 정책**이다 — `D-54`가 채널 개념을 MVP1에서 걷어내 조회할 API도 저장할 API도 없다.
+// 그래서 목업 응답이 아니라 "지금 실제로 이렇게 동작한다"는 상수로 읽어야 한다
+// (pages/settings/SettingsNotificationsPage.tsx 주석 참고).
 
-// docs/API.md "알림 설정 조회" 기본값 이식 — 설정이 없는 워크스페이스는 5개 유형 ×
-// ["IN_APP"]로 시작한다.
+// MVP1의 전달 수단은 인앱 하나뿐이고, 인앱은 DB에 행이 있는 것이 곧 전달이다.
 export const NOTIFICATION_TYPE_SETTING_FIXTURES: NotificationTypeSetting[] = [
   { type: 'REVIEW_REQUEST_RECEIVED', channels: ['IN_APP'] },
   { type: 'APPROVED', channels: ['IN_APP'] },
@@ -23,14 +20,6 @@ export const NOTIFICATION_CHANNEL_SUMMARY_FIXTURES: NotificationChannelSummary[]
   { channel: 'SLACK', enabled: false, supported: false },
 ]
 
-export const NOTIFICATION_SETTINGS_FIXTURE: NotificationSettings = {
-  channels: NOTIFICATION_CHANNEL_SUMMARY_FIXTURES,
-  settings: NOTIFICATION_TYPE_SETTING_FIXTURES,
-}
-
-// 화면 표시용 메타 — 서버 응답(NotificationChannel enum)에는 없는 이름·설명·MVP 배지.
-// 카카오톡(웹 push)은 서버 enum에 아예 없는 화면 전용 항목이라(docs/API.md, backend
-// NotificationChannel 주석 "네 번째 항목은 화면 전용 키") 별도로 뒀다 — 토글 자체가 잠겨있다.
 export interface NotificationChannelDisplayMeta {
   name: string
   desc: string | null
