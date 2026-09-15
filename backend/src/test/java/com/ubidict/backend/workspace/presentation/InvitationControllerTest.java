@@ -7,11 +7,9 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import com.ubidict.backend.workspace.domain.InvitationStatus;
 import com.ubidict.backend.workspace.domain.Permission;
-import com.ubidict.backend.workspace.service.InvitationService;
 import com.ubidict.backend.workspace.service.model.InvitationResult;
 import com.ubidict.backend.workspace.service.model.WorkspaceResult;
 import io.restassured.http.ContentType;
@@ -22,10 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
@@ -37,8 +32,6 @@ class InvitationControllerTest extends com.ubidict.backend.support.ControllerTes
 
     @Autowired
     private MockMvc mockMvc;
-
-
 
     @BeforeEach
     void setUp() {

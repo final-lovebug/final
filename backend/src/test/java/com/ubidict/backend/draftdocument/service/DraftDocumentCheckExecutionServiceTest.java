@@ -22,10 +22,12 @@ import com.ubidict.backend.draftdocument.implement.DraftDocumentCreationPolicyVa
 import com.ubidict.backend.draftdocument.implement.DraftDocumentEventPublisher;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentWriter;
 import com.ubidict.backend.draftdocument.implement.SuggestionTermWriter;
+import com.ubidict.backend.draftdocument.infra.port.DictionaryTermQueryPort;
 import com.ubidict.backend.draftdocument.infra.port.DocumentQueryPort;
 import com.ubidict.backend.draftdocument.infra.port.DocumentSnapshot;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -37,6 +39,7 @@ class DraftDocumentCheckExecutionServiceTest {
 
     private final CheckJobReader checkJobReader = mock(CheckJobReader.class);
     private final DocumentQueryPort documentQueryPort = mock(DocumentQueryPort.class);
+    private final DictionaryTermQueryPort dictionaryTermQueryPort = mock(DictionaryTermQueryPort.class);
     private final DraftDocumentWriter draftDocumentWriter = mock(DraftDocumentWriter.class);
     private final SuggestionTermWriter suggestionTermWriter = mock(SuggestionTermWriter.class);
     private final DraftDocumentCreationPolicyValidator creationPolicyValidator =
@@ -48,6 +51,7 @@ class DraftDocumentCheckExecutionServiceTest {
     private final DraftDocumentCheckExecutionService service = new DraftDocumentCheckExecutionService(
             checkJobReader,
             documentQueryPort,
+            dictionaryTermQueryPort,
             draftDocumentWriter,
             suggestionTermWriter,
             creationPolicyValidator,
@@ -71,19 +75,36 @@ class DraftDocumentCheckExecutionServiceTest {
     @Test
     void complete() {
         CheckJob checkJob = dispatchedJob();
-        DraftDocument draftDocument = DraftDocument.create(10L, 2, "최신 본문", 30L, 30L);
+        DraftDocument draftDocument = DraftDocument.create(10L, 2, 3, "최신 본문", 30L, 30L);
         ReflectionTestUtils.setField(draftDocument, "id", 50L);
         given(checkJobReader.read(40L)).willReturn(checkJob);
         given(documentQueryPort.read(10L)).willReturn(Optional.of(new DocumentSnapshot(10L, 20L, 2, "최신 본문")));
-        given(draftDocumentWriter.append(anyLong(), anyInt(), anyString(), anyLong(), anyLong()))
+        given(dictionaryTermQueryPort.activeVersionNo(20L)).willReturn(OptionalInt.of(3));
+        given(draftDocumentWriter.append(anyLong(), anyInt(), anyInt(), anyString(), anyLong(), anyLong()))
                 .willReturn(draftDocument);
 
         service.complete(40L, REQUEST_ID, 2, List.of());
 
         assertThat(checkJob.getStatus()).isEqualTo(CheckJobStatus.SUCCEEDED);
         assertThat(checkJob.getDraftDocumentId()).isEqualTo(50L);
+        verify(draftDocumentWriter).append(10L, 2, 3, "최신 본문", 30L, 30L);
         verify(draftDocumentEventPublisher).publishCreated(draftDocument);
         verify(completionEventPublisher).publishCompleted(checkJob);
+    }
+
+    @DisplayName("대조를 끝냈는데 활성 사전집이 없으면 초안을 만들지 않고 작업을 실패로 끝낸다.")
+    @Test
+    void complete_activeDictionaryGone() {
+        CheckJob checkJob = dispatchedJob();
+        given(checkJobReader.read(40L)).willReturn(checkJob);
+        given(documentQueryPort.read(10L)).willReturn(Optional.of(new DocumentSnapshot(10L, 20L, 2, "최신 본문")));
+        given(dictionaryTermQueryPort.activeVersionNo(20L)).willReturn(OptionalInt.empty());
+
+        service.complete(40L, REQUEST_ID, 2, List.of());
+
+        assertThat(checkJob.getStatus()).isEqualTo(CheckJobStatus.FAILED);
+        assertThat(checkJob.getFailureReason()).isEqualTo("기준으로 삼을 활성 사전집이 없습니다.");
+        verifyNoInteractions(draftDocumentWriter);
     }
 
     @DisplayName("대조하는 동안 문서가 새 버전이 되면 결과를 받지 않고 작업을 실패로 끝낸다.")

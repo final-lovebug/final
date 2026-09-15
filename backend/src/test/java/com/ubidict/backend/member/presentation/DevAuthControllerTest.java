@@ -7,14 +7,11 @@ import static org.mockito.BDDMockito.given;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.member.domain.MemberRole;
 import com.ubidict.backend.member.exception.MemberErrorCode;
-import com.ubidict.backend.member.infra.security.JwtProvider;
-import com.ubidict.backend.member.infra.security.OAuthExchangeCodeRedisRepository;
 import com.ubidict.backend.member.presentation.dto.DevLoginRequest;
 import com.ubidict.backend.member.service.DevLoginService;
 import com.ubidict.backend.member.service.model.TokenPairResult;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
-import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,9 +30,6 @@ class DevAuthControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-
-
 
     @BeforeEach
     void setUp() {
@@ -101,5 +95,4 @@ class DevAuthControllerTest extends com.ubidict.backend.support.ControllerTest {
             return new DevAuthController(devLoginService, refreshTokenCookieProvider);
         }
     }
-
 }

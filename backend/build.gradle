@@ -60,6 +60,12 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testRuntimeOnly 'com.h2database:h2'
+    // 대부분의 테스트는 H2 로 충분하지만, 라벨 대소문자 정합(D-94)은 MySQL collation
+    // (utf8mb4_0900_ai_ci) 자체가 검증 대상이라 H2 로는 재현되지 않는다. 그 테스트들만
+    // 실제 MySQL 컨테이너 위에서 돌린다(support/MySqlContainerConfiguration).
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-mysql'
     // spring-boot-starter-test 가 이미 끌어오지만, 전이 의존성에 기대지 않도록 명시한다.
     testImplementation 'org.awaitility:awaitility'
     testCompileOnly 'org.projectlombok:lombok'

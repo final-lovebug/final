@@ -56,7 +56,6 @@ class SecurityConfigTest {
     @Autowired
     private JwtProperties jwtProperties;
 
-
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);

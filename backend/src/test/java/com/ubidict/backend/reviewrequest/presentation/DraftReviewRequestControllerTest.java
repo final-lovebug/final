@@ -4,10 +4,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
-import com.ubidict.backend.reviewrequest.service.DraftReviewRequestService;
 import com.ubidict.backend.reviewrequest.service.model.ReviewRequestResult;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
@@ -19,10 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(7L)
@@ -33,8 +28,6 @@ class DraftReviewRequestControllerTest extends com.ubidict.backend.support.Contr
 
     @Autowired
     private MockMvc mockMvc;
-
-
 
     @BeforeEach
     void setUp() {

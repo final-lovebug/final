@@ -44,7 +44,7 @@ type SideTab = 'suggestions' | 'history'
 // 대조를 한 번도 돌리지 않은 문서에는 초안이 없다. 그 경우 「최신 사전집으로 갱신」으로
 // 대조 작업(DD-5)을 접수하고 완료까지 폴링한다 — 문서 상세 화면에서 접수해 들어오면
 // 작업 id가 쿼리로 넘어온다.
-export function DocumentReviewPage() {
+export function DocumentDraftPage() {
   const { workspaceId = '', documentId = '' } = useParams<{
     workspaceId: string
     documentId: string
@@ -91,7 +91,7 @@ export function DocumentReviewPage() {
       { documentId, title: `${document.title} 개정 반영`, reviewerMemberIds },
       {
         onSuccess: (reviewRequest) =>
-          navigate(routes.documentReviewThread(workspaceId, documentId, reviewRequest.id)),
+          navigate(routes.documentRevision(workspaceId, documentId, reviewRequest.id)),
       },
     )
   }
@@ -286,7 +286,7 @@ export function DocumentReviewPage() {
 
       <TwoCol>
         <ColFlex>
-          <Card className="whitespace-pre-wrap px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
+          <Card className="whitespace-pre-wrap wrap-break-word px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
             {isLoadingContrast && <p className="text-text-tertiary">불러오는 중…</p>}
             {!isLoadingContrast && !draft && (
               <p className="text-text-tertiary">

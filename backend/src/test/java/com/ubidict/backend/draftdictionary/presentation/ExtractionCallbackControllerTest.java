@@ -11,7 +11,6 @@ import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
 import com.ubidict.backend.draftdictionary.infra.port.ExtractedTerm;
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryExtractionCallbackService;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import java.util.List;
@@ -19,9 +18,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -39,8 +35,6 @@ class ExtractionCallbackControllerTest extends com.ubidict.backend.support.Contr
 
     @Autowired
     private MockMvc mockMvc;
-
-
 
     @BeforeEach
     void setUp() {

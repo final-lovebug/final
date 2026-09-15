@@ -17,6 +17,8 @@ import {
 import { routes } from '../../shared/config/routes'
 import { useDocuments } from '../../features/document/hooks/useDocuments'
 import { useLabels } from '../../features/document/hooks/useLabels'
+import { dictionaryVersionLabel } from '../../features/document/model/dictionaryVersionLabel'
+import { isSameLabelName } from '../../features/document/model/labelName'
 
 type ViewMode = 'list' | 'card'
 
@@ -37,7 +39,8 @@ export function DocumentListPage() {
   const visibleDocuments = useMemo(() => {
     const needle = keyword.trim().toLowerCase()
     return (documents ?? []).filter((doc) => {
-      const matchesLabel = labelFilter === '' || (doc.labels ?? []).includes(labelFilter)
+      const matchesLabel =
+        labelFilter === '' || (doc.labels ?? []).some((label) => isSameLabelName(label, labelFilter))
       const matchesKeyword = needle === '' || doc.title.toLowerCase().includes(needle)
       return matchesLabel && matchesKeyword
     })
@@ -129,9 +132,7 @@ export function DocumentListPage() {
                   </Td>
                   <Td>
                     <span className="inline-flex items-center gap-[6px]">
-                      <Pill tone="outline">
-                        {doc.currentVersionNo > 0 ? `r${doc.currentVersionNo}` : '—'}
-                      </Pill>
+                      <Pill tone="outline">{dictionaryVersionLabel(doc.dictionaryVersionNo)}</Pill>
                       {doc.badge && (
                         <Pill tone={doc.badge === 'danger' ? 'danger' : 'neutral'}>
                           {doc.badge === 'danger' ? '재검사 필요' : '뒤처짐'}
@@ -163,9 +164,7 @@ export function DocumentListPage() {
             >
               <div className="font-display text-[14px] font-bold text-text">{doc.title}</div>
               <div className="flex flex-wrap items-center gap-[6px]">
-                <Pill tone="outline">
-                  {doc.currentVersionNo > 0 ? `r${doc.currentVersionNo}` : '—'}
-                </Pill>
+                <Pill tone="outline">{dictionaryVersionLabel(doc.dictionaryVersionNo)}</Pill>
                 {doc.label && <Pill tone="outline">{doc.label.name}</Pill>}
                 {doc.badge && (
                   <Pill tone={doc.badge === 'danger' ? 'danger' : 'neutral'}>

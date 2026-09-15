@@ -31,6 +31,17 @@ public class DraftDocument extends BaseEntity {
     @Column(nullable = false, updatable = false)
     private int baseVersionNo;
 
+    /**
+     * 대조에 쓴 사전집 버전. 발행될 때 문서 버전에 그대로 찍힌다(D-93).
+     *
+     * <p>사전집 초안이 진행 중이어도 문서를 갱신할 수 있으므로(G-14 완화), 교정이 끝나기 전에 사전집이 다음 버전으로 올라갈 수 있다. 발행 시점의 활성
+     * 버전을 찍으면 대조한 적 없는 버전을 기준으로 「최신」이라 표시하게 되므로, 대조 기준을 여기에 얼려 둔다.
+     *
+     * <p>이 결정 이전에 만들어진 초안만 {@code null}이다.
+     */
+    @Column(updatable = false)
+    private Integer dictionaryVersionNo;
+
     @Lob
     @Column(nullable = false)
     private String draftBody;
@@ -44,9 +55,16 @@ public class DraftDocument extends BaseEntity {
     @Column(nullable = false, updatable = false)
     private Long createdBy;
 
-    private DraftDocument(Long documentId, int baseVersionNo, String draftBody, Long requestedBy, Long createdBy) {
+    private DraftDocument(
+            Long documentId,
+            int baseVersionNo,
+            Integer dictionaryVersionNo,
+            String draftBody,
+            Long requestedBy,
+            Long createdBy) {
         this.documentId = documentId;
         this.baseVersionNo = validateBaseVersionNo(baseVersionNo);
+        this.dictionaryVersionNo = validateDictionaryVersionNo(dictionaryVersionNo);
         this.draftBody = normalizeBody(draftBody);
         this.status = DraftDocumentStatus.EXAMINING;
         this.requestedBy = requestedBy;
@@ -54,8 +72,13 @@ public class DraftDocument extends BaseEntity {
     }
 
     public static DraftDocument create(
-            Long documentId, int baseVersionNo, String draftBody, Long requestedBy, Long createdBy) {
-        return new DraftDocument(documentId, baseVersionNo, draftBody, requestedBy, createdBy);
+            Long documentId,
+            int baseVersionNo,
+            Integer dictionaryVersionNo,
+            String draftBody,
+            Long requestedBy,
+            Long createdBy) {
+        return new DraftDocument(documentId, baseVersionNo, dictionaryVersionNo, draftBody, requestedBy, createdBy);
     }
 
     public void updateBody(String draftBody) {
@@ -130,6 +153,14 @@ public class DraftDocument extends BaseEntity {
         }
 
         return baseVersionNo;
+    }
+
+    private static Integer validateDictionaryVersionNo(Integer dictionaryVersionNo) {
+        if (dictionaryVersionNo == null || dictionaryVersionNo < 1) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_DICTIONARY_VERSION);
+        }
+
+        return dictionaryVersionNo;
     }
 
     private static String normalizeBody(String draftBody) {

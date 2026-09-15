@@ -35,7 +35,12 @@ public class ReviseProcessor {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_REVISION_NOT_FOUND);
         }
 
-        int dictionaryVersionNo = activeDictionaryVersionQueryPort.activeVersionNo(request.getWorkspaceId());
+        // 초안이 대조에 쓴 사전집 버전을 그대로 찍는다(D-93). 사전집 초안이 나란히 진행될 수 있게 되면서,
+        // 발행 시점의 활성 버전은 이 개정본이 대조한 적 없는 버전일 수 있다.
+        // 그 결정 이전에 만들어져 기준 버전이 없는 초안만 종전대로 활성 버전을 따른다(G-7).
+        int dictionaryVersionNo = draft.dictionaryVersionNo() != null
+                ? draft.dictionaryVersionNo()
+                : activeDictionaryVersionQueryPort.activeVersionNo(request.getWorkspaceId());
         int resultVersionNo = documentVersionPublishPort.publish(
                 revision.getDocumentId(),
                 revision.getBaseVersionNo(),

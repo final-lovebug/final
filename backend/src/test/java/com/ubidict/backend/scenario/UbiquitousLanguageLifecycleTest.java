@@ -26,7 +26,6 @@ import com.ubidict.backend.draftdictionary.service.model.CreateExtractionJobComm
 import com.ubidict.backend.draftdocument.domain.CheckJob;
 import com.ubidict.backend.draftdocument.domain.CheckJobStatus;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
-import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.infra.CheckJobRepository;
 import com.ubidict.backend.draftdocument.infra.DraftDocumentRepository;
 import com.ubidict.backend.draftdocument.service.DraftDocumentCheckService;
@@ -211,19 +210,23 @@ class UbiquitousLanguageLifecycleTest extends IntegrationTestSupport {
                 .isEqualTo(DraftDictionaryErrorCode.DRAFT_DICTIONARY_ALREADY_EXISTS);
     }
 
-    @DisplayName("갱신을 거친 문서는 다시 추출 대상이 되고, 그 사전 초안이 진행 중이면 문서 대조 접수가 막힌다.")
+    @DisplayName("갱신을 거친 문서는 다시 추출 대상이 되고, 그 사전 초안이 진행 중이어도 문서 대조 접수는 열려 있다.")
     @Test
-    void documentCheckIsBlockedByOngoingDictionaryDraft() throws InterruptedException {
+    void documentCheckIsAllowedWhileDictionaryDraftIsOngoing() throws InterruptedException {
         // given — 사전집 v1 이후에는 갱신을 거쳐 기준 버전이 맞춰진 문서만 추출 대상이다(G-12)
         publishFirstDictionary();
         realignDocument();
         extractTerms(List.of(documentId));
 
-        // when & then
-        assertThatThrownBy(() -> checkService.request(new CreateCheckJobCommand(documentId, OWNER_ID)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_ALREADY_EXISTS);
+        // when — 사전집 초안이 진행 중이어도 갱신을 접수할 수 있다(D-93)
+        Long draftDocumentId = checkDocument(documentId);
+
+        // then — 그 초안은 대조에 쓴 사전집 버전(v1)을 들고 있고, 발행본이 그 버전을 따른다
+        assertThat(draftDocumentRepository
+                        .findByIdAndDeletedAtIsNull(draftDocumentId)
+                        .orElseThrow()
+                        .getDictionaryVersionNo())
+                .isEqualTo(1);
     }
 
     /** 링크 복사 초대(inviteeEmail = null)는 특정 대상이 없으므로 수락 시점의 회원으로만 참여를 검사한다(D-39). */
