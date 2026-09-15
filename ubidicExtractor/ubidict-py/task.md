@@ -76,6 +76,7 @@ Spring이 담당, 이 서비스는 HTTP만"·"DB 붙이지 마라"고 돼 있는
 - [ ] **`accessToken`을 왜 돌려받는지 확인** — 지금은 검증 없이 그대로 에코만 한다(`reference/backend/README.md` 참고). 백엔드가 이걸로 뭘 하려는지 알면 처리 방식이 맞는지 재확인 가능
 - [ ] `job.workspaceId`/`dictionaryVersionNo`가 실제로 어떻게 쓰이는지 — 지금은 `fetch_documents`/`fetch_existing_terms`가 `documentIds`/`dictionaryId`만으로 조회하고 `workspaceId`는 안 씀(응답 조립에만 사용). 백엔드가 워크스페이스 소속 검증까지 기대하는지 확인 필요
 - [ ] 운영 DB 접속 계정 — 지금은 로컬처럼 백엔드와 같은 계정(`ubidict`)을 가정했다. 운영에서는 `app/backend_db.py`용으로 **읽기 전용 별도 계정**을 만드는 게 안전(쓰기 권한 자체가 없으면 실수로 백엔드 테이블에 쓰는 사고를 원천 차단)
+- [ ] **(2026-09-15 새로 발견) `/api/internal/llm/**` 보안 노출** — `docs/AI_CONTRACT.md`는 이 경로가 "워커 출발지로만 제한돼야 하며, 안 하면 `NFR-AI-002` 미충족"이라 명시하는데, 실제로 확인해보니 ①콜백을 ALB 경유로 보내기로 해서 이 경로가 사실상 공개 인터넷에 노출돼 있고(인증 헤더 없음, `requestId` 일치만으로 방어) ②스프링 EC2 보안그룹(`sg-01580c5183a389d13`)의 8080 인바운드도 `0.0.0.0/0`으로 열려 있다. 사용자 확인: **지금은 후속 과제로 미룬다**(IAM/SSM 조치를 우선 마무리). 나중에 조치할 방법 후보: 스프링 SG의 8080 인바운드를 ALB SG·fastapi SG로만 제한 + `/api/internal/**` 경로에 대한 ALB 리스너 규칙 자체를 없애거나 내부 전용 리스너로 분리
 - [x] ~~실제 ECS 클러스터·서비스·ALB·IAM 역할·SQS 큐·RDS(MySQL) 프로비저닝~~ — **해당 없음(2026-09-15)**. ECS를 아예 안 쓰기로 확정. ALB·SQS·RDS는 이미 다른 목적(스프링 백엔드)으로 떠 있던 걸 공유해서 쓰는 쪽으로 정리됨 — 아래 절 참고
 
 ## AWS 배포 (EC2 + CodeDeploy) — 2026-09-15
@@ -113,6 +114,7 @@ CodeDeploy 훅(EC2 위에서 인스턴스 자신의 IAM 역할로 실행): `Appl
 | 9 | `deploy/appspec.yaml`+`taskdef.json`이 ECS 전용 스키마 | EC2 포맷(`appspec.yml`+`hooks`+쉘 스크립트)으로 전면 교체, 스프링 것 그대로 이식 | ✅ 완료 |
 | 10 | 인스턴스가 ARM64인데 빌드 워크플로는 아키텍처 명시 없음(기본 x86_64) | `ubuntu-24.04-arm` 러너 + `platforms: linux/arm64`로 네이티브 빌드(스프링과 동일) | ✅ 완료 |
 | 11 | `lovebug/fastapi` 리포가 IMMUTABLE인데 워크플로가 `latest` 태그도 push — 두 번째 배포부터 실패 | `latest` 제거, `$GITHUB_SHA` 단일 태그만 | ✅ 완료 |
+| 12 | **(2026-09-15 새로 발견)** `app/queue_consumer.py`의 `_post_callback()`이 작업 완료를 `BACKEND_CALLBACK_BASE_URL`+`/api/internal/llm/**`로 동기 HTTP 콜백하는데, `start_container.sh`가 이 변수를 설정하지 않아 코드 기본값(`http://localhost:8080`)으로 떨어진다 — prod 컨테이너 안에선 그 주소에 아무것도 없어(스프링은 별도 EC2) IAM/SSM을 다 고쳐도 작업 완료 통보가 전부 실패했을 것 | `start_container.sh`에 `BACKEND_CALLBACK_BASE_URL=https://lovebug-alb-1930145637.ap-northeast-2.elb.amazonaws.com` 추가(사용자 확인 — 스프링이 블루/그린 2대라 프라이빗 IP를 고정할 수 없어 ALB 경유로 결정) | ✅ 완료(코드) — ⚠️ **보안 노출 후속 과제 남음, 아래 참고** |
 
 **참고로 확인된 것(손댈 필요 없었음)**: SQS 큐 이름은 이미 일치한다 — 스프링의 `application-prod.yml`도 `app.messaging.sqs.llm-request-queue: lovebug-llm-request`로 우리와 같은 큐를 본다.
 

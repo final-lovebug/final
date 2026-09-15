@@ -56,6 +56,13 @@ MYSQL_PORT="${HOSTPORT##*:}"
 
 docker rm -f ubidict-py 2>/dev/null || true
 
+# ── 작업 완료 콜백 주소 ───────────────────────────────────────────────────
+# app/queue_consumer.py의 _post_callback()이 이 값+/api/internal/llm/**로
+# POST한다. 스프링이 블루/그린 2대라 프라이빗 IP를 고정할 수 없어 ALB를
+# 경유한다(2026-09-15 확정). **보안 노출이 남아 있다** — /api/internal/**는
+# 원래 워커 출발지로만 제한돼야 하는데(docs/AI_CONTRACT.md, NFR-AI-002)
+# 지금은 이 ALB 경로가 공개돼 있고, 스프링 EC2의 8080 인바운드도 아직
+# 0.0.0.0/0으로 열려 있다 — 보안그룹 제한은 후속 과제로 남겨 둠(사용자 확인).
 docker run -d --name ubidict-py \
   --restart unless-stopped \
   -p 8000:8000 \
@@ -66,6 +73,7 @@ docker run -d --name ubidict-py \
   -e AWS_REGION="$REGION" \
   -e SQS_REQUEST_QUEUE_URL="https://sqs.$REGION.amazonaws.com/416121583617/lovebug-llm-request" \
   -e SQS_REPLY_QUEUE_URL="https://sqs.$REGION.amazonaws.com/416121583617/lovebug-llm-reply" \
+  -e BACKEND_CALLBACK_BASE_URL="https://lovebug-alb-1930145637.ap-northeast-2.elb.amazonaws.com" \
   -e MYSQL_HOST="$MYSQL_HOST" \
   -e MYSQL_PORT="$MYSQL_PORT" \
   -e MYSQL_DATABASE="$DB_NAME" \
