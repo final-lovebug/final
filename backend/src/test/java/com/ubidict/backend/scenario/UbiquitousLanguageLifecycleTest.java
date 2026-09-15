@@ -12,7 +12,6 @@ import com.ubidict.backend.dictionary.service.model.TermResult;
 import com.ubidict.backend.document.service.DocumentService;
 import com.ubidict.backend.document.service.model.CreateDocumentCommand;
 import com.ubidict.backend.document.service.model.DocumentResult;
-import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionaryStatus;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJob;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJobStatus;
@@ -24,7 +23,6 @@ import com.ubidict.backend.draftdictionary.service.DraftDictionaryExtractionServ
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
 import com.ubidict.backend.draftdictionary.service.model.AddCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.CreateExtractionJobCommand;
-import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
 import com.ubidict.backend.draftdocument.domain.CheckJob;
 import com.ubidict.backend.draftdocument.domain.CheckJobStatus;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
@@ -160,6 +158,9 @@ class UbiquitousLanguageLifecycleTest extends IntegrationTestSupport {
         assertThat(versionNo).isEqualTo(1);
         DictionaryResult active = dictionaryService.readActive(workspaceId, OWNER_ID, defaultQuery());
         assertThat(active.status()).isEqualTo(DictionaryStatus.ACTIVE);
+        // 초안에 남아 있는 후보어 전부가 실린다 — 판정으로 걸러내지 않는다(D-88). 빼고 싶은 후보어는
+        // 초안에서 삭제한다. 인프로세스 대역은 추출 결과를 빈 목록으로 돌려주므로(D-74) 손으로 등록한
+        // 하나만 남는다 — 대역이 후보어를 돌려주게 되면 그것들도 함께 실리며 이 기대값이 늘어난다.
         assertThat(active.terms().content())
                 .extracting(TermResult::preferredForm)
                 .containsExactly("결제수단");
@@ -300,13 +301,10 @@ class UbiquitousLanguageLifecycleTest extends IntegrationTestSupport {
     }
 
     /** 추출 워커가 빈 결과를 주므로 등재할 용어는 교정 중에 손으로 넣는다(REQ-DIC-004의 구현 자리). */
+    /** 판정은 발행 목록에 영향을 주지 않으므로(D-88) 등록만 한다. */
     private void registerTerm(Long draftDictionaryId, String form, String definition) {
-        Long candidateTermId = candidateTermService
-                .add(new AddCandidateTermCommand(
-                        draftDictionaryId, form, definition, null, List.of(documentId), 1, List.of("문맥"), OWNER_ID))
-                .candidateTermId();
-        candidateTermService.decide(new DecideCandidateTermCommand(
-                candidateTermId, OWNER_ID, CandidateTermStatus.REGISTRATION_APPROVED, null, null));
+        candidateTermService.add(new AddCandidateTermCommand(
+                draftDictionaryId, form, definition, null, List.of(documentId), 1, List.of("문맥"), OWNER_ID));
     }
 
     private DraftDictionaryStatus waitForDictionaryDraftStatus(Long draftDictionaryId, DraftDictionaryStatus expected)
