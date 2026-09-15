@@ -142,6 +142,7 @@ JSON. `result`(SUCCESS)는 각각 `ExtractResponse`/`ContrastResponse`. **필드
 | **T-INT-16** 환경설정 정리 | `.env.local.example` 추가, `VITE_API_BASE_URL` 로컬 설정 가이드 | `frontend/.env.local.example` |
 | **T-INT-18** 회원 배치/단건 조회 API(백엔드) | **완료**(2026-09-14) — `GET /api/members/{id}`(단건) + `GET /api/members?ids=`(배치) 구현·테스트·문서화(`D-62`). 기존에 소비자 없이 존재하던 내부 포트 `MemberDirectory`를 재사용해 REST 엔드포인트만 추가. workspace·document·dictionary·draftdictionary·reviewrequest 5개 도메인이 공유하던 "행위자 id만 있고 이름 없음" 문제의 공용 해법. `docs/task/T-INT-18-*.md` 참고 | `backend/.../member/**` |
 | **T-INT-20** 워크스페이스의 진행 중 사전 초안 조회(백엔드) | **완료**(2026-09-14, `D-64`) — `GET /api/draft-dictionaries?workspaceId=&status=` 목록 엔드포인트 신설(`DraftDocument`와 동일 패턴). `T-INT-11`의 후보어 3개 항목(fetchCandidates 등)의 선행 — 그 태스크 재개 시 이 엔드포인트 사용 | `backend/.../draftdictionary/**` |
+| **T-INT-22** 라벨 대소문자 정합(`D-94`) | 문서 업로드가 **500(`COMMON_INTERNAL_ERROR`)으로 실패**하던 버그. `label.name`의 collation(`utf8mb4_0900_ai_ci`)과 자바의 중복 판정(`Map` 키, 대소문자 구분)이 어긋나 `api`가 있는 워크스페이스에 `API`를 붙이면 유니크 제약에 걸렸다(`Y-36`). 자바를 CI로 맞추고 표시명은 최초 입력값을 유지한다. collation은 건드리지 않는다 — 루트 `compose.yaml`의 `--collation-server`와 MySQL 8 기본값이 이미 `utf8mb4_0900_ai_ci`라 마이그레이션이 없어도 같은 값이고, 그 전제는 `LabelRepositoryTest`가 지킨다. 라벨 생성은 `REQUIRES_NEW`로 분리해 `LabelAppender`의 `catch`가 실제로 복구하게 만든다. **사전집 `TermFormValidator`의 같은 결함은 `Y-37`로 기록만 한다** | `backend/.../document/{domain,implement}/**`, `frontend/src/pages/document/**` |
 
 **패턴**: 대부분 "픽스처 반환 → `httpClient.get/post/patch/delete` 호출"로 함수 본문만
 바꾸는 기계적 작업이다(`httpClient`가 인증·리프레시를 이미 처리). 응답 DTO가 목업 타입과

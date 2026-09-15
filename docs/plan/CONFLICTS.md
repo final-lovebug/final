@@ -27,6 +27,7 @@
 | `D-90`~`D-91` | **페이징 규격 정합 세션(2026-09-15)이 확정한 결정** | 전역 | 이 문서 3-9절 |
 | `D-92` | **문서 삭제 권한 완화 세션(2026-09-15)이 확정한 결정** | 전역 | 이 문서 3-10절 |
 | `D-93` | **문서 갱신 상호 배타 완화 세션(2026-09-15)이 확정한 결정** | 전역 | 이 문서 3-11절 |
+| `D-94` | **라벨 대소문자 정합 세션(2026-09-15)이 확정한 결정** | 전역 | 이 문서 3-12절 |
 | `R-1`~`R-24` | **큰 흐름이 뒤집은 기존 결정** | 전역 | 이 문서 4절. 문서 수정이 구현보다 앞선다 |
 | `R-25`~`R-30` | **AI 워커 전환이 뒤집은 결정** | 전역 | 이 문서 4-4절 |
 | `R-31` | **문서 삭제 권한 완화가 뒤집은 결정** | 전역 | 이 문서 4-5절 |
@@ -40,7 +41,7 @@
 
 > **`DI-`와 `DIC-`를 혼동하지 않는다.** `DI-`는 사전 **초안**(DraftDictionary), `DIC-`는 **사전집**(Dictionary)이다.
 
-**새 결정 ID는 `D-94`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
+**새 결정 ID는 `D-95`부터** 붙인다. `D-1`~`D-18`을 재사용하지 않는다.
 
 ### `D-1`~`D-18` 색인 — 이 문서 밖에 정의된 결정
 
@@ -358,6 +359,18 @@
 
 > **반대 방향을 함께 풀지 않은 이유.** 사용자가 요청한 것이 문서 갱신 한 방향이고, 추출 쪽은 `G-12`(정렬된 문서만 추출)와 `G-15`(원천 문서 편집 금지)가 걸려 있어 함께 검토해야 한다.
 
+## 3-12. 라벨 대소문자 정합 세션이 확정한 결정 (`D-94`)
+
+2026-09-15. 「본문 300자인데 업로드가 「일시적인 오류」로 실패한다」는 제보에서 출발했다. 본문 길이와 무관했고, **`label` 컬럼의 collation이 `utf8mb4_0900_ai_ci`(대소문자 무관)인데 자바의 중복 판정은 `Map` 키 비교라 대소문자를 구분한 것**이 원인이었다. 워크스페이스에 `api`가 있는 상태에서 `API`를 새 라벨로 적으면 자바는 「없는 이름」으로 보고 INSERT를 시도하고 DB가 `uk_label_workspace_name`으로 막는다. Testcontainers MySQL 8.4에서 재현했다 — `AssertionFailure: Entry for instance of 'Label' has a null identifier`.
+
+| ID | 확정 내용 | 해소 |
+| --- | --- | --- |
+| **D-94** | **라벨명은 대소문자를 구분하지 않는다.** 동일 워크스페이스 안에서 대소문자만 다른 라벨은 중복 생성되지 않으며, **표시명은 최초 생성 시 입력한 값을 유지한다**(`api`가 있는데 `API`를 붙이면 기존 `api` 행을 재사용한다). DB가 이미 그렇게 동작하고 있었으므로 **자바를 DB에 맞춘다** — `Label.matchKey()`(앞뒤 공백 제거 + 소문자화)를 비교 기준으로 쓰고 `normalizeName()`은 표시명 보존 용도로 남긴다. **collation을 컬럼에 박는 마이그레이션은 두지 않는다** — 루트 `compose.yaml`이 `--collation-server=utf8mb4_0900_ai_ci`로 이미 못 박고 있고, 그게 없어도 MySQL 8의 서버 기본값이 같은 값이다. 대신 `LabelRepositoryTest`가 「대소문자만 다른 이름은 유니크 제약에 걸린다」로 이 전제를 테스트에서 지킨다. **악센트도 함께 무시된다**(`ai_ci`) — 현 동작을 그대로 유지하기로 했다. **라벨 생성은 문서 생성과 트랜잭션을 공유하지 않는다**(`LabelCreator`, `REQUIRES_NEW`) — 그래야 제약 위반이 나도 바깥 세션이 오염되지 않아 「상대가 먼저 만든 행을 다시 읽어 쓴다」는 기존 의도가 성립한다. 부수효과로 문서 생성이 실패해도 그 요청이 만든 라벨은 남으며, 이는 「문서에서 라벨을 떼도 라벨은 남는다」는 기존 모델과 어긋나지 않는다 | `Y-36` |
+
+> **사전집의 표준어는 함께 정하지 않았다.** `TermFormValidator`가 같은 구조의 결함을 갖고 있으나(`Y-37`), 용어 사전에서는 `API`와 `api`를 구분해야 할 수도 있어 라벨과 결론이 갈릴 수 있다. 도메인 주인도 다르다.
+
+---
+
 ---
 
 ## 4. 뒤집힌 기존 결정 (`R-1`~`R-33`)
@@ -476,7 +489,7 @@
 
 ---
 
-## 7. 문서 ↔ 코드 충돌 (`Y-01`~`Y-35`)
+## 7. 문서 ↔ 코드 충돌 (`Y-01`~`Y-37`)
 
 | ID | 충돌 | 근거 | 결론 | 담당 |
 | --- | --- | --- | --- | --- |
@@ -515,6 +528,8 @@
 | **Y-33** | **`NotificationEventWiringTest` javadoc의 「Awaitility 의존성을 더하지 않고 짧게 폴링한다」가 사실과 다르다.** `spring-boot-starter-test`가 이미 `org.awaitility:awaitility`를 끌어온다 | `NotificationEventWiringTest` javadoc / `testRuntimeClasspath` | 주석만 고치면 된다. **Notification 도메인 파일이므로 이번 전환에서 건드리지 않고** 해당 도메인 작업에 넘긴다 | 기록 |
 | **Y-34** | **`docs/API.md`의 활성 사전집·버전 목록 응답 예시가 실제 DTO와 달랐다.** `DictionaryResponse`·`DictionaryVersionResponse`에는 `dictionaryId`(와 전자에는 `workspaceId`)가 있고 발행자 필드명은 `publishedBy`가 아니라 `createdBy`인데, 문서 예시에는 `dictionaryId`가 없고 `publishedBy`로 적혀 있었다. 프론트 `fetchDictionary.ts`가 그 문서를 그대로 믿어 **사전집 id를 `dict-{workspaceId}`로 합성하고 `publishedBy`를 `undefined`로 채우고 있었다** | `docs/API.md` «활성 사전집 조회»·«버전 목록» / `DictionaryResponse`·`DictionaryVersionResponse` | 코드가 옳다 — 문서 예시와 프론트 매핑을 함께 고쳤다. 용어 추출 접수가 `dictionaryId`를 요구하므로 합성 id로는 실연동이 불가능했다 | 해소(`T-INT-17`) |
 | **Y-35** | **Flyway 마이그레이션 `V550`이 둘이었다.** `WLSH-166`(AI 워커 전환)의 `V550__add_extraction_job_request_id.sql`과 `WLSH-171`(후보어 분류)의 `V550__add_candidate_term_type.sql`이 같은 번호를 집었고, **파일명이 달라 머지가 충돌로 드러내지 않았다.** 둘 다 들어온 뒤 `flywayInitializer`가 `Found more than one migration with version 550`으로 기동을 막았다 | `db/migration/V550__*.sql` 2개 / `EXECUTION_ORDER.md` 대역 규칙 | 나중 것을 `V560__add_candidate_term_type.sql`로 옮겼다 — `EXECUTION_ORDER.md`가 `V550`을 extraction_job 몫으로 이미 문서화해 뒀고, **`550`은 이미 적용된 쪽이라 그것을 옮기면 「적용됐는데 로컬에 없는 마이그레이션」이 되어 더 나빠진다.** 서로 다른 테이블을 고치므로 적용 순서는 무관하다. **번호를 내려 매긴 대가로 기존 개발 DB는 리셋이 필요했다**(아래 주석) | 해소(2026-09-14) |
+| **Y-36** | **라벨 중복 판정이 DB와 반대다.** `label.name`의 collation은 `utf8mb4_0900_ai_ci`(대소문자·악센트 무관)이고 `uk_label_workspace_name`도 그 기준으로 막는데, `Label.normalizeName`은 `strip()`만 하고 `LabelAppender`는 자바 `Map` 키로 기존 라벨을 찾는다 — 대소문자를 구분한다. `Label` javadoc과 `LabelTest.normalizeName_isCaseSensitive`가 「대소문자를 구분한다」를 명시적으로 못 박고 있어 **문서·테스트가 DB와 정반대**였다. 결과는 **문서 업로드 500**(`COMMON_INTERNAL_ERROR`) — 제약 위반이 세션을 rollback-only로 만들고 `LabelAppender`의 `catch`가 같은 트랜잭션이라 복구하지 못한다 | `V201__create_label.sql` / `Label.java` / `LabelAppender.java` / `LabelTest` | **DB가 옳다**(`D-94`). 자바를 CI로 맞추고 표시명은 최초 입력값을 유지한다. collation 자체는 건드리지 않는다 — 루트 `compose.yaml`의 `--collation-server`와 MySQL 8 기본값이 이미 그 값이고, 전제는 `LabelRepositoryTest`가 지킨다. 라벨 생성은 `REQUIRES_NEW`로 분리해 `catch`가 실제로 복구하게 만든다 | 해소(`T-INT-22`) |
+| **Y-37** | **사전집 표준어에 같은 구조의 결함이 있다.** `TermFormValidator`는 `HashSet`(대소문자 구분)으로 한 요청 안의 표준어 중복을 거르는데 `uk_term_dictionary_preferred_form`은 라벨과 같은 CI collation이다. 케이스만 다른 표준어 2개가 같은 반영 요청에 들어오면 사전 검증을 통과해 DB 제약에 닿고, **라벨과 똑같은 경로로 500**이 난다. javadoc이 「DB 제약에 닿으면 사용자에게 줄 메시지를 만들 수 없다」고 적어 둔 바로 그 상황이다 | `TermFormValidator` / `V300__create_dictionary_and_term.sql` | **당분간 이 500을 안고 간다.** 표준어의 대소문자 정책은 라벨과 갈릴 수 있고(영문명 필드가 별도로 있다) 도메인 주인도 달라 `D-94`에 묶지 않았다. 사전집 작업에서 결정한다 | 기록 |
 
 > **`Y-35`의 뒤처리 — 번호를 내려 매기면 이미 마이그레이션된 DB가 걸린다.** `V560`은 그 DB에 이미 적용된 최신 버전(`900`)보다 낮아서, 다음 기동이 `Validate failed: Detected resolved migration not applied to database: 560`으로 다시 막혔다. **`T-INT-1`(out-of-order)을 폐기한 근거가 바로 이 상황을 개발 DB 리셋으로 처리한다는 것이었으므로** 그대로 리셋으로 해소했다(2026-09-14, 사용자 확인). `compose.yaml`의 MySQL에는 명명된 볼륨이 없어 컨테이너를 지우면 데이터가 사라지고 `bootRun`이 새로 만든다 — `docker rm -f final-mysql-1`. **이미 develop을 당겨 둔 팀원도 같은 오류를 만나며 같은 처방이 필요하다.** Redis에 남은 refresh token은 회원 id가 1부터 다시 발급되는 것과 어긋날 수 있으므로 함께 비우는 편이 안전하다.
 
