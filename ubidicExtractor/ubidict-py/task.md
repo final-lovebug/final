@@ -414,3 +414,120 @@ HTTP 200
   바꾸거나, CodeDeploy 배포그룹에 `LoadBalancerInfo`를 연결해 자동화하는 것을 고려할 것
 - `mode: stub`으로 `/jobs/extract` 먼저 확인(비용 없음) → `mode: real`로 실제 확인은
   아직 안 함(이번엔 `/health`까지만 검증)
+
+## OpenTelemetry / Grafana Cloud 연동 — 실행 계획 (2026-09-16, 아직 미착수)
+
+`모니터링` 결정 표(위)가 예전부터 "OpenTelemetry는 미정 — 나중에 추가할 자리만"으로
+열어 뒀고, 미결 사항 목록에도 "[ ] OpenTelemetry 계측 여부/방식 결정되면 추가(지금은
+의존성 자체를 안 넣음)"로 남아 있었다. `final/backend`가 이미 같은 Grafana Cloud로
+trace·log·metric 세 신호를 OTLP로 보내는 걸 실제로 확인했으니(아래 "참고 — 백엔드
+패턴" 절), 그걸 그대로 재사용하는 방향으로 이번에 구체적인 실행 계획을 세운다.
+**코드는 아직 하나도 안 건드렸다 — 이 절은 계획만이다.**
+
+### 목표
+
+ubidict-py도 trace·log·metric을 OTLP로 같은 Grafana Cloud 인스턴스에 보낸다 —
+새 관측 스택을 따로 만들지 않고 백엔드가 이미 쓰는 것에 합류한다.
+
+### 참고 — 백엔드 패턴(`final/backend/src/main/resources/application-prod.yml`에서 그대로 읽음)
+
+- 엔드포인트·인증은 SSM `/lovebug/otel/endpoint`·`/lovebug/otel/auth`에서 온다.
+  `auth`는 `instanceID:token` 원문이고, 쓰는 쪽이 직접 base64 인코딩해
+  `Authorization: Basic <base64>` 헤더를 만들어야 한다(백엔드는 이걸
+  `OtlpAuthHeaderEnvironmentPostProcessor`라는 커스텀 코드로 한다).
+- 신호별 엔드포인트는 `{otel.endpoint}/v1/traces`·`/v1/logs`·`/v1/metrics` — 베이스
+  URL 뒤에 신호별 경로를 직접 붙인다.
+- 샘플링은 `OTEL_SAMPLE_RATIO`(기본 `0.1`)로 트레이스만 조절.
+- 킬스위치 `/lovebug/otel/enabled` — 파라미터가 없으면 켠 것으로 본다(현재 실제로
+  이 파라미터는 없다 — 즉 지금 상태 그대로 켜는 게 기본값과 일치).
+- 리소스 속성으로 `service.version`(배포 이미지 태그)·`deployment.environment.name=prod`를
+  싣는다 — 어느 배포가 낸 신호인지 추적하기 위함.
+
+### ubidict-py에서 다른 점 — Python은 훨씬 가볍게 갈 수 있다
+
+Java/Spring과 달리 Python OTel SDK는 **표준 `OTEL_*` 환경변수를 그대로 읽는다** —
+백엔드의 `OtlpAuthHeaderEnvironmentPostProcessor` 같은 커스텀 코드가 필요 없다(단,
+`Authorization` 헤더의 base64 인코딩 자체는 여전히 `start_container.sh`에서 해 줘야
+한다 — 원문을 SSM이 그대로 주기 때문). `opentelemetry-instrument`라는 실행 래퍼로
+uvicorn을 감싸기만 하면 FastAPI HTTP 요청(`/health`·`/extract`·`/contrast`·
+`/jobs/*`)의 트레이스는 코드 변경 없이 나온다.
+
+### Phase 1 — 최소 계측(HTTP 요청 트레이스 + 로그 브리지)
+
+- [ ] **(제안, 승인 필요 — 루트 `CLAUDE.md` "새 의존성은 사전 제안·승인")**
+      `pyproject.toml`에 추가할 의존성:
+      - `opentelemetry-distro` (`opentelemetry-instrument` 실행 래퍼 포함)
+      - `opentelemetry-exporter-otlp-proto-http`(OTLP HTTP 익스포터 — 백엔드와 같은
+        프로토콜, gRPC 포트가 아니라 HTTP 포트로 나간다는 뜻)
+      - `opentelemetry-instrumentation-fastapi`(HTTP 요청 자동 계측)
+      - `opentelemetry-instrumentation-botocore`(boto3/SQS 호출 자동 계측 — 설치만
+        하면 `receive_message`/`send_message`/`delete_message`가 스팬으로 잡힌다,
+        커스텀 코드 불필요)
+      - `opentelemetry-instrumentation-logging`(Python `logging` 모듈 → OTLP 로그
+        브리지 — `main.py`에 이미 있는 `logging.basicConfig`를 그대로 살리면서 로그도
+        Grafana Cloud로 보낼 수 있다)
+- [ ] `Dockerfile`의 `CMD`를 `["opentelemetry-instrument", "uvicorn", "app.main:app",
+      "--host", "0.0.0.0", "--port", "8000"]`로 변경(`opentelemetry-instrument`가
+      환경변수를 읽어 자동 계측을 부팅한 뒤 원래 커맨드를 실행)
+- [ ] `deploy/scripts/start_container.sh`에 SSM 조회 + 환경변수 배선 추가(RDS 정보를
+      읽는 기존 블록과 같은 자리에):
+  ```bash
+  OTEL_RAW_ENDPOINT=$(aws ssm get-parameter --name /lovebug/otel/endpoint --with-decryption \
+    --region "$REGION" --query Parameter.Value --output text 2>/dev/null || true)
+  OTEL_RAW_AUTH=$(aws ssm get-parameter --name /lovebug/otel/auth --with-decryption \
+    --region "$REGION" --query Parameter.Value --output text 2>/dev/null || true)
+
+  if [ -n "$OTEL_RAW_ENDPOINT" ] && [ -n "$OTEL_RAW_AUTH" ]; then
+    OTEL_AUTH_HEADER="Authorization=Basic $(printf '%s' "$OTEL_RAW_AUTH" | base64 -w0)"
+    OTEL_ARGS=(
+      -e OTEL_SERVICE_NAME=ubidict-py
+      -e OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="${OTEL_RAW_ENDPOINT}/v1/traces"
+      -e OTEL_EXPORTER_OTLP_LOGS_ENDPOINT="${OTEL_RAW_ENDPOINT}/v1/logs"
+      -e OTEL_EXPORTER_OTLP_METRICS_ENDPOINT="${OTEL_RAW_ENDPOINT}/v1/metrics"
+      -e OTEL_EXPORTER_OTLP_HEADERS="$OTEL_AUTH_HEADER"
+      -e OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      -e OTEL_TRACES_SAMPLER=traceidratio
+      -e OTEL_TRACES_SAMPLER_ARG=0.1
+      -e OTEL_RESOURCE_ATTRIBUTES="deployment.environment.name=prod,service.version=$TAG"
+      -e OTEL_LOGS_EXPORTER=otlp
+      -e OTEL_METRICS_EXPORTER=otlp
+      -e OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+    )
+  else
+    echo "경고: /lovebug/otel/* 파라미터를 못 읽었다 — 관측 없이 기동한다." >&2
+    OTEL_ARGS=(-e OTEL_SDK_DISABLED=true)
+  fi
+  ```
+  (`docker run` 호출의 `"${ENV_ARGS[@]}"` 옆에 `"${OTEL_ARGS[@]}"`도 추가)
+- [ ] **사용자가 직접(AWS 콘솔/CLI)**: `lovebug-ec2-fastapi` 인라인 정책에 새 Sid
+      추가 — 기존 `RdsSharedParams`와 같은 패턴:
+  ```json
+  {"Sid": "OtelSharedParams", "Effect": "Allow", "Action": ["ssm:GetParameter", "ssm:GetParameters"],
+    "Resource": "arn:aws:ssm:ap-northeast-2:416121583617:parameter/lovebug/otel/*"}
+  ```
+  (`DecryptParam` Sid는 이미 `kms:ViaService=ssm...`로 범위가 잡혀 있어 추가 조치 불필요)
+
+### Phase 2 — 커스텀 스팬(선택, Phase 1 이후 필요성 보고 결정)
+
+- [ ] SQS 컨슈머 루프(`app/queue_consumer.py`)는 HTTP 요청이 아니라 백그라운드
+      asyncio 태스크라 자동 계측이 안 잡는다 — 메시지 하나 처리할 때마다
+      `tracer.start_as_current_span("process_llm_job")`으로 수동 스팬을 열어야
+      실제로 무슨 일이 오래 걸리는지(멱등성 조회·DB 읽기·Gemini 호출·콜백) 트레이스에서
+      보인다
+- [ ] Gemini 호출(`app/pipeline/llm.py`·`contrast_llm.py`)에 수동 스팬 — 모델 폴백
+      체인이 몇 번째 키/모델에서 성공했는지를 스팬 속성으로 남기면 실패 원인 추적이
+      쉬워진다
+- [ ] 메트릭(선택) — 잡 처리 시간·성공/실패 카운터를 OTel Metrics API로 직접 만들지,
+      로그 기반 메트릭으로 충분한지는 Phase 1 배포 후 실제로 Grafana Cloud에서 뭐가
+      부족한지 보고 결정
+
+### 검증
+
+1. Phase 1 배포 후 `curl .../health` 몇 번 호출 → Grafana Cloud(Tempo/Explore)에서
+   `service.name=ubidict-py`로 트레이스가 잡히는지 확인
+2. 로그 브리지가 되는지 — 기존 `usage_log.py`/`contrast_usage_log.py`의 stdout JSON
+   로그는 그대로 두고, Python `logging` 경유 로그(`main.py`의 `logging.basicConfig`
+   로거)가 Grafana Cloud Loki에도 나타나는지 확인
+3. `/lovebug/otel/*` 파라미터를 못 읽는 상황(IAM 조치 전)에서도 컨테이너가
+   `OTEL_SDK_DISABLED=true`로 정상 기동하는지 확인 — 관측 때문에 서비스가 죽으면 안
+   된다(백엔드의 `D-98`과 같은 원칙)
