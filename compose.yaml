@@ -99,6 +99,33 @@ services:
       - 'redis-data:/data'
     logging: *default-logging
 
+  # FastAPI 워커는 별도 ubidicExtractor 저장소의 Dockerfile로 빌드한다.
+  # 이 Compose를 쓰려면 같은 루트에 `ubidicExtractor/ubidict-py`를 checkout해야 한다.
+  # dev에서는 mode=MOCK이므로 모델 키·백엔드 DB 읽기 없이 SQS 요청을 Spring 콜백으로 돌린다.
+  llm-worker:
+    build:
+      context: './ubidicExtractor/ubidict-py'
+    environment:
+      - 'AWS_REGION=ap-northeast-2'
+      - 'SQS_ENDPOINT_URL=http://localstack:4566'
+      - 'SQS_REQUEST_QUEUE_URL=http://localstack:4566/000000000000/lovebug-llm-request'
+      - 'AWS_ACCESS_KEY_ID=test'
+      - 'AWS_SECRET_ACCESS_KEY=test'
+      - 'BACKEND_CALLBACK_BASE_URL=http://backend:8080'
+    healthcheck:
+      # python:3.11-slim에는 curl이 없으므로 표준 라이브러리로 health endpoint를 확인한다.
+      test: >-
+        python -c "from urllib.request import urlopen;
+        urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    depends_on:
+      localstack:
+        condition: service_healthy
+    logging: *default-logging
+
   backend:
     build:
       context: './backend'
@@ -146,13 +173,8 @@ services:
       - GOOGLE_CLIENT_ID
       - GOOGLE_CLIENT_SECRET
       #
-      # ⚠ FastAPI 워커가 이 저장소에 없다. lovebug-llm-request를 소비하는 @SqsListener는
-      #   테스트의 FakeLlmWorker뿐이라, 추출·대조 요청은 큐에 실려 나간 뒤 소비자가 없어
-      #   app.ai.timeout.job(PT15M) 뒤 스위퍼가 실패로 회수한다. 큐로 나가는 계약 JSON은
-      #   awslocal sqs receive-message로 눈으로 확인할 수 있고 그것이 이 구성의 검증 가치다.
-      #   워커 없이 흐름만 빠르게 보려면 아래 주석을 푼다. AI_DISPATCH_MODE가 아니다 —
-      #   그 플레이스홀더는 application.yml에만 있고 application-dev.yml의 리터럴이 이긴다.
-      # - 'APP_AI_DISPATCH_MODE=in-process'
+      # llm-worker가 LocalStack 큐를 소비하고 HTTP callback으로 완료를 알린다. dev의
+      # app.ai.mode=MOCK은 모델·워커 DB 조회 없이 고정 결과로 이 왕복만 검증한다.
       #
       # ⚠ lovebug-domain-event 큐는 생기지 않는다. dev는 app.messaging.mode를 바꾸지 않아
       #   in-memory로 남고 SqsNotificationEventListener가 뜨지 않는다. 의도된 상태다 —
@@ -181,6 +203,8 @@ services:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      llm-worker:
         condition: service_healthy
     logging: *default-logging
 
