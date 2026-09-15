@@ -77,9 +77,6 @@ export function DocumentDetailPage() {
           </Pill>
         )}
         <ToolbarSpacer />
-        <Link to={routes.documentReview(workspaceId, documentId)}>
-          <Button variant="primary">검토 화면으로</Button>
-        </Link>
         <Button variant="outline" disabled={createCheckJob.isPending} onClick={handleRunCheck}>
           {createCheckJob.isPending ? '접수 중…' : '최신 사전집으로 갱신'}
         </Button>
