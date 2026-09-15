@@ -1,0 +1,4 @@
+# EnvironmentPostProcessor 는 자동 구성보다 앞서 도는 확장점이라 여기서만 등록할 수 있다.
+# .imports 방식(META-INF/spring/*.imports)은 @AutoConfiguration 전용이며 EPP 에는 없다.
+org.springframework.boot.EnvironmentPostProcessor=\
+com.ubidict.backend.common.infra.observability.OtlpAuthHeaderEnvironmentPostProcessor

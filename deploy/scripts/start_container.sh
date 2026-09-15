@@ -16,6 +16,9 @@ docker pull "$IMAGE_REPO:$TAG"
 
 docker rm -f spring 2>/dev/null || true
 
+# OTEL_SERVICE_VERSION 은 이미지 태그(= 커밋 SHA)다. 리소스 속성 service.version 으로 실려 나가
+# 어느 리비전이 낸 텔레메트리인지 Grafana 에서 구분할 수 있게 한다. 나머지 관측 설정(엔드포인트·
+# 자격증명·on/off)은 Parameter Store 의 /lovebug/otel/ 에서 온다.
 docker run -d --name spring \
   --restart unless-stopped \
   -p 8080:8080 \
@@ -25,6 +28,7 @@ docker run -d --name spring \
   --log-opt max-file=3 \
   -e SPRING_PROFILES_ACTIVE=prod \
   -e AWS_REGION="$REGION" \
+  -e OTEL_SERVICE_VERSION="$TAG" \
   "$IMAGE_REPO:$TAG"
 
 docker image prune -af --filter "until=168h" || true
