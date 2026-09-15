@@ -47,6 +47,9 @@ class SecurityConfigTest {
     @MockitoBean
     private OAuthExchangeCodeRedisRepository oAuthExchangeCodeRedisRepository;
 
+    @MockitoBean
+    private RedisOAuth2AuthorizationRequestRepository redisOAuth2AuthorizationRequestRepository;
+
     @Autowired
     private MockMvc mockMvc;
 

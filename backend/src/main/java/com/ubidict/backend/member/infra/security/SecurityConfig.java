@@ -45,6 +45,10 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * 리다이렉트로 이어받는다 — stateless 정책과 맞추기 위해 OAuth2 로그인 자체의 세션 인가
  * 상태는 유지하지 않는다.
  *
+ * <p>OAuth2 authorization request는 세션이 아니라
+ * {@link RedisOAuth2AuthorizationRequestRepository}가 Redis에 보관한다 — 로그인 시작 요청과 Google
+ * 콜백이 서로 다른 인스턴스로 갈 수 있어 기본 세션 저장소로는 콜백에서 요청을 찾지 못한다.
+ *
  * <p>서블릿 웹 애플리케이션일 때만 등록한다 — {@link JwtAuthenticationEntryPoint}/
  * {@link JwtAccessDeniedHandler}가 필요로 하는 {@code HandlerExceptionResolver}가
  * {@code webEnvironment = WebEnvironment.NONE}(예: {@code IntegrationTestSupport} 기반 서비스
@@ -66,6 +70,7 @@ public class SecurityConfig {
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final GoogleOAuth2LoginSuccessHandler googleOAuth2LoginSuccessHandler;
     private final GoogleOAuth2LoginFailureHandler googleOAuth2LoginFailureHandler;
+    private final RedisOAuth2AuthorizationRequestRepository authorizationRequestRepository;
     private final CorsProperties corsProperties;
     private final ActuatorSecurityProperties actuatorSecurityProperties;
 
@@ -97,7 +102,9 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                         .accessDeniedHandler(jwtAccessDeniedHandler))
-                .oauth2Login(oauth2 -> oauth2.successHandler(googleOAuth2LoginSuccessHandler)
+                .oauth2Login(oauth2 -> oauth2.authorizationEndpoint(
+                                endpoint -> endpoint.authorizationRequestRepository(authorizationRequestRepository))
+                        .successHandler(googleOAuth2LoginSuccessHandler)
                         .failureHandler(googleOAuth2LoginFailureHandler))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
