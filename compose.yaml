@@ -88,7 +88,7 @@ services:
   redis:
     image: 'redis:8.2-alpine'
     ports:
-      - '6379'
+      - '65423:6379'
     healthcheck:
       # 로딩 중 에러 응답도 exit 0이므로 PONG을 직접 확인한다.
       test: 'redis-cli ping | grep -q PONG'
@@ -126,86 +126,86 @@ services:
       localstack:
         condition: service_healthy
 
-  backend:
-    build:
-      context: './backend'
-    ports:
-      - '8080:8080'
-    environment:
-      # 프로파일 순서가 의미를 갖는다(D-46).
-      # - local: DevAuthController·DevLoginService가 @Profile("local")이라 이것이 있어야
-      #          등록된다. Google 왕복 없이 토큰을 받을 수 있고 app.auth.cookie.secure도
-      #          false로 덮인다. dev 단독으로 띄우면 두 빈이 없어, Google 로그인을 실제로
-      #          성공시키기 전까지 모든 도메인 API가 401이다.
-      # - dev  : 뒤에 와서 충돌 키를 이긴다 — app.ai.dispatch.mode가 sqs로 남아 LocalStack
-      #          경로를 타고, 시크릿을 Parameter Store가 아니라 환경변수로 받는다.
-      - 'SPRING_PROFILES_ACTIVE=local,dev'
-      #
-      # 접속 정보는 환경변수로만 주입한다. application.yml에는 적지 않는다.
-      # 변수 이름은 application-dev.yml이 선언한 것을 그대로 쓴다(SPRING_DATASOURCE_*가 아니다).
-      #
-      # MySQL URL에 파라미터를 붙이지 않는다. Connector/J 기본 sslMode=PREFERRED와
-      # MySQL 8.4의 자동 생성 인증서로 TLS가 협상되어 caching_sha2_password가
-      # 성립한다. sslMode=DISABLED를 넣는 순간 allowPublicKeyRetrieval이 필요해진다.
-      - 'DB_URL=jdbc:mysql://mysql:3306/ubidic'
-      - 'DB_USERNAME=ubidic'
-      - 'DB_PASSWORD=ubidic'
-      - 'REDIS_HOST=redis'
-      - 'REDIS_PORT=6379'
-      #
-      # LocalStack. 자격증명 값 자체는 보지 않으므로 test/test를 그대로 둔다(NFR-INF-005).
-      - 'AWS_ENDPOINT=http://localstack:4566'
-      - 'AWS_ACCESS_KEY_ID=test'
-      - 'AWS_SECRET_ACCESS_KEY=test'
-      #
-      # frontend 서비스의 origin과 맞춘다. refresh token이 쿠키 기반이라 자격증명 포함
-      # 요청에는 와일드카드를 쓸 수 없고 origin을 명시해야 한다.
-      - 'CORS_ALLOWED_ORIGINS=http://localhost:5173'
-      - 'OAUTH_FRONTEND_REDIRECT_URI=http://localhost:5173/oauth/callback'
-      #
-      # 기본값이 없는 유일한 시크릿. 루트 .env나 셸 환경변수에서 온다.
-      #
-      # 값 없는 바 형식을 쓴다. KEY=${KEY} 로 적으면 미설정 시 빈 문자열이 들어가고,
-      # OAuth2ClientProperties.validate()가 빈 client-id를 거부해 컨텍스트가 죽는다.
-      # 바 형식은 미설정이면 컨테이너에 변수를 아예 넣지 않아, application.yml의
-      # "${GOOGLE_CLIENT_ID}"가 미해석 리터럴(=비어 있지 않음)로 남아 기동이 통과한다.
-      # :? 를 쓰지 않는 이유는 그게 exec·logs·down 같은 하위 명령까지 전부 막기 때문이다.
-      - GOOGLE_CLIENT_ID
-      - GOOGLE_CLIENT_SECRET
-      #
-      # llm-worker가 LocalStack 큐를 소비하고 HTTP callback으로 완료를 알린다. dev의
-      # app.ai.mode=MOCK은 모델·워커 DB 조회 없이 고정 결과로 이 왕복만 검증한다.
-      #
-      # ⚠ lovebug-domain-event 큐는 생기지 않는다. dev는 app.messaging.mode를 바꾸지 않아
-      #   in-memory로 남고 SqsNotificationEventListener가 뜨지 않는다. 의도된 상태다 —
-      #   LocalStack은 LLM 요청 큐 전용이다(D-74).
-      #
-      # OTLP 환경변수는 걷어냈다. spring-boot-starter-opentelemetry가 주석 처리돼
-      # MANAGEMENT_OPENTELEMETRY_*·MANAGEMENT_OTLP_*·MANAGEMENT_TRACING_*이 모두 바인딩
-      # 대상이 없다. 로그는 어차피 OTLP로 보내지 않으므로(배포도 stdout + awslogs/FireLens가
-      # 표준, docs/LOG.md) `docker compose logs`로 본다.
-    healthcheck:
-      # SecurityConfig가 /actuator/**를 permitAll하고 backend/Dockerfile이 curl을 설치하므로
-      # HTTP 검사를 쓴다. /actuator/health/readiness가 아니라 기본 그룹을 쓰는 이유는, 기본
-      # readiness 그룹이 readinessState뿐이라 컨텍스트가 뜨기만 하면 UP이 되기 때문이다.
-      # depends_on 게이트로는 db·redis 컨트리뷰터가 포함된 기본 그룹이 맞다.
-      test: 'curl -fsS http://127.0.0.1:8080/actuator/health'
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 60s
-      start_interval: 2s
-    depends_on:
-      grafana-lgtm:
-        condition: service_started
-      localstack:
-        condition: service_healthy
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      llm-worker:
-        condition: service_healthy
+#  backend:
+#    build:
+#      context: './backend'
+#    ports:
+#      - '8080:8080'
+#    environment:
+#      # 프로파일 순서가 의미를 갖는다(D-46).
+#      # - local: DevAuthController·DevLoginService가 @Profile("local")이라 이것이 있어야
+#      #          등록된다. Google 왕복 없이 토큰을 받을 수 있고 app.auth.cookie.secure도
+#      #          false로 덮인다. dev 단독으로 띄우면 두 빈이 없어, Google 로그인을 실제로
+#      #          성공시키기 전까지 모든 도메인 API가 401이다.
+#      # - dev  : 뒤에 와서 충돌 키를 이긴다 — app.ai.dispatch.mode가 sqs로 남아 LocalStack
+#      #          경로를 타고, 시크릿을 Parameter Store가 아니라 환경변수로 받는다.
+#      - 'SPRING_PROFILES_ACTIVE=local,dev'
+#      #
+#      # 접속 정보는 환경변수로만 주입한다. application.yml에는 적지 않는다.
+#      # 변수 이름은 application-dev.yml이 선언한 것을 그대로 쓴다(SPRING_DATASOURCE_*가 아니다).
+#      #
+#      # MySQL URL에 파라미터를 붙이지 않는다. Connector/J 기본 sslMode=PREFERRED와
+#      # MySQL 8.4의 자동 생성 인증서로 TLS가 협상되어 caching_sha2_password가
+#      # 성립한다. sslMode=DISABLED를 넣는 순간 allowPublicKeyRetrieval이 필요해진다.
+#      - 'DB_URL=jdbc:mysql://mysql:3306/ubidic'
+#      - 'DB_USERNAME=ubidic'
+#      - 'DB_PASSWORD=ubidic'
+#      - 'REDIS_HOST=redis'
+#      - 'REDIS_PORT=6379'
+#      #
+#      # LocalStack. 자격증명 값 자체는 보지 않으므로 test/test를 그대로 둔다(NFR-INF-005).
+#      - 'AWS_ENDPOINT=http://localstack:4566'
+#      - 'AWS_ACCESS_KEY_ID=test'
+#      - 'AWS_SECRET_ACCESS_KEY=test'
+#      #
+#      # frontend 서비스의 origin과 맞춘다. refresh token이 쿠키 기반이라 자격증명 포함
+#      # 요청에는 와일드카드를 쓸 수 없고 origin을 명시해야 한다.
+#      - 'CORS_ALLOWED_ORIGINS=http://localhost:5173'
+#      - 'OAUTH_FRONTEND_REDIRECT_URI=http://localhost:5173/oauth/callback'
+#      #
+#      # 기본값이 없는 유일한 시크릿. 루트 .env나 셸 환경변수에서 온다.
+#      #
+#      # 값 없는 바 형식을 쓴다. KEY=${KEY} 로 적으면 미설정 시 빈 문자열이 들어가고,
+#      # OAuth2ClientProperties.validate()가 빈 client-id를 거부해 컨텍스트가 죽는다.
+#      # 바 형식은 미설정이면 컨테이너에 변수를 아예 넣지 않아, application.yml의
+#      # "${GOOGLE_CLIENT_ID}"가 미해석 리터럴(=비어 있지 않음)로 남아 기동이 통과한다.
+#      # :? 를 쓰지 않는 이유는 그게 exec·logs·down 같은 하위 명령까지 전부 막기 때문이다.
+#      - GOOGLE_CLIENT_ID
+#      - GOOGLE_CLIENT_SECRET
+#      #
+#      # llm-worker가 LocalStack 큐를 소비하고 HTTP callback으로 완료를 알린다. dev의
+#      # app.ai.mode=MOCK은 모델·워커 DB 조회 없이 고정 결과로 이 왕복만 검증한다.
+#      #
+#      # ⚠ lovebug-domain-event 큐는 생기지 않는다. dev는 app.messaging.mode를 바꾸지 않아
+#      #   in-memory로 남고 SqsNotificationEventListener가 뜨지 않는다. 의도된 상태다 —
+#      #   LocalStack은 LLM 요청 큐 전용이다(D-74).
+#      #
+#      # OTLP 환경변수는 걷어냈다. spring-boot-starter-opentelemetry가 주석 처리돼
+#      # MANAGEMENT_OPENTELEMETRY_*·MANAGEMENT_OTLP_*·MANAGEMENT_TRACING_*이 모두 바인딩
+#      # 대상이 없다. 로그는 어차피 OTLP로 보내지 않으므로(배포도 stdout + awslogs/FireLens가
+#      # 표준, docs/LOG.md) `docker compose logs`로 본다.
+#    healthcheck:
+#      # SecurityConfig가 /actuator/**를 permitAll하고 backend/Dockerfile이 curl을 설치하므로
+#      # HTTP 검사를 쓴다. /actuator/health/readiness가 아니라 기본 그룹을 쓰는 이유는, 기본
+#      # readiness 그룹이 readinessState뿐이라 컨텍스트가 뜨기만 하면 UP이 되기 때문이다.
+#      # depends_on 게이트로는 db·redis 컨트리뷰터가 포함된 기본 그룹이 맞다.
+#      test: 'curl -fsS http://127.0.0.1:8080/actuator/health'
+#      interval: 5s
+#      timeout: 5s
+#      retries: 30
+#      start_period: 60s
+#      start_interval: 2s
+#    depends_on:
+#      grafana-lgtm:
+#        condition: service_started
+#      localstack:
+#        condition: service_healthy
+#      mysql:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#      llm-worker:
+#        condition: service_healthy
 
   # Vite 빌드 산출물을 nginx로 정적 서빙한다. 운영이 S3 + CloudFront 정적 호스팅이므로
   # (.github/workflows/front-cd.yml) 리버스 프록시를 두지 않고 CORS 구성을 그대로 검증한다.
@@ -226,10 +226,6 @@ services:
       retries: 30
       start_period: 10s
       start_interval: 2s
-    depends_on:
-      backend:
-        condition: service_healthy
-#    logging: *default-logging
 
 volumes:
   mysql-data:
