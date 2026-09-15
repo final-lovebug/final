@@ -108,7 +108,9 @@ services:
 
   # FastAPI 워커는 별도 ubidicExtractor 저장소의 Dockerfile로 빌드한다.
   # 이 Compose를 쓰려면 같은 루트에 `ubidicExtractor/ubidict-py`를 checkout해야 한다.
-  # dev에서는 mode=MOCK이므로 모델 키·백엔드 DB 읽기 없이 SQS 요청을 Spring 콜백으로 돌린다.
+  # dev에서는 mode=MOCK이므로 모델 키 없이 SQS 요청을 Spring 콜백으로 돌린다. 다만 대조 MOCK 만은
+  # 백엔드 DB를 읽는다(읽기 전용) — 제안어가 쓸모 있으려면 앵커가 본문의 실제 구간이어야 하고
+  # 대체 용어가 활성 사전집의 표준어여야 하는데, 둘 다 DB를 봐야 알 수 있다(docs/AI_CONTRACT.md 5-2).
   llm-worker:
     build:
       context: './ubidicExtractor/ubidict-py'
@@ -123,6 +125,12 @@ services:
       # 'backend' 는 DNS 로 풀리지 않아 콜백이 Name or service not known 으로 실패한다.
       # backend 서비스를 되살려 컨테이너로 띄울 때는 http://backend:8080 으로 덮어쓴다.
       - 'BACKEND_CALLBACK_BASE_URL=${BACKEND_CALLBACK_BASE_URL:-http://host.docker.internal:8080}'
+      # 대조 MOCK 이 document_version.body 와 활성 사전집의 term 을 읽는 데 쓴다. mysql 서비스와 같은 값이다.
+      - 'MYSQL_HOST=mysql'
+      - 'MYSQL_PORT=3306'
+      - 'MYSQL_USER=ubidic'
+      - 'MYSQL_PASSWORD=ubidic'
+      - 'MYSQL_DATABASE=ubidic'
     healthcheck:
       # python:3.11-slim에는 curl이 없으므로 표준 라이브러리로 health endpoint를 확인한다.
       test: >-
@@ -134,6 +142,8 @@ services:
       start_period: 15s
     depends_on:
       localstack:
+        condition: service_healthy
+      mysql:
         condition: service_healthy
 
 #  backend:
