@@ -29,9 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(InvitationController.class)
-class InvitationControllerTest {
+class InvitationControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long WORKSPACE_ID = 10L;
     private static final Long MEMBER_ID = 1L;
@@ -40,11 +38,7 @@ class InvitationControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private InvitationService invitationService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

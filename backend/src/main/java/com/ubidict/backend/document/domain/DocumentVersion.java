@@ -9,6 +9,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Lob;
 import java.time.OffsetDateTime;
 import lombok.AccessLevel;
@@ -28,6 +30,7 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"document_id", "version_no"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DocumentVersion extends BaseEntity {
 

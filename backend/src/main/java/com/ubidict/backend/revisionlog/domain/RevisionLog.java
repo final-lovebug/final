@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -21,7 +22,9 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
-@Table(name = "revision_log")
+@Table(
+        name = "revision_log",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"workspace_id", "target_type", "target_id", "version_no"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RevisionLog extends BaseEntity {
 

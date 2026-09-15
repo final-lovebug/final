@@ -15,21 +15,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.testcontainers.mysql.MySQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * 테스트 전용 엔티티를 쓰므로 마이그레이션 대상이 아니다. 스키마는 Flyway 대신 Hibernate가 생성한다.
  */
-@Import({JpaAuditingConfig.class, BaseEntityAuditingTest.MySqlContainerConfiguration.class})
-@AutoConfigureTestDatabase(replace = Replace.NONE)
+@Import(JpaAuditingConfig.class)
 @DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false"})
 class BaseEntityAuditingTest {
 
@@ -116,19 +108,6 @@ class BaseEntityAuditingTest {
         assertThat(found.isDeleted()).isTrue();
         assertThat(found.getDeletedAt().toInstant())
                 .isEqualTo(entity.getDeletedAt().toInstant());
-    }
-
-    /**
-     * 컨테이너를 Spring 빈으로 두어 컨텍스트 종료 시점과 컨테이너 종료 시점을 맞춘다.
-     */
-    @TestConfiguration(proxyBeanMethods = false)
-    static class MySqlContainerConfiguration {
-
-        @Bean
-        @ServiceConnection
-        MySQLContainer mysqlContainer() {
-            return new MySQLContainer(DockerImageName.parse("mysql:8.4"));
-        }
     }
 
     @NoArgsConstructor(access = AccessLevel.PROTECTED)

@@ -21,17 +21,14 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(SuggestionTermController.class)
-class SuggestionTermControllerTest {
+class SuggestionTermControllerTest extends com.ubidict.backend.support.ControllerTest {
+
+    @Autowired
+    private SuggestionTermService service;
     @Autowired
     MockMvc mvc;
 
-    @MockitoBean
-    SuggestionTermService service;
 
-    @MockitoBean
-    JwtProvider jwtProvider;
 
     @BeforeEach
     void setup() {
