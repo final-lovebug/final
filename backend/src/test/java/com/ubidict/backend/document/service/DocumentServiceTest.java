@@ -89,6 +89,25 @@ class DocumentServiceTest extends IntegrationTestSupport {
     }
 
     /**
+     * 업로드본은 대조를 거치지 않았으므로 워크스페이스에 활성 사전집이 있든 없든 기준 사전집 버전이 비어 있다(D-93).
+     *
+     * <p>활성 사전집이 있는데 기준 버전이 없으므로 그 문서는 정직하게 「뒤처짐」이다 — aligned도 함께 확인한다.
+     */
+    @DisplayName("활성 사전집이 있어도 업로드본의 기준 사전집 버전은 비어 있다.")
+    @Test
+    void create_dictionaryVersionIsAbsentEvenWithActiveDictionary() {
+        // given
+        saveActiveDictionary(3);
+
+        // when
+        DocumentResult result = create(TITLE, "회원은 결제할 수 있다.", List.of());
+
+        // then
+        assertThat(result.dictionaryVersionNo()).isNull();
+        assertThat(result.aligned()).isFalse();
+    }
+
+    /**
      * 본문이 버전에만 있다는 결정의 전제. 상세 응답의 content는 문서가 아니라 최신 확정 버전에서 온다.
      */
     @DisplayName("문서 본문은 v1 버전에서 읽어 온다.")
@@ -237,6 +256,9 @@ class DocumentServiceTest extends IntegrationTestSupport {
                 .hasSize(1);
     }
 
+    // 대소문자만 다른 라벨의 재사용·필터 검증 셋은 DocumentLabelCaseInsensitivityTest 로 옮겼다
+    // — MySQL collation 이 판정 주체라 H2 에서는 통과할 수 없다(D-94).
+
     @DisplayName("이미 있는 이름을 붙이면 라벨을 재사용한다.")
     @Test
     void create_labelIsReused() {
@@ -264,6 +286,10 @@ class DocumentServiceTest extends IntegrationTestSupport {
                 .isEqualTo(DocumentErrorCode.DOCUMENT_LABEL_LIMIT_EXCEEDED);
     }
 
+    /**
+     * 필터 JPQL은 l.name = :labelName 한 줄이고 대소문자 무관은 DB collation이 해 준다.
+     * 코드에 드러나지 않는 동작이라 여기서 못 박는다.
+     */
     @DisplayName("라벨 필터는 해당 라벨이 붙은 문서만 준다.")
     @Test
     void readAll_filterByLabel() {
@@ -381,20 +407,36 @@ class DocumentServiceTest extends IntegrationTestSupport {
                 .isEqualTo(DocumentErrorCode.DOCUMENT_DRAFT_IN_PROGRESS);
     }
 
-    @DisplayName("REGULAR는 문서를 삭제할 수 없다.")
+    @DisplayName("REGULAR도 문서를 삭제할 수 있다.")
     @Test
-    void delete_permissionIsBelowAdmin() {
+    void delete_byRegular() {
+        // given
+        DocumentResult created = create(TITLE, "본문", List.of());
+
+        // when
+        documentService.delete(workspaceId, created.documentId(), REGULAR_ID);
+
+        // then
+        assertThatThrownBy(() -> documentService.read(workspaceId, created.documentId(), OWNER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(DocumentErrorCode.DOCUMENT_NOT_FOUND);
+    }
+
+    @DisplayName("참여자가 아니면 문서를 삭제할 수 없다.")
+    @Test
+    void delete_memberIsNotParticipant() {
         // given
         DocumentResult created = create(TITLE, "본문", List.of());
 
         // when & then
-        assertThatThrownBy(() -> documentService.delete(workspaceId, created.documentId(), REGULAR_ID))
+        assertThatThrownBy(() -> documentService.delete(workspaceId, created.documentId(), STRANGER_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(WorkspaceErrorCode.WORKSPACE_ADMIN_REQUIRED);
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND);
     }
 
-    @DisplayName("ADMIN 이상이 삭제하면 이후 조회에서 사라진다.")
+    @DisplayName("참여자가 삭제하면 이후 조회에서 사라진다.")
     @Test
     void delete() {
         // given

@@ -37,6 +37,7 @@ public class DraftDocumentQueryAdapter implements DraftDocumentQueryPort {
                                 draft.getDocumentId(),
                                 workspaceId,
                                 draft.getBaseVersionNo(),
+                                draft.getDictionaryVersionNo(),
                                 draft.getDraftBody())));
     }
 }

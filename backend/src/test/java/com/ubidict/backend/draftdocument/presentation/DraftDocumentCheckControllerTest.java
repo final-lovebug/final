@@ -5,9 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.ubidict.backend.draftdocument.domain.CheckJobStatus;
-import com.ubidict.backend.draftdocument.service.DraftDocumentCheckService;
 import com.ubidict.backend.draftdocument.service.model.CheckJobResult;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -16,9 +14,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(30L)
@@ -26,8 +21,6 @@ class DraftDocumentCheckControllerTest extends com.ubidict.backend.support.Contr
 
     @Autowired
     private MockMvc mockMvc;
-
-
 
     @BeforeEach
     void setUp() {

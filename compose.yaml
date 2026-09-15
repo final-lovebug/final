@@ -27,11 +27,13 @@ services:
       # Spring Boot Docker Compose가 OTLP connection detail의 host port를 조회한다.
       - '4317'
       - '4318'
-    # ⚠ 지금 이 컨테이너로 들어가는 트레이스·메트릭은 0이다. build.gradle의
-    #   spring-boot-starter-opentelemetry가 주석 처리돼 있고 micrometer-registry-otlp도 없다.
-    #   게다가 management.endpoints.web.exposure.include가 어디에도 없어 /actuator/prometheus도
-    #   열려 있지 않다. backend/compose.yaml·TestcontainersConfiguration과 구성을 맞추려고
-    #   남겨 둔다 — 의존성이 복구되면 backend 서비스의 OTLP 환경변수만 되살리면 된다.
+    # 앱은 세 신호를 OTLP로 여기 보낸다(T-INT-23). backend 서비스가 주석 처리돼 있는 동안에는
+    # bootRun이 backend/compose.yaml의 LGTM을 따로 띄우므로 이 컨테이너는 Grafana UI(3000)를
+    # 열어 두는 역할만 한다 — 두 파일의 구성을 맞춰 두려고 남긴다.
+    #
+    # backend 서비스를 되살릴 때 OTLP 주소를 환경변수로 넣지 않는다. spring-boot-docker-compose가
+    # 이 컨테이너의 host port를 조회해 주입하므로 주소를 적으면 오히려 어긋난다(D-94).
+    # Grafana Cloud로 나가는 경로는 prod 프로파일에만 있다.
 
   # AI 워커 요청 큐(SQS)의 로컬 대체(D-74·D-75).
   #
@@ -48,7 +50,13 @@ services:
       - 'EAGER_SERVICE_LOADING=1'
       - 'DEBUG=0'
     ports:
-      - '4566'
+      # 호스트 포트를 고정한다. spring-boot-docker-compose 는 LocalStack 커넥션 정보를
+      # 자동 주입하지 않아, 호스트에서 백엔드를 띄우면 application-dev.yml 의
+      # ${AWS_ENDPOINT:http://localhost:4566} 이 이 주소를 직접 가리킨다 — 동적 포트면
+      # 닿지 못해 lovebug-llm-request 발행이 Connection refused 로 실패한다.
+      # backend 서비스를 컨테이너로 띄우던 동안에는 내부 네트워크(localstack:4566)를 써서
+      # 드러나지 않았던 문제다. backend/compose.yaml 이 같은 이유로 이미 4566 을 고정한다.
+      - '4566:4566'
     healthcheck:
       test: 'curl -fsS http://127.0.0.1:4566/_localstack/health'
       interval: 5s
@@ -102,7 +110,9 @@ services:
 
   # FastAPI 워커는 별도 ubidicExtractor 저장소의 Dockerfile로 빌드한다.
   # 이 Compose를 쓰려면 같은 루트에 `ubidicExtractor/ubidict-py`를 checkout해야 한다.
-  # dev에서는 mode=MOCK이므로 모델 키·백엔드 DB 읽기 없이 SQS 요청을 Spring 콜백으로 돌린다.
+  # dev에서는 mode=MOCK이므로 모델 키 없이 SQS 요청을 Spring 콜백으로 돌린다. 다만 대조 MOCK 만은
+  # 백엔드 DB를 읽는다(읽기 전용) — 제안어가 쓸모 있으려면 앵커가 본문의 실제 구간이어야 하고
+  # 대체 용어가 활성 사전집의 표준어여야 하는데, 둘 다 DB를 봐야 알 수 있다(docs/AI_CONTRACT.md 5-2).
   llm-worker:
     build:
       context: './ubidicExtractor/ubidict-py'
@@ -112,7 +122,17 @@ services:
       - 'SQS_REQUEST_QUEUE_URL=http://localstack:4566/000000000000/lovebug-llm-request'
       - 'AWS_ACCESS_KEY_ID=test'
       - 'AWS_SECRET_ACCESS_KEY=test'
-      - 'BACKEND_CALLBACK_BASE_URL=http://backend:8080'
+      # 워커는 완료를 동기 HTTP 콜백으로 알린다(D-68). 기본값이 host.docker.internal 인 이유는
+      # backend 서비스를 주석으로 내려 백엔드가 호스트에서 돌기 때문이다 — 컨테이너 안에서
+      # 'backend' 는 DNS 로 풀리지 않아 콜백이 Name or service not known 으로 실패한다.
+      # backend 서비스를 되살려 컨테이너로 띄울 때는 http://backend:8080 으로 덮어쓴다.
+      - 'BACKEND_CALLBACK_BASE_URL=${BACKEND_CALLBACK_BASE_URL:-http://host.docker.internal:8080}'
+      # 대조 MOCK 이 document_version.body 와 활성 사전집의 term 을 읽는 데 쓴다. mysql 서비스와 같은 값이다.
+      - 'MYSQL_HOST=mysql'
+      - 'MYSQL_PORT=3306'
+      - 'MYSQL_USER=ubidic'
+      - 'MYSQL_PASSWORD=ubidic'
+      - 'MYSQL_DATABASE=ubidic'
     healthcheck:
       # python:3.11-slim에는 curl이 없으므로 표준 라이브러리로 health endpoint를 확인한다.
       test: >-
@@ -124,6 +144,8 @@ services:
       start_period: 15s
     depends_on:
       localstack:
+        condition: service_healthy
+      mysql:
         condition: service_healthy
 
 #  backend:

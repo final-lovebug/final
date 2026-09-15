@@ -31,7 +31,7 @@ const OPTIONS: { verdict: ReviewVerdict; title: string; desc: string }[] = [
   {
     verdict: 'CHANGES_REQUESTED',
     title: '변경 요청',
-    desc: '요청자가 초안을 고쳐 재교정을 돌려야 합니다. 기존 승인은 무효가 됩니다.',
+    desc: '요청자가 초안을 고쳐 재교정을 돌릴 수 있도록 변경을 요청합니다.',
   },
 ]
 
@@ -128,9 +128,6 @@ export function ReviewSubmitPopover({
           </div>
 
           <div className="flex items-center gap-[10px] border-t border-border-soft px-[14px] py-3">
-            <span className="text-[10.5px] leading-[1.5] text-text-quaternary">
-              본인이 올린 요청은 본인이 승인할 수 없습니다
-            </span>
             <Button
               variant="primary"
               size="sm"

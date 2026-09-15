@@ -17,19 +17,30 @@ class DraftDocumentTest {
     @Test
     void create() {
         // when
-        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "회원은 결제할 수 있다.", MEMBER_ID, MEMBER_ID);
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, 1, "회원은 결제할 수 있다.", MEMBER_ID, MEMBER_ID);
 
         // then
         assertThat(draftDocument.getStatus()).isEqualTo(DraftDocumentStatus.EXAMINING);
         assertThat(draftDocument.getRequestedBy()).isEqualTo(MEMBER_ID);
         assertThat(draftDocument.getCreatedBy()).isEqualTo(MEMBER_ID);
+        assertThat(draftDocument.getDictionaryVersionNo()).isEqualTo(1);
+    }
+
+    @DisplayName("대조 기준 사전집 버전이 없으면 예외가 발생한다 — 기준 없이 만들어진 초안은 발행할 버전을 정할 수 없다(D-93).")
+    @Test
+    void create_dictionaryVersionIsMissing() {
+        // when & then
+        assertThatThrownBy(() -> DraftDocument.create(DOCUMENT_ID, 1, null, "본문", MEMBER_ID, MEMBER_ID))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_DICTIONARY_VERSION));
     }
 
     @DisplayName("초안 본문의 앞뒤 공백을 제거한다.")
     @Test
     void create_bodyIsTrimmed() {
         // when
-        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "  회원은 결제할 수 있다.  ", MEMBER_ID, MEMBER_ID);
+        DraftDocument draftDocument =
+                DraftDocument.create(DOCUMENT_ID, 1, 1, "  회원은 결제할 수 있다.  ", MEMBER_ID, MEMBER_ID);
 
         // then
         assertThat(draftDocument.getDraftBody()).isEqualTo("회원은 결제할 수 있다.");
@@ -39,7 +50,7 @@ class DraftDocumentTest {
     @Test
     void create_bodyIsBlank() {
         // when & then
-        assertThatThrownBy(() -> DraftDocument.create(DOCUMENT_ID, 1, "   ", MEMBER_ID, MEMBER_ID))
+        assertThatThrownBy(() -> DraftDocument.create(DOCUMENT_ID, 1, 1, "   ", MEMBER_ID, MEMBER_ID))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
                         .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_BODY));
     }
@@ -48,7 +59,7 @@ class DraftDocumentTest {
     @Test
     void create_baseVersionIsInvalid() {
         // when & then
-        assertThatThrownBy(() -> DraftDocument.create(DOCUMENT_ID, 0, "본문", MEMBER_ID, MEMBER_ID))
+        assertThatThrownBy(() -> DraftDocument.create(DOCUMENT_ID, 0, 1, "본문", MEMBER_ID, MEMBER_ID))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
                         .isEqualTo(DraftDocumentErrorCode.DRAFT_DOCUMENT_INVALID_BASE_VERSION));
     }
@@ -57,7 +68,7 @@ class DraftDocumentTest {
     @Test
     void markExamined() {
         // given
-        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "회원은 결제할 수 있다.", MEMBER_ID, MEMBER_ID);
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, 1, "회원은 결제할 수 있다.", MEMBER_ID, MEMBER_ID);
 
         // when
         draftDocument.markExamined("사용자는 결제할 수 있다.");
@@ -71,7 +82,7 @@ class DraftDocumentTest {
     @Test
     void markExamined_alreadyExamined() {
         // given
-        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "회원은 결제할 수 있다.", MEMBER_ID, MEMBER_ID);
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, 1, "회원은 결제할 수 있다.", MEMBER_ID, MEMBER_ID);
         draftDocument.markExamined("사용자는 결제할 수 있다.");
 
         // when & then
@@ -83,7 +94,7 @@ class DraftDocumentTest {
     @DisplayName("리뷰가 취소되면 교정완료 상태로 돌아간다.")
     @Test
     void reopen_returnsToExamined() {
-        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "본문", MEMBER_ID, MEMBER_ID);
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, 1, "본문", MEMBER_ID, MEMBER_ID);
         draftDocument.markExamined("본문");
         draftDocument.markReviewRequested();
 
@@ -95,7 +106,7 @@ class DraftDocumentTest {
     @DisplayName("반영완료된 초안은 상태를 바꿀 수 없다.")
     @Test
     void markRevised_isTerminal() {
-        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "본문", MEMBER_ID, MEMBER_ID);
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, 1, "본문", MEMBER_ID, MEMBER_ID);
         draftDocument.markExamined("본문");
         draftDocument.markReviewRequested();
         draftDocument.markRevised();
@@ -108,7 +119,7 @@ class DraftDocumentTest {
     @DisplayName("교정 완료 전에는 리뷰 요청 자격이 없다.")
     @Test
     void validateExaminedForReview_isExamining() {
-        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "본문", MEMBER_ID, MEMBER_ID);
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, 1, "본문", MEMBER_ID, MEMBER_ID);
 
         assertThatThrownBy(draftDocument::validateExaminedForReview)
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
@@ -118,7 +129,7 @@ class DraftDocumentTest {
     @DisplayName("같은 리뷰 요청 이벤트를 두 번 받아도 상태는 한 번만 변경된다.")
     @Test
     void markReviewRequested_isIdempotent() {
-        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, "본문", MEMBER_ID, MEMBER_ID);
+        DraftDocument draftDocument = DraftDocument.create(DOCUMENT_ID, 1, 1, "본문", MEMBER_ID, MEMBER_ID);
         draftDocument.markExamined("본문");
 
         draftDocument.markReviewRequested();

@@ -72,7 +72,8 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 ```json
 {
   "code": "COMMON_RESOURCE_NOT_FOUND",
-  "message": "요청한 리소스를 찾을 수 없습니다."
+  "message": "요청한 리소스를 찾을 수 없습니다.",
+  "traceId": "8f3a1c2d4e5b6a7c8d9e0f1a2b3c4d5e"
 }
 ```
 
@@ -82,11 +83,12 @@ API는 `docs/ARCHITECTURE.md`의 레이어 규칙을 따른다. 요청/응답 DT
 {
   "code": "COMMON_INVALID_REQUEST",
   "message": "요청 값이 올바르지 않습니다.",
-  "errors": [{ "field": "title", "message": "must not be blank" }]
+  "errors": [{ "field": "title", "message": "must not be blank" }],
+  "traceId": "8f3a1c2d4e5b6a7c8d9e0f1a2b3c4d5e"
 }
 ```
 
-> `NFR-CMN-003`은 `traceId`도 요구한다. `docs/LOG.md`가 MDC와 「에러 응답에 trace id 포함」을 이미 규정하므로, **인증·공통 설정 태스크(`T-INT-3`)에서 `ErrorResponse`에 한 필드로 추가한다.** 그때까지는 위 형식이다.
+> **`traceId`는 그 요청의 추적 식별자다**(`NFR-CMN-003`·`D-103`). 이 값으로 Grafana에서 해당 요청의 트레이스와 로그를 그대로 찾을 수 있으므로, 문의·장애 신고에는 이 값을 함께 받는다. **추적 문맥이 없으면 필드가 통째로 빠진다** — 클라이언트는 없을 수 있다고 보고 다뤄야 한다.
 
 ---
 
@@ -643,7 +645,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 | GET | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `200` |
 | PATCH | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `204` |
 | PATCH | `/api/workspaces/{workspaceId}/documents/{documentId}/content` | 참여자 | `200` |
-| DELETE | `/api/workspaces/{workspaceId}/documents/{documentId}` | **ADMIN 이상** | `204` |
+| DELETE | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `204` |
 | GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions` | 참여자 | `200` |
 | GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions/{versionNo}` | 참여자 | `200` |
 | GET | `/api/workspaces/{workspaceId}/labels` | 참여자 | `200` |
@@ -666,7 +668,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 | --- | --- | --- | --- |
 | `title` | String | 필수, 1~200자 | 워크스페이스 안에서 중복을 허용한다 |
 | `content` | String | 필수, 1~10,000자 | v1 버전의 본문이 된다 |
-| `labels` | String[] | 선택, 최대 5개, 각 1~20자 | **없는 이름은 라벨이 새로 만들어진다** |
+| `labels` | String[] | 선택, 최대 5개, 각 1~20자 | **없는 이름은 라벨이 새로 만들어진다.** 라벨명은 **대소문자를 구분하지 않는다**(`D-94`) — `api`가 이미 있으면 `API`를 보내도 새로 만들어지지 않고 기존 라벨이 재사용되며 응답에는 **최초 생성 시 표기**(`api`)가 담긴다. 「최대 5개」는 **요청 배열 기준**이라 `["API","api"]`는 접히기 전 2개로 센다 |
 
 ```json
 {
@@ -773,7 +775,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 `DELETE /api/workspaces/{workspaceId}/documents/{documentId}` → `204 No Content`
 
-**ADMIN 이상만** 삭제할 수 있다. **소프트 삭제**이며 이후 모든 조회에서 빠진다. 확정된 버전 행과 라벨 연결 행은 함께 지우지 않는다 — 조회가 문서에서 먼저 막히기 때문이다.
+**참여자면 누구나** 삭제할 수 있다(`D-92`). **소프트 삭제**이며 이후 모든 조회에서 빠진다. 확정된 버전 행과 라벨 연결 행은 함께 지우지 않는다 — 조회가 문서에서 먼저 막히기 때문이다.
 
 ## **버전 이력 조회**
 
@@ -821,6 +823,8 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 이름 오름차순. 목록 필터 UI를 채우기 위한 것이다. **라벨 생성·수정·삭제 엔드포인트는 없다** — 라벨은 문서에 붙일 때 없으면 만들어진다.
 
+`name`은 **최초 생성 시 입력한 표기**다. 라벨명은 대소문자를 구분하지 않으므로(`D-94`) 이 목록에 `api`가 있으면 `API`라는 라벨은 따로 생기지 않는다. 문서 목록의 `label` 필터도 대소문자를 구분하지 않는다 — `?label=API`가 `api` 라벨이 붙은 문서를 찾는다.
+
 ```json
 [
   { "labelId": 1, "name": "결제" },
@@ -838,7 +842,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 | 참여자지만 ADMIN 미만이 삭제를 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
 | 제목이 비었거나 200자 초과(도메인 검증) | 400 | `DOCUMENT_INVALID_TITLE` |
 | 본문이 비었거나 10,000자 초과(도메인 검증) | 400 | `DOCUMENT_INVALID_CONTENT` |
-| 라벨이 6개 이상 | 400 | `DOCUMENT_LABEL_LIMIT_EXCEEDED` |
+| 라벨이 6개 이상(**요청 배열 기준**. 대소문자 접기 전에 센다) | 400 | `DOCUMENT_LABEL_LIMIT_EXCEEDED` |
 | 라벨 이름이 비었거나 20자 초과 | 400 | `LABEL_INVALID_NAME` |
 | **진행 중인 문서 초안이 있어 본문을 편집할 수 없음** | 409 | `DOCUMENT_DRAFT_IN_PROGRESS` |
 | **진행 중인 사전 초안의 원천 문서라 본문을 편집할 수 없음** | 409 | `DOCUMENT_SOURCE_OF_DICTIONARY_DRAFT` |
@@ -1102,6 +1106,8 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 작업을 `PENDING`으로 저장하고 대조 요청 이벤트를 발행한 뒤 `202 Accepted`와 작업 상태를 즉시 반환한다. 같은 문서에 `PENDING` 또는 `RUNNING` 작업이 있으면 중복 접수를 거절한다.
 
+**같은 워크스페이스에 사전집 초안이 진행 중이어도 접수한다**(`D-93`). 대조에 쓴 사전집 버전을 초안에 고정해 두므로, 교정하는 동안 사전집이 다음 버전으로 올라가도 발행본은 대조한 버전을 기준으로 기록된다. 막히는 것은 **같은 문서에 진행 중인 초안·리뷰**뿐이다.
+
 `GET /api/draft-documents/checks/{checkJobId}`는 폴링용 상태 조회 API다. 응답 형식은 다음과 같다.
 
 ```json
@@ -1159,6 +1165,7 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 | 없거나 삭제된 문서 초안 | 404 | `DRAFT_DOCUMENT_NOT_FOUND` |
 | 초안 본문이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_BODY` |
 | 기준 문서 버전이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_INVALID_BASE_VERSION` |
+| 기준 사전집 버전이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_INVALID_DICTIONARY_VERSION` |
 | 없거나 삭제된 제안어 | 404 | `DRAFT_DOCUMENT_SUGGESTION_TERM_NOT_FOUND` |
 | `anchor`가 올바르지 않음(역전·음수) | 400 | `DRAFT_DOCUMENT_INVALID_ANCHOR` |
 | `anchor`가 초안 본문 범위를 벗어남 | 400 | `DRAFT_DOCUMENT_ANCHOR_OUT_OF_BODY` |
@@ -1169,7 +1176,7 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 | 처리하지 않은 제안어가 남아 있음 | 409 | `DRAFT_DOCUMENT_SUGGESTION_TERM_UNHANDLED_EXISTS` |
 | 교정완료 뒤 판정·본문 수정·완료를 다시 시도 | 409 | `DRAFT_DOCUMENT_ALREADY_EXAMINED` |
 | 문서 초안 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION` |
-| 같은 문서 또는 워크스페이스에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
+| 같은 문서에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
 | 대상 문서의 리뷰가 진행 중임 | 409 | `DRAFT_DOCUMENT_UNDER_REVIEW` |
 | 초안 생성 대상 문서가 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_DOCUMENT_NOT_FOUND` |
 | 활성 사전집이 없어 대조할 수 없음 | 404 | `DRAFT_DOCUMENT_DICTIONARY_NOT_FOUND` |
@@ -1311,11 +1318,12 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 ```json
 {
   "targetRound": 0,
-  "verdict": "APPROVED"
+  "verdict": "APPROVED",
+  "comments": []
 }
 ```
 
-`verdict`는 `APPROVED` 또는 `CHANGES_REQUESTED`다. 지정 리뷰어 여부와 무관하게 워크스페이스 참여자라면 리뷰할 수 있고, 같은 회원도 새 리뷰를 제출해 이전 판정을 바꿀 수 있다.
+`verdict`는 `APPROVED` 또는 `CHANGES_REQUESTED`다. `comments`는 선택 필드이며 생략하거나 빈 배열로 보내도 된다. 지정 리뷰어 여부와 무관하게 워크스페이스 참여자라면 리뷰할 수 있지만, 요청자 본인은 `REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED`(403)으로 검토할 수 없다. 같은 회원도 새 리뷰를 제출해 이전 판정을 바꿀 수 있다.
 
 `GET /api/review-requests/{reviewRequestId}/reviews?targetRound={targetRound}` → `200 OK`
 
@@ -1414,6 +1422,7 @@ ADMIN 이상만 수행할 수 있다. 문서는 발행 시점의 활성 사전�
 | 같은 회차의 개정안이 이미 있음 | 409 | `REVIEW_REQUEST_REVISION_ALREADY_EXISTS` |
 | 요청 유형과 개정안 종류가 다름 | 400 | `REVIEW_REQUEST_TYPE_MISMATCHED` |
 | 리뷰할 수 없는 상태에서 제출 | 409 | `REVIEW_REQUEST_NOT_REVIEWABLE_STATUS` |
+| 요청자 본인이 리뷰 제출 | 403 | `REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED` |
 | 현재 개정안과 다른 회차에 리뷰 제출 | 400 | `REVIEW_REQUEST_STALE_TARGET_ROUND` |
 | 리뷰를 찾을 수 없음 | 404 | `REVIEW_REQUEST_REVIEW_NOT_FOUND` |
 | 코멘트를 찾을 수 없음 | 404 | `REVIEW_REQUEST_COMMENT_NOT_FOUND` |

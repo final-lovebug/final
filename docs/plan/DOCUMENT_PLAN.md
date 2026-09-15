@@ -114,7 +114,7 @@
 | --- | --- | --- | --- | --- | --- |
 | `id` | `Long` | `id` | X | as-built | |
 | `workspaceId` | `Long` | `workspace_id` | X | as-built | 라벨은 워크스페이스가 소유한다 |
-| `name` | `String` | `name` | X | as-built | `varchar(20)`. **워크스페이스 안에서 유일.** 앞뒤 공백 제거 후 대소문자 구분 |
+| `name` | `String` | `name` | X | **변경** | `varchar(20)`. **워크스페이스 안에서 유일하며 대소문자를 구분하지 않는다**(`D-94`). 저장되는 값은 **최초 생성 시 입력한 표기**이고, 비교는 `Label.matchKey()`(앞뒤 공백 제거 + 소문자화)로 한다. collation은 컬럼에 적지 않고 MySQL 8 서버 기본값(`utf8mb4_0900_ai_ci`, 루트 `compose.yaml`이 명시)을 그대로 쓴다 |
 | `createdBy` | `Long` | `created_by` | X | as-built | |
 | `createdAt`/`updatedAt`/`deletedAt` | `OffsetDateTime` | — | — | **변경** | `BaseEntity`. 삭제 유스케이스는 제공하지 않는다 |
 

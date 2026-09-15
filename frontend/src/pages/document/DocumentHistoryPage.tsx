@@ -157,7 +157,7 @@ export function DocumentHistoryPage() {
 
                 {comparison && !comparison.diff.tooLarge && (
                   <>
-                    <p className="whitespace-pre-wrap text-[13.5px] leading-[1.9] text-text-secondary">
+                    <p className="whitespace-pre-wrap wrap-break-word text-[13.5px] leading-[1.9] text-text-secondary">
                       {comparison.diff.parts.map((part, index) => (
                         <span
                           key={index}

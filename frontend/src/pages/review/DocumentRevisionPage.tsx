@@ -42,7 +42,7 @@ function toneFor(memberId: string): AvatarTone {
 /**
  * 문서 개정안 검토 화면.
  *
- * **라우트의 `reviewId` 파라미터는 실제로는 리뷰 요청 id다** — 코멘트 조회·검토 제출·
+ * **라우트 파라미터 `reviewRequestId`는 개정안 id가 아니라 리뷰 요청 id다** — 코멘트 조회·검토 제출·
  * 재교정·반영이 전부 리뷰 요청 스코프다(`GET /api/review-requests/{id}/...`). 코멘트를
  * 새로 달 때만 reviewId가 필요한데, 그건 검토 제출과 한 트랜잭션으로 묶여 있다(`D-63`).
  *
@@ -52,15 +52,15 @@ function toneFor(memberId: string): AvatarTone {
  * 위치를 강조하는 것보다 「처리 내역」으로 무엇이 바뀌었는지 보여주는 편이 정확하다 —
  * 본문 위 표시는 문장 분할·오프셋 규격(`REQ-DOC-005`)이 선행돼야 한다(`D-61`).
  */
-export function DocumentReviewThreadPage() {
+export function DocumentRevisionPage() {
   const {
     workspaceId = '',
     documentId = '',
-    reviewId: reviewRequestId = '',
+    reviewRequestId = '',
   } = useParams<{
     workspaceId: string
     documentId: string
-    reviewId: string
+    reviewRequestId: string
   }>()
   const navigate = useNavigate()
   const { data: comments } = useReviewThreadComments(reviewRequestId)
@@ -73,6 +73,7 @@ export function DocumentReviewThreadPage() {
   const reexamine = usePerformReexamine(reviewRequestId)
   const revise = usePerformRevise(reviewRequestId)
   const currentMember = useAuthStore((state) => state.currentMember)
+  const isRequester = currentMember?.id === reviewRequest?.requesterId
 
   const [commentDraft, setCommentDraft] = useState('')
   const [pending, setPending] = useState<DraftComment[]>([])
@@ -105,11 +106,6 @@ export function DocumentReviewThreadPage() {
           {reviewRequest?.title ?? (document?.title ?? '문서') + ' 개정 반영'}
         </h1>
         {reviewRequest && <Pill tone="neutral">{reviewRequest.status}</Pill>}
-        {revision !== null && revision !== undefined && revision.reexamineRound > 0 && (
-          <span className="text-[11px] text-text-quaternary">
-            재교정 {revision.reexamineRound}회차
-          </span>
-        )}
         <ToolbarSpacer />
         <div className="flex gap-[10px]">
           {reviewRequest?.status === 'CHANGES_REQUESTED' && (
@@ -128,7 +124,8 @@ export function DocumentReviewThreadPage() {
           )}
           <Button
             variant="outline"
-            disabled={submit.isPending}
+            disabled={isRequester || submit.isPending}
+            title={isRequester ? '본인이 올린 요청은 본인이 검토할 수 없습니다' : undefined}
             onClick={() => submitVerdict('CHANGES_REQUESTED')}
           >
             Change request
@@ -136,7 +133,8 @@ export function DocumentReviewThreadPage() {
           </Button>
           <Button
             variant="outline"
-            disabled={submit.isPending}
+            disabled={isRequester || submit.isPending}
+            title={isRequester ? '본인이 올린 요청은 본인이 검토할 수 없습니다' : undefined}
             onClick={() => submitVerdict('APPROVED')}
           >
             Approve
@@ -166,7 +164,7 @@ export function DocumentReviewThreadPage() {
       <TwoCol>
         <ColFlex>
           <Card className="px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
-            <p className="whitespace-pre-wrap">
+            <p className="whitespace-pre-wrap wrap-break-word">
               {revision?.proposedBody ?? document?.content}
             </p>
             <Banner tone="neutral" className="mt-6 text-[11.5px]">

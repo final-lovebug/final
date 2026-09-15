@@ -9,6 +9,7 @@ import com.ubidict.backend.reviewrequest.domain.ReviewRequestStatus;
 import com.ubidict.backend.reviewrequest.domain.ReviewRequestType;
 import com.ubidict.backend.reviewrequest.domain.ReviewVerdict;
 import com.ubidict.backend.reviewrequest.domain.RevisionDocument;
+import com.ubidict.backend.reviewrequest.exception.ReviewRequestErrorCode;
 import com.ubidict.backend.reviewrequest.infra.ReviewRequestRepository;
 import com.ubidict.backend.reviewrequest.infra.RevisionDocumentRepository;
 import com.ubidict.backend.reviewrequest.service.model.AssignReviewerCommand;
@@ -21,6 +22,7 @@ import com.ubidict.backend.workspace.domain.Workspace;
 import com.ubidict.backend.workspace.exception.WorkspaceErrorCode;
 import com.ubidict.backend.workspace.infra.ParticipantRepository;
 import com.ubidict.backend.workspace.infra.WorkspaceRepository;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -102,6 +104,32 @@ class ReviewSubmitServiceTest extends IntegrationTestSupport {
                         .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
     }
 
+    @DisplayName("요청자는 본인 리뷰 요청을 검토할 수 없다.")
+    @Test
+    void submit_byRequester_throwsForbidden() {
+        ReviewRequest request = saveRequest(1);
+
+        assertThatThrownBy(() -> reviewService.submit(
+                        new SubmitReviewCommand(request.getId(), OWNER_ID, 0, ReviewVerdict.APPROVED)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(ReviewRequestErrorCode.REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED));
+    }
+
+    @DisplayName("코멘트 없이도 승인과 변경요청을 제출할 수 있다.")
+    @Test
+    void submit_withoutComments_succeeds() {
+        ReviewRequest approvedRequest = saveRequest(1);
+        reviewService.submit(
+                new SubmitReviewCommand(approvedRequest.getId(), REVIEWER_ID, 0, ReviewVerdict.APPROVED, null));
+
+        ReviewRequest changesRequest = saveRequest(1);
+        reviewService.submit(new SubmitReviewCommand(
+                changesRequest.getId(), REVIEWER_ID, 0, ReviewVerdict.CHANGES_REQUESTED, List.of()));
+
+        assertThat(readRequest(approvedRequest.getId()).getStatus()).isEqualTo(ReviewRequestStatus.APPROVED);
+        assertThat(readRequest(changesRequest.getId()).getStatus()).isEqualTo(ReviewRequestStatus.CHANGES_REQUESTED);
+    }
+
     @DisplayName("같은 회원이 판정을 바꿔 다시 제출하면 최신 판정으로 상태를 계산한다.")
     @Test
     void submit_resubmitBySameMember() {
@@ -130,6 +158,16 @@ class ReviewSubmitServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> reviewerService.assign(new AssignReviewerCommand(request.getId(), 99L, OWNER_ID)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
                         .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
+    }
+
+    @DisplayName("요청자를 리뷰어로 지정할 수 없다.")
+    @Test
+    void assignReviewer_requester() {
+        ReviewRequest request = saveRequest(1);
+
+        assertThatThrownBy(() -> reviewerService.assign(new AssignReviewerCommand(request.getId(), OWNER_ID, OWNER_ID)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.errorCode())
+                        .isEqualTo(ReviewRequestErrorCode.REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED));
     }
 
     private ReviewRequest saveRequest(int requiredReviewerCount) {

@@ -1,6 +1,7 @@
 package com.ubidict.backend.reviewrequest.service;
 
 import com.ubidict.backend.reviewrequest.domain.Reviewer;
+import com.ubidict.backend.reviewrequest.implement.ApprovalAuthorityValidator;
 import com.ubidict.backend.reviewrequest.implement.ReviewRequestReader;
 import com.ubidict.backend.reviewrequest.implement.ReviewerDuplicationValidator;
 import com.ubidict.backend.reviewrequest.implement.ReviewerReader;
@@ -23,12 +24,14 @@ public class ReviewerService {
     private final ReviewerDuplicationValidator validator;
     private final ReviewRequestReader reviewRequestReader;
     private final WorkspaceAccessValidator workspaceAccessValidator;
+    private final ApprovalAuthorityValidator approvalAuthorityValidator;
 
     @Transactional
     public ReviewerResult assign(AssignReviewerCommand command) {
         var reviewRequest = reviewRequestReader.read(command.reviewRequestId());
         workspaceAccessValidator.validateParticipant(reviewRequest.getWorkspaceId(), command.actorId());
         workspaceAccessValidator.validateParticipant(reviewRequest.getWorkspaceId(), command.memberId());
+        approvalAuthorityValidator.validateNotRequester(reviewRequest, command.memberId());
         validator.validate(command.reviewRequestId(), command.memberId());
         Reviewer saved =
                 writer.write(Reviewer.create(command.reviewRequestId(), command.memberId(), command.actorId()));

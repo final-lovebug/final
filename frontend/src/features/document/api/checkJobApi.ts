@@ -54,7 +54,8 @@ function toCheckJob(response: CheckJobApiResponse): CheckJob {
  * 함께 작업 상태를 즉시 돌려주고, 실제 대조는 외부 AI 워커가 수행한다(D-66·D-68).
  *
  * **요청자는 인증 주체에서 해석되므로 보내지 않는다**(NFR-USR-001). 같은 문서에 진행 중인
- * 초안·리뷰가 있거나 같은 워크스페이스에 진행 중인 사전 초안이 있으면 백엔드가 거절한다.
+ * 초안·리뷰가 있으면 백엔드가 거절한다. **사전집 초안이 진행 중인 것은 막지 않는다**(D-93) —
+ * 대조에 쓴 사전집 버전을 초안이 들고 있어 그 사이 사전집이 올라가도 기준이 어긋나지 않는다.
  */
 export async function createCheckJob(documentId: DocumentId): Promise<CheckJob> {
   const response = await httpClient.post<CheckJobApiResponse>('/api/draft-documents/checks', {

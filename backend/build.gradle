@@ -10,6 +10,10 @@ version = '0.0.1-SNAPSHOT'
 
 ext {
     springCloudAwsVersion = '4.1.1'
+    // Boot 가 관리하는 opentelemetry-instrumentation-api 와 같은 대역(4.0.8 기준 2.16.0)을 쓴다.
+    // opentelemetry-instrumentation-bom-alpha 를 import 하지 않고 버전을 직접 박는 이유가 있다 —
+    // 그 BOM 을 import 하면 io.opentelemetry:* 전체가 Boot 의 1.55.0 에서 1.50.0 으로 내려간다.
+    otelLogbackAppenderVersion = '2.16.0-alpha'
 }
 
 java {
@@ -35,7 +39,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
-//    implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+    implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+    // Logback -> OpenTelemetry 로그 브리지. Boot 는 SDK LoggerProvider 까지만 자동 구성하고
+    // appender 설치는 해 주지 않으므로 OpenTelemetryAppenderInitializer 가 런타임에 꽂는다.
+    implementation "io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:${otelLogbackAppenderVersion}"
     implementation 'org.springframework.boot:spring-boot-starter-restclient'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
@@ -53,13 +60,18 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-opentelemetry-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-restclient-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testRuntimeOnly 'com.h2database:h2'
+    // 대부분의 테스트는 H2 로 충분하지만, 라벨 대소문자 정합(D-94)은 MySQL collation
+    // (utf8mb4_0900_ai_ci) 자체가 검증 대상이라 H2 로는 재현되지 않는다. 그 테스트들만
+    // 실제 MySQL 컨테이너 위에서 돌린다(support/MySqlContainerConfiguration).
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-mysql'
     // spring-boot-starter-test 가 이미 끌어오지만, 전이 의존성에 기대지 않도록 명시한다.
     testImplementation 'org.awaitility:awaitility'
     testCompileOnly 'org.projectlombok:lombok'

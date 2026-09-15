@@ -15,11 +15,12 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @ActiveProfiles("test")
 @Import({DbCleaner.class, JpaAuditingConfig.class})
-@DataJpaTest(properties = {
-    "spring.jpa.hibernate.ddl-auto=create-drop",
-    "spring.flyway.enabled=false",
-    "app.messaging.mode=in-memory"
-})
+@DataJpaTest(
+        properties = {
+            "spring.jpa.hibernate.ddl-auto=create-drop",
+            "spring.flyway.enabled=false",
+            "app.messaging.mode=in-memory"
+        })
 public abstract class RepositoryTestSupport {
 
     @Autowired
@@ -32,5 +33,4 @@ public abstract class RepositoryTestSupport {
     void setUp() {
         dbCleaner.clean();
     }
-
 }

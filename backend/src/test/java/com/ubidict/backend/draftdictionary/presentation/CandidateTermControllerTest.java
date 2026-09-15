@@ -8,11 +8,9 @@ import static org.mockito.BDDMockito.given;
 import com.ubidict.backend.draftdictionary.domain.CandidateTermOrigin;
 import com.ubidict.backend.draftdictionary.domain.CandidateTermStatus;
 import com.ubidict.backend.draftdictionary.domain.CandidateTermType;
-import com.ubidict.backend.draftdictionary.service.CandidateTermService;
 import com.ubidict.backend.draftdictionary.service.model.BulkDecisionResult;
 import com.ubidict.backend.draftdictionary.service.model.CandidateTermResult;
 import com.ubidict.backend.draftdictionary.service.model.DecideCandidateTermCommand;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -22,10 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(2L)
@@ -36,8 +31,6 @@ class CandidateTermControllerTest extends com.ubidict.backend.support.Controller
 
     @Autowired
     private MockMvc mockMvc;
-
-
 
     @BeforeEach
     void setUp() {
