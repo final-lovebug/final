@@ -38,4 +38,10 @@ public class ApprovalAuthorityValidator {
             throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_NOT_REQUESTER);
         }
     }
+
+    public void validateNotRequester(ReviewRequest reviewRequest, Long actorId) {
+        if (reviewRequest.getRequesterId().equals(actorId)) {
+            throw new BusinessException(ReviewRequestErrorCode.REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED);
+        }
+    }
 }

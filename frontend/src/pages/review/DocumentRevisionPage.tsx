@@ -73,6 +73,7 @@ export function DocumentRevisionPage() {
   const reexamine = usePerformReexamine(reviewRequestId)
   const revise = usePerformRevise(reviewRequestId)
   const currentMember = useAuthStore((state) => state.currentMember)
+  const isRequester = currentMember?.id === reviewRequest?.requesterId
 
   const [commentDraft, setCommentDraft] = useState('')
   const [pending, setPending] = useState<DraftComment[]>([])
@@ -105,11 +106,6 @@ export function DocumentRevisionPage() {
           {reviewRequest?.title ?? (document?.title ?? '문서') + ' 개정 반영'}
         </h1>
         {reviewRequest && <Pill tone="neutral">{reviewRequest.status}</Pill>}
-        {revision !== null && revision !== undefined && revision.reexamineRound > 0 && (
-          <span className="text-[11px] text-text-quaternary">
-            재교정 {revision.reexamineRound}회차
-          </span>
-        )}
         <ToolbarSpacer />
         <div className="flex gap-[10px]">
           {reviewRequest?.status === 'CHANGES_REQUESTED' && (
@@ -128,7 +124,8 @@ export function DocumentRevisionPage() {
           )}
           <Button
             variant="outline"
-            disabled={submit.isPending}
+            disabled={isRequester || submit.isPending}
+            title={isRequester ? '본인이 올린 요청은 본인이 검토할 수 없습니다' : undefined}
             onClick={() => submitVerdict('CHANGES_REQUESTED')}
           >
             Change request
@@ -136,7 +133,8 @@ export function DocumentRevisionPage() {
           </Button>
           <Button
             variant="outline"
-            disabled={submit.isPending}
+            disabled={isRequester || submit.isPending}
+            title={isRequester ? '본인이 올린 요청은 본인이 검토할 수 없습니다' : undefined}
             onClick={() => submitVerdict('APPROVED')}
           >
             Approve

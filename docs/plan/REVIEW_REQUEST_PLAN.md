@@ -544,6 +544,7 @@ com.ubidict.backend.reviewrequest
 | `REVIEW_REQUEST_INVALID_TYPE` | 400 | 요청 유형이 올바르지 않습니다. | 1 |
 | `REVIEW_REQUEST_INVALID_STATUS_TRANSITION` | 409 | 현재 상태에서 수행할 수 없는 작업입니다. | 1 |
 | `REVIEW_REQUEST_NOT_REQUESTER` | 403 | 요청자만 수행할 수 있습니다. | 1 |
+| `REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED` | 403 | 본인이 올린 리뷰 요청은 본인이 검토할 수 없습니다. | 2026-09-15 리뷰 UI 정합 |
 | `REVIEW_REQUEST_WORKSPACE_ID_REQUIRED` | 400 | 워크스페이스 식별자는 필수입니다. | 2d |
 | `REVIEW_REQUEST_REVIEWER_NOT_FOUND` | 404 | 리뷰어를 찾을 수 없습니다. | 2a |
 | `REVIEW_REQUEST_DUPLICATE_REVIEWER` | 409 | 이미 지정된 리뷰어입니다. | 2a |

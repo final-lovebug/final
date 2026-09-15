@@ -4,6 +4,7 @@ import { cx } from '../../../shared/lib/cx'
 import { useAssignReviewer, useRemoveReviewer, useReviewers } from '../hooks/useReviewers'
 import { useReviews } from '../hooks/useSubmitReview'
 import type { ReviewVerdict } from '../model/types'
+import { latestReviewByMember } from '../model/reviewTimeline'
 
 /**
  * 리뷰어 패널 — GitHub PR 우측 사이드바의 Reviewers 블록을 모티브로 했다.
@@ -17,8 +18,8 @@ import type { ReviewVerdict } from '../model/types'
  * 패널 발치에 적어 둔다.
  *
  * **상태는 조회 두 번을 조인해서 만든다.** `ReviewerResponse`에는 판정 결과가 없어
- * (`reviewerId·memberId·assignedAt·createdBy`뿐) 제출된 검토 목록과 맞춰야 한다. 지난
- * 회차의 검토는 재교정으로 무효가 되므로 **현재 회차의 검토만** 상태로 인정한다.
+ * (`reviewerId·memberId·assignedAt·createdBy`뿐) 제출된 검토 목록과 맞춰야 한다. 회차와
+ * 무관하게 회원별 최신 리뷰 1건을 상태로 인정한다(`D-1`).
  */
 export interface ReviewerCandidate {
   memberId: string
@@ -30,8 +31,6 @@ interface Props {
   members: ReviewerCandidate[]
   /** 리뷰 요청자는 자기 요청을 검토할 수 없으므로 후보에서 뺀다. */
   excludeMemberId?: string
-  /** 지금 검토 대상인 재교정 회차. 이전 회차의 판정은 「대기」로 되돌린다. */
-  currentRound?: number
   /** 리뷰어를 넣고 뺄 수 있는지(요청자이며 ADMIN 이상). false면 ⚙ 와 × 를 감춘다. */
   canEdit?: boolean
 }
@@ -45,7 +44,6 @@ export function ReviewerPanel({
   reviewRequestId,
   members,
   excludeMemberId,
-  currentRound = 0,
   canEdit = false,
 }: Props) {
   const { data: reviewers, isLoading } = useReviewers(reviewRequestId)
@@ -68,11 +66,8 @@ export function ReviewerPanel({
   }, [pickerOpen])
 
   const nameByMemberId = new Map(members.map((member) => [member.memberId, member.name]))
-  // 현재 회차의 검토만 상태로 쓴다 — 재교정이 돌면 지난 판정은 무효다.
   const verdictByMemberId = new Map(
-    (reviews ?? [])
-      .filter((review) => review.targetRound === currentRound)
-      .map((review) => [review.memberId, review.verdict]),
+    [...latestReviewByMember(reviews ?? [])].map(([memberId, review]) => [memberId, review.verdict]),
   )
   const assignedMemberIds = new Set((reviewers ?? []).map((reviewer) => reviewer.memberId))
   const selectable = members.filter((member) => member.memberId !== excludeMemberId)

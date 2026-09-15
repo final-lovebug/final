@@ -11,6 +11,7 @@ public enum ReviewRequestErrorCode implements ErrorCode {
     REVIEW_REQUEST_INVALID_TYPE(HttpStatus.BAD_REQUEST, "요청 유형이 올바르지 않습니다."),
     REVIEW_REQUEST_INVALID_STATUS_TRANSITION(HttpStatus.CONFLICT, "현재 상태에서 수행할 수 없는 작업입니다."),
     REVIEW_REQUEST_NOT_REQUESTER(HttpStatus.FORBIDDEN, "요청자만 수행할 수 있습니다."),
+    REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인이 올린 리뷰 요청은 본인이 검토할 수 없습니다."),
     REVIEW_REQUEST_WORKSPACE_ID_REQUIRED(HttpStatus.BAD_REQUEST, "워크스페이스 식별자는 필수입니다."),
     REVIEW_REQUEST_REVIEWER_NOT_FOUND(HttpStatus.NOT_FOUND, "리뷰어를 찾을 수 없습니다."),
     REVIEW_REQUEST_DUPLICATE_REVIEWER(HttpStatus.CONFLICT, "이미 지정된 리뷰어입니다."),
