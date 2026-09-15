@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, ColFlex, Pill, Toolbar, ToolbarSpacer, TwoCol } from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
 import { ApiError } from '../../shared/api/httpClient'
+import { dictionaryVersionLabel } from '../../features/document/model/dictionaryVersionLabel'
 import { useDocument } from '../../features/document/hooks/useDocument'
 import { useCreateCheckJob } from '../../features/document/hooks/useCreateCheckJob'
 import { useDeleteDocument } from '../../features/document/hooks/useDeleteDocument'
@@ -108,9 +109,7 @@ export function DocumentDetailPage() {
             <Property label="적용 사전집">
               <span className="flex items-center gap-[6px]">
                 <Pill tone="outline">
-                  {document.dictionaryVersionNo === null || document.dictionaryVersionNo === undefined
-                    ? '—'
-                    : `r${document.dictionaryVersionNo}`}
+                  {dictionaryVersionLabel(document.dictionaryVersionNo)}
                 </Pill>
                 {document.badge && (
                   <Pill tone={document.badge === 'danger' ? 'danger' : 'neutral'}>

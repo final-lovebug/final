@@ -89,6 +89,25 @@ class DocumentServiceTest extends IntegrationTestSupport {
     }
 
     /**
+     * 업로드본은 대조를 거치지 않았으므로 워크스페이스에 활성 사전집이 있든 없든 기준 사전집 버전이 비어 있다(D-93).
+     *
+     * <p>활성 사전집이 있는데 기준 버전이 없으므로 그 문서는 정직하게 「뒤처짐」이다 — aligned도 함께 확인한다.
+     */
+    @DisplayName("활성 사전집이 있어도 업로드본의 기준 사전집 버전은 비어 있다.")
+    @Test
+    void create_dictionaryVersionIsAbsentEvenWithActiveDictionary() {
+        // given
+        saveActiveDictionary(3);
+
+        // when
+        DocumentResult result = create(TITLE, "회원은 결제할 수 있다.", List.of());
+
+        // then
+        assertThat(result.dictionaryVersionNo()).isNull();
+        assertThat(result.aligned()).isFalse();
+    }
+
+    /**
      * 본문이 버전에만 있다는 결정의 전제. 상세 응답의 content는 문서가 아니라 최신 확정 버전에서 온다.
      */
     @DisplayName("문서 본문은 v1 버전에서 읽어 온다.")
