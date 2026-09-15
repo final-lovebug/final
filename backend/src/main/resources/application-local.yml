@@ -8,7 +8,3 @@ app:
       # AI 워커는 로컬에 없다. 큐 대신 인프로세스 대역이 빈 결과를 돌려준다(D-74).
       # 실제 워커를 붙여 보려면 dev 프로파일(LocalStack)로 띄운다.
       mode: in-process
-spring:
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
