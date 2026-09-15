@@ -374,3 +374,43 @@ Missing credentials - please check if this instance was started with an IAM inst
 **조치(사용자가 콘솔에서 직접)**: EC2 콘솔 → 인스턴스 선택 → 작업(Actions) →
 보안(Security) → "IAM 역할 수정(Modify IAM role)" → `lovebug-ec2-fastapi` 선택 →
 업데이트. 이후 `sudo systemctl restart codedeploy-agent`로 에이전트 재시작.
+
+## 배포 성공 확인 (2026-09-16)
+
+여러 차례 재시도(`main`에 직접 커밋된 `21c797a`·`d52546c` 핫픽스 포함, 이 세션이 관여
+안 한 시도도 다수) 끝에 CodeDeploy 배포 `d-ZA4MW0QTK`가 **전체 lifecycle 훅 성공**
+(`ApplicationStop`→`DownloadBundle`→`BeforeInstall`→`Install`→`AfterInstall`→
+`ApplicationStart`→`ValidateService` 전부 `Succeeded`, `ValidateService`가 인스턴스
+내부에서 `curl localhost:8000/health`로 검증까지 통과).
+
+**단, 그 사이 EC2 인스턴스 자체가 교체돼 있었다** — 이전 `i-069a154f01e676a57`가 아니라
+새 인스턴스 `i-06dff037d2928927c`(2026-09-15 22:23 KST 기동, IAM 역할
+`lovebug-ec2-fastapi` 정상 연결 확인)가 지금의 `lovebug-fastapi`다. 배포 자체는
+성공했는데 ALB 쪽 `curl /health`가 503을 냈던 이유: **이 배포그룹은
+`deploymentOption: WITHOUT_TRAFFIC_CONTROL`(`LoadBalancerInfo: null`)이라 CodeDeploy가
+ALB 타깃그룹 등록을 자동으로 안 한다** — 예전 인스턴스는 누군가 수동으로 등록해 뒀던
+것이고, 교체된 새 인스턴스는 등록이 안 된 채 남아 있었다(`lovebug-tg-fastapi` 타깃 0개).
+
+**조치**: 사용자가 새 인스턴스를 타깃그룹에 수동 등록(`aws elbv2 register-targets` 또는
+콘솔 "대상 그룹 → 등록"). 등록 직후 확인:
+
+```
+$ aws elbv2 describe-target-health --target-group-arn ... (lovebug-tg-fastapi)
+TargetHealth.State: healthy
+
+$ curl http://lovebug-alb-1930145637.ap-northeast-2.elb.amazonaws.com/health
+HTTP 200
+{"status":"ok","model":"gemini-3.5-flash"}
+```
+
+**✅ ubidict-py EC2 배포 최초 성공.** ALB → 타깃그룹 → 컨테이너까지 plain HTTP로 정상
+동작 확인. `GEMINI_API_KEY_1`·`GEMINI_MODEL_1`이 SSM에서 정상적으로 읽혀 `/health`
+응답에 실제 모델명이 찍히는 것까지 확인했다(env var 대소문자 문제·`GEMINI_MODEL_1`
+넘버링 문제 등 `main`에 직접 반영된 핫픽스들이 실제로 필요했다는 뜻).
+
+**남은 후속 과제(모두 이번 배포 성공과 무관, 별도 작업)**:
+- `/api/internal/llm/**` 보안 노출(위 표 12번·"다음에 할 것" 절 참고) — 아직 미해결
+- 인스턴스가 교체될 때마다 타깃그룹 재등록이 수동이라는 문제 — Auto Scaling Group으로
+  바꾸거나, CodeDeploy 배포그룹에 `LoadBalancerInfo`를 연결해 자동화하는 것을 고려할 것
+- `mode: stub`으로 `/jobs/extract` 먼저 확인(비용 없음) → `mode: real`로 실제 확인은
+  아직 안 함(이번엔 `/health`까지만 검증)
