@@ -27,11 +27,13 @@ services:
       # Spring Boot Docker Compose가 OTLP connection detail의 host port를 조회한다.
       - '4317'
       - '4318'
-    # ⚠ 지금 이 컨테이너로 들어가는 트레이스·메트릭은 0이다. build.gradle의
-    #   spring-boot-starter-opentelemetry가 주석 처리돼 있고 micrometer-registry-otlp도 없다.
-    #   게다가 management.endpoints.web.exposure.include가 어디에도 없어 /actuator/prometheus도
-    #   열려 있지 않다. backend/compose.yaml·TestcontainersConfiguration과 구성을 맞추려고
-    #   남겨 둔다 — 의존성이 복구되면 backend 서비스의 OTLP 환경변수만 되살리면 된다.
+    # 앱은 세 신호를 OTLP로 여기 보낸다(T-INT-23). backend 서비스가 주석 처리돼 있는 동안에는
+    # bootRun이 backend/compose.yaml의 LGTM을 따로 띄우므로 이 컨테이너는 Grafana UI(3000)를
+    # 열어 두는 역할만 한다 — 두 파일의 구성을 맞춰 두려고 남긴다.
+    #
+    # backend 서비스를 되살릴 때 OTLP 주소를 환경변수로 넣지 않는다. spring-boot-docker-compose가
+    # 이 컨테이너의 host port를 조회해 주입하므로 주소를 적으면 오히려 어긋난다(D-94).
+    # Grafana Cloud로 나가는 경로는 prod 프로파일에만 있다.
 
   # AI 워커 요청 큐(SQS)의 로컬 대체(D-74·D-75).
   #

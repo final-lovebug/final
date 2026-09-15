@@ -20,7 +20,7 @@
 - **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS**(`spring-cloud-aws-starter-sqs`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 발행 어댑터 둘은 `common/infra/event/`(인메모리)와 `common/infra/event/sqs/`(SQS)에 있고 `@ConditionalOnProperty`로 배타 선택된다. 수신 어댑터는 소비 도메인에 두며 **둘이 같은 공용 핸들러에 위임한다.** 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다. **큐는 둘이다** — 도메인 이벤트 큐(`app.messaging.sqs.queue`)와 **AI 워커 요청 큐**(`app.messaging.sqs.llm-request-queue`, `D-67`). **AI 워커 요청 큐는 `app.messaging.mode`와 무관하게 `app.ai.dispatch.mode`로 갈린다** — `local`·`test`는 인프로세스 대역, `dev`는 LocalStack, `prod`는 실 SQS다. **완료 통보는 큐가 아니라 워커가 치는 동기 HTTP 콜백(`/api/internal/llm/**`)이다**(`D-68`). 계약은 `docs/AI_CONTRACT.md`가 원본이다
 - **인증·인가** — Spring Security, JWT (JJWT), OAuth2
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
-- **관측** — Actuator, Micrometer(Prometheus), OpenTelemetry / Grafana LGTM
+- **관측** — Actuator, Micrometer, OpenTelemetry. **세 신호(트레이스·메트릭·로그)를 OTLP로 내보낸다.** 받는 쪽은 프로파일마다 다르다 — 로컬·테스트는 `grafana/otel-lgtm` 컨테이너, `prod`는 **Grafana Cloud 직행**이다(`D-92`·`D-94`). 수집기 사이드카를 두지 않는다. **어느 설정 파일에도 수집기 주소를 적지 않는다** — 로컬은 `spring-boot-docker-compose`가, 테스트는 `@ServiceConnection LgtmStackContainer`가 실제로 매핑된 포트를 읽어 주입하고, Grafana Cloud 주소는 Parameter Store에서 온다. 로그는 `logback-spring.xml`의 `CONSOLE`(stdout) + `OTEL`(OTLP) 두 appender로 나가며 **파일 appender를 두지 않는다**(`D-93`). `traceId`는 Micrometer Tracing이 MDC에 넣는 값을 쓰고 **별도 필터를 만들지 않는다**(`D-96`, `docs/LOG.md`)
 - **품질 도구** — Spotless(포맷팅, `palantirJavaFormat`)
 - **설정·시크릿** — AWS Parameter Store (Spring Cloud AWS, `prod` 프로필 전용)
 - **인프라** — Docker / Docker Compose, AWS
@@ -117,6 +117,9 @@
 | `OAUTH_FRONTEND_REDIRECT_URI` | Google 로그인 성공/실패 후 서버가 리다이렉트할 프론트엔드 URL(교환 코드를 쿼리 파라미터로 붙임) | `http://localhost:5173/oauth/callback` — 프론트 dev 서버(Vite) 주소. 배포 시 실제 프론트 도메인으로 교체 |
 | `CORS_ALLOWED_ORIGINS` | CORS 허용 origin(콤마로 여러 개 지정 가능). refresh token이 쿠키 기반이라 `*` 불가 | `http://localhost:5173` — 프론트 dev 서버 주소. 배포 시 실제 프론트 도메인으로 교체 |
 | `MEMBER_ENCRYPTION_KEY` | `member.email`/`member.display_name` 컬럼 AES-256 암호화 키(`MemberFieldEncryptor`) | `application.yml`에 로컬 전용 기본값이 있어 설정 안 해도 동작함 |
+| `OTEL_SAMPLE_RATIO` | 트레이스 샘플링 비율. **`prod`에서만 읽는다** | `prod` 기본값 `0.1`. 로컬·테스트는 전량(`1.0`) 수집한다 |
+| `OTEL_SERVICE_VERSION` | 리소스 속성 `service.version`. 어느 리비전이 낸 텔레메트리인지 구분하는 축 | 배포에서는 `deploy/scripts/start_container.sh`가 이미지 태그(커밋 SHA)를 넣는다. 없으면 `unknown` |
+| `OTEL_AUTH_HEADER` | OTLP `Authorization` 헤더 **수동 덮어쓰기**. 평소에는 쓰지 않는다 | 없음. Parameter Store의 `/lovebug/otel/auth`에서 파생된 값이 기본이며, 이 변수는 자격증명을 손으로 바꿔 넣어 볼 때만 쓴다 |
 
 - `JWT_SECRET`은 값을 아예 안 정해도 테스트가 깨지지 않도록 `application.yml`에
   `${JWT_SECRET:로컬 전용 기본값}` 형태의 기본값을 뒀다. 이 기본값은 공개돼 있어
@@ -174,9 +177,13 @@ Parameter Store에서 읽는 프로파일이 그것뿐이다.
 | `/lovebug/oauth/frontend-redirect-uri` | String | `app.oauth.frontend-redirect-uri` |
 | `/lovebug/redis/host` | String | `spring.data.redis.host` |
 | `/lovebug/redis/port` | String | `spring.data.redis.port` |
+| `/lovebug/otel/endpoint` | String | OTLP 게이트웨이 주소. `/v1/traces`·`/v1/logs`·`/v1/metrics`를 **애플리케이션이 붙인다** |
+| `/lovebug/otel/auth` | SecureString | Grafana Cloud 쓰기 토큰(`instanceID:token` 원문). `OtlpAuthHeaderEnvironmentPostProcessor`가 base64로 인코딩해 `otel.auth-header`를 만든다 |
+| `/lovebug/otel/enabled` | String | **선택.** 세 익스포터의 킬 스위치. 없으면 켠 것으로 본다 |
 
-- **표의 파라미터가 하나라도 없으면 기동이 실패한다.** 플레이스홀더에 기본값을 두지 않는 것은
-  운영에서 시크릿이 조용히 로컬 기본값으로 떨어지는 것을 막기 위함이다.
+- **`/lovebug/otel/*`를 뺀 나머지는 하나라도 없으면 기동이 실패한다.** 플레이스홀더에 기본값을
+  두지 않는 것은 운영에서 시크릿이 조용히 로컬 기본값으로 떨어지는 것을 막기 위함이다.
+  관측 셋만 예외이며 그 이유는 아래에 적는다.
 - Redis 운영 설정은 `application-prod.yml`에서 **이미 활성**이며 `/lovebug/redis/host`,
   `/lovebug/redis/port`를 읽는다(TLS 켜짐). 표의 파라미터와 마찬가지로 **없으면 기동이
   실패한다.**
@@ -185,3 +192,12 @@ Parameter Store에서 읽는 프로파일이 그것뿐이다.
   `ssm:GetParametersByPath`(리소스 `arn:aws:ssm:<region>:<account>:parameter/lovebug/*`)와
   SecureString 복호화용 `kms:Decrypt`.
 - 로컬·테스트는 이 프로필을 쓰지 않으므로 AWS 호출이 발생하지 않는다.
+- **관측 파라미터 셋 중 `endpoint`·`auth`는 없어도 기동이 막히지 않는다.** 위 시크릿들과 달리
+  플레이스홀더에 빈 기본값을 뒀다 — 관측 때문에 서비스가 죽는 것을 막기 위해서다(`D-98`). 대신
+  **조용히 실패한다.** 값이 잘못됐는지 확인하려면 `docker logs spring`에서
+  `OtlpAuthHeaderEnvironmentPostProcessor`가 남긴 `instanceId=` 줄을 본다. 그 줄이 없으면 파라미터를
+  읽지 못한 것이다.
+- ⚠️ **`spring.config.import: aws-parameterstore:/lovebug/`가 경로 하위를 통째로 끌어오므로
+  Grafana Cloud 쓰기 토큰이 애플리케이션 `Environment`에 평문으로 상주한다**(`D-95`). 막는 것은
+  `management.endpoints.web.exposure.exclude: env,configprops`와 `SecurityConfig`의 경로 축소
+  둘뿐이고 **해소가 아니라 완화다.** 프로퍼티를 통째로 찍는 디버깅 코드나 예외 로그를 넣지 않는다.
