@@ -41,7 +41,7 @@ export function Sidebar() {
         <SidebarGroup title="문서">
           <SidebarItem to={routes.documents(workspaceId)} label="문서" end />
           <SidebarItem to={routes.documentDrafts(workspaceId)} label="초안" />
-          <SidebarItem to={routes.documentReviewRequests(workspaceId)} label="개정안" />
+          <SidebarItem to={routes.documentRevisions(workspaceId)} label="개정안" />
         </SidebarGroup>
 
         <SidebarGroup title="사전집">

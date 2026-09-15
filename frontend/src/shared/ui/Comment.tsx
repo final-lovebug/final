@@ -43,7 +43,7 @@ export function CommentCard({
         <span className="text-[12.5px] font-bold">{name}</span>
         <span className="text-[10.5px] text-text-quaternary">{time}</span>
       </div>
-      <p className="whitespace-pre-wrap text-[12.5px] leading-[1.6] text-text-secondary">
+      <p className="whitespace-pre-wrap wrap-break-word text-[12.5px] leading-[1.6] text-text-secondary">
         {text}
       </p>
       {action && <div className="mt-2 text-[11px] font-semibold text-accent-strong">{action}</div>}

@@ -7,7 +7,6 @@ import static org.mockito.BDDMockito.given;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJobStatus;
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryExtractionService;
 import com.ubidict.backend.draftdictionary.service.model.ExtractionJobResult;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -17,9 +16,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(2L)
@@ -30,8 +26,6 @@ class DraftDictionaryExtractionControllerTest extends com.ubidict.backend.suppor
 
     @Autowired
     private MockMvc mockMvc;
-
-
 
     @BeforeEach
     void setUp() {

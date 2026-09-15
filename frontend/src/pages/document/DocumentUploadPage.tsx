@@ -14,6 +14,10 @@ import { useAuthStore } from '../../shared/stores/authStore'
 import { DOCUMENT_CONTENT_MAX_LENGTH } from '../../features/document/api/createDocument'
 import { useCreateDocument } from '../../features/document/hooks/useCreateDocument'
 import { useLabels } from '../../features/document/hooks/useLabels'
+import {
+  isSameLabelName,
+  resolveExistingLabelName,
+} from '../../features/document/model/labelName'
 
 const ACCEPTED_EXTENSIONS = ['.md', '.txt']
 /** 본문 상한이 10,000자라 파일도 그 언저리를 넘을 이유가 없다 — ui 안내 문구와 맞춘다. */
@@ -41,6 +45,8 @@ export function DocumentUploadPage() {
   const [newLabel, setNewLabel] = useState('')
   const [fileError, setFileError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+
+  const knownLabelNames = (labels ?? []).map((label) => label.name)
 
   async function readFile(file: File) {
     setFileError(null)
@@ -76,17 +82,27 @@ export function DocumentUploadPage() {
 
   function toggleLabel(name: string) {
     setSelectedLabels((current) =>
-      current.includes(name)
-        ? current.filter((label) => label !== name)
+      current.some((label) => isSameLabelName(label, name))
+        ? current.filter((label) => !isSameLabelName(label, name))
         : current.length >= 5
           ? current
           : [...current, name],
     )
   }
 
+  // 라벨명은 대소문자를 구분하지 않는다(`D-94`). `api`가 이미 있는데 `API`를 치면 서버는 기존
+  // 라벨을 재사용하고 최초 표기(`api`)를 돌려주므로, 화면에서도 미리 그 표기로 바꿔 보여 준다 —
+  // 그러지 않으면 방금 만든 줄 알았던 라벨이 응답에서 다른 이름으로 나타난다.
   function addNewLabel() {
-    const name = newLabel.trim()
-    if (name === '' || selectedLabels.includes(name) || selectedLabels.length >= 5) return
+    const typed = newLabel.trim()
+    if (typed === '' || selectedLabels.length >= 5) return
+
+    const name = resolveExistingLabelName(typed, knownLabelNames) ?? typed
+    if (selectedLabels.some((label) => isSameLabelName(label, name))) {
+      setNewLabel('')
+      return
+    }
+
     setSelectedLabels((current) => [...current, name])
     setNewLabel('')
   }
@@ -108,10 +124,11 @@ export function DocumentUploadPage() {
     )
   }
 
-  const knownLabelNames = (labels ?? []).map((label) => label.name)
   const labelChoices = [
     ...knownLabelNames,
-    ...selectedLabels.filter((name) => !knownLabelNames.includes(name)),
+    ...selectedLabels.filter(
+      (name) => !knownLabelNames.some((known) => isSameLabelName(known, name)),
+    ),
   ]
 
   return (
@@ -162,7 +179,7 @@ export function DocumentUploadPage() {
           <FieldLabel>라벨</FieldLabel>
           <div className="flex flex-wrap gap-2">
             {labelChoices.map((name) => {
-              const active = selectedLabels.includes(name)
+              const active = selectedLabels.some((label) => isSameLabelName(label, name))
               return (
                 <button
                   key={name}

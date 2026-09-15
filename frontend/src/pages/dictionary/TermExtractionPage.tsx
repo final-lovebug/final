@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   Button,
@@ -8,7 +8,6 @@ import {
   ScreenSubtitle,
   ScreenTitle,
 } from '../../shared/ui'
-import { cx } from '../../shared/lib/cx'
 import { routes } from '../../shared/config/routes'
 import { ApiError } from '../../shared/api/httpClient'
 import { useExtractionEligibleDocuments } from '../../features/dictionary/hooks/useExtractionEligibleDocuments'
@@ -23,8 +22,10 @@ import { useDictionary } from '../../features/dictionary/hooks/useDictionary'
 // **워커가 없는 환경(app.ai.dispatch.mode=in-process, 로컬 기본값)에서는 대역이 빈 결과로
 // 작업을 끝낸다** — 즉 SUCCEEDED인데 후보어가 0건인 초안이 생기는 것이 정상이다.
 //
-// 대상 문서는 사용자가 고르지 않는다 — 서버가 "사전집 기준과 정렬됐고 직접 편집되지 않은"
-// 최종본만 남긴다(G-12·D-31). 그래서 체크박스는 읽기 전용 표시다(프로토타입과 같다).
+// 대상 문서는 **자격 있는 최종본 중에서 사용자가 고른다.** 자격 판정(G-12·D-31 — 사전집
+// 기준과 정렬됐고 직접 편집되지 않은 문서)은 서버 몫이라 자격 없는 문서는 선택할 수 없고,
+// 제출한 목록도 서버가 한 번 더 거른다(DraftDictionaryExtractionService.request).
+// 기본값은 자격 있는 문서 전체 선택이다.
 export function TermExtractionPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
   const { data: documents, isLoading } = useExtractionEligibleDocuments(workspaceId)
@@ -32,19 +33,47 @@ export function TermExtractionPage() {
   const { data: activeDictionary } = useDictionary(workspaceId)
 
   const [extractionJobId, setExtractionJobId] = useState<string | null>(null)
+  // null이면 "아직 사용자가 손대지 않음" — 목록이 도착하면 자격 있는 문서 전체가 기본값이다.
+  // 목록 로딩이 비동기라 useState 초기값으로는 담을 수 없어 파생 계산으로 둔다.
+  const [pickedIds, setPickedIds] = useState<ReadonlySet<string> | null>(null)
   const createExtractionJob = useCreateExtractionJob(workspaceId)
   const { job, isPollingExhausted } = useExtractionJob(extractionJobId)
 
-  const eligibleDocuments = documents?.filter((doc) => doc.eligible) ?? []
+  const eligibleDocuments = useMemo(
+    () => documents?.filter((doc) => doc.eligible) ?? [],
+    [documents],
+  )
+  const selectedIds = useMemo(
+    () => pickedIds ?? new Set(eligibleDocuments.map((doc) => doc.documentId)),
+    [pickedIds, eligibleDocuments],
+  )
+  const selectedCount = eligibleDocuments.filter((doc) => selectedIds.has(doc.documentId)).length
+  const isAllSelected = eligibleDocuments.length > 0 && selectedCount === eligibleDocuments.length
   const isRunning = job?.status === 'PENDING' || job?.status === 'RUNNING'
   const isAccepting = createExtractionJob.isPending
+  const isLocked = isAccepting || isRunning
+
+  function toggleDocument(documentId: string) {
+    const next = new Set(selectedIds)
+    if (next.has(documentId)) next.delete(documentId)
+    else next.add(documentId)
+    setPickedIds(next)
+  }
+
+  function toggleAll() {
+    setPickedIds(
+      isAllSelected ? new Set<string>() : new Set(eligibleDocuments.map((doc) => doc.documentId)),
+    )
+  }
 
   function handleExtract() {
     createExtractionJob.mutate(
       {
         workspaceId,
         dictionaryId: activeDictionary?.dictionary.id ?? null,
-        sourceDocumentIds: eligibleDocuments.map((doc) => doc.documentId),
+        sourceDocumentIds: eligibleDocuments
+          .filter((doc) => selectedIds.has(doc.documentId))
+          .map((doc) => doc.documentId),
       },
       { onSuccess: (created) => setExtractionJobId(created.id) },
     )
@@ -63,29 +92,53 @@ export function TermExtractionPage() {
 
       {documents && (
         <Card className="p-5">
-          <p className="mb-3 text-[13px] font-bold text-text">
-            최종본 {eligibleDocuments.length}건 중 {eligibleDocuments.length}건 선택됨
-          </p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[13px] font-bold text-text">
+              최종본 {eligibleDocuments.length}건 중 {selectedCount}건 선택됨
+            </p>
+            {eligibleDocuments.length > 0 && (
+              <button
+                type="button"
+                disabled={isLocked}
+                onClick={toggleAll}
+                className="text-[11.5px] font-semibold text-accent-strong underline disabled:cursor-not-allowed disabled:text-text-disabled disabled:no-underline"
+              >
+                {isAllSelected ? '전체 해제' : '전체 선택'}
+              </button>
+            )}
+          </div>
 
           <div className="flex flex-col gap-[9px]">
             {documents.length === 0 && (
               <p className="text-[13px] text-text-tertiary">이 워크스페이스에 문서가 없습니다.</p>
             )}
-            {documents.map((doc) => (
-              <div
-                key={doc.documentId}
-                className={cx(
-                  'flex items-center gap-[9px] text-[13px]',
-                  doc.eligible ? 'font-medium text-text' : 'text-text-faint',
-                )}
-              >
-                <Checkbox checked={doc.eligible} />
-                {doc.title}
-                {doc.reason && (
-                  <span className="ml-[6px] text-[10.5px] text-text-faint">— {doc.reason}</span>
-                )}
-              </div>
-            ))}
+            {documents.map((doc) =>
+              doc.eligible ? (
+                <button
+                  key={doc.documentId}
+                  type="button"
+                  aria-pressed={selectedIds.has(doc.documentId)}
+                  disabled={isLocked}
+                  onClick={() => toggleDocument(doc.documentId)}
+                  className="flex w-full cursor-pointer items-center gap-[9px] text-left text-[13px] font-medium text-text disabled:cursor-not-allowed disabled:text-text-tertiary"
+                >
+                  <Checkbox checked={selectedIds.has(doc.documentId)} />
+                  {doc.title}
+                </button>
+              ) : (
+                // 자격 없는 문서는 서버가 어차피 걸러낸다(G-12) — 고를 수 없게 두고 이유만 보여준다.
+                <div
+                  key={doc.documentId}
+                  className="flex items-center gap-[9px] text-[13px] text-text-faint"
+                >
+                  <Checkbox checked={false} />
+                  {doc.title}
+                  {doc.reason && (
+                    <span className="ml-[6px] text-[10.5px] text-text-faint">— {doc.reason}</span>
+                  )}
+                </div>
+              ),
+            )}
           </div>
 
           <div className="mt-5 flex items-center justify-between border-t border-border-soft pt-4">
@@ -94,7 +147,7 @@ export function TermExtractionPage() {
             </span>
             <Button
               variant="primary"
-              disabled={eligibleDocuments.length === 0 || isAccepting || isRunning}
+              disabled={selectedCount === 0 || isLocked}
               onClick={handleExtract}
             >
               {isAccepting ? '접수 중…' : isRunning ? '추출 중…' : '추출 실행'}
@@ -105,6 +158,12 @@ export function TermExtractionPage() {
             <p className="mt-3 text-xs text-text-tertiary">
               추출할 수 있는 최종본이 없습니다. 문서를 사전집 기준으로 갱신한 뒤 다시
               시도하세요.
+            </p>
+          )}
+
+          {eligibleDocuments.length > 0 && selectedCount === 0 && (
+            <p className="mt-3 text-xs text-text-tertiary">
+              추출에 사용할 문서를 하나 이상 선택하세요.
             </p>
           )}
         </Card>

@@ -643,7 +643,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 | GET | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `200` |
 | PATCH | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `204` |
 | PATCH | `/api/workspaces/{workspaceId}/documents/{documentId}/content` | 참여자 | `200` |
-| DELETE | `/api/workspaces/{workspaceId}/documents/{documentId}` | **ADMIN 이상** | `204` |
+| DELETE | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `204` |
 | GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions` | 참여자 | `200` |
 | GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions/{versionNo}` | 참여자 | `200` |
 | GET | `/api/workspaces/{workspaceId}/labels` | 참여자 | `200` |
@@ -666,7 +666,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 | --- | --- | --- | --- |
 | `title` | String | 필수, 1~200자 | 워크스페이스 안에서 중복을 허용한다 |
 | `content` | String | 필수, 1~10,000자 | v1 버전의 본문이 된다 |
-| `labels` | String[] | 선택, 최대 5개, 각 1~20자 | **없는 이름은 라벨이 새로 만들어진다** |
+| `labels` | String[] | 선택, 최대 5개, 각 1~20자 | **없는 이름은 라벨이 새로 만들어진다.** 라벨명은 **대소문자를 구분하지 않는다**(`D-94`) — `api`가 이미 있으면 `API`를 보내도 새로 만들어지지 않고 기존 라벨이 재사용되며 응답에는 **최초 생성 시 표기**(`api`)가 담긴다. 「최대 5개」는 **요청 배열 기준**이라 `["API","api"]`는 접히기 전 2개로 센다 |
 
 ```json
 {
@@ -773,7 +773,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 `DELETE /api/workspaces/{workspaceId}/documents/{documentId}` → `204 No Content`
 
-**ADMIN 이상만** 삭제할 수 있다. **소프트 삭제**이며 이후 모든 조회에서 빠진다. 확정된 버전 행과 라벨 연결 행은 함께 지우지 않는다 — 조회가 문서에서 먼저 막히기 때문이다.
+**참여자면 누구나** 삭제할 수 있다(`D-92`). **소프트 삭제**이며 이후 모든 조회에서 빠진다. 확정된 버전 행과 라벨 연결 행은 함께 지우지 않는다 — 조회가 문서에서 먼저 막히기 때문이다.
 
 ## **버전 이력 조회**
 
@@ -821,6 +821,8 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 이름 오름차순. 목록 필터 UI를 채우기 위한 것이다. **라벨 생성·수정·삭제 엔드포인트는 없다** — 라벨은 문서에 붙일 때 없으면 만들어진다.
 
+`name`은 **최초 생성 시 입력한 표기**다. 라벨명은 대소문자를 구분하지 않으므로(`D-94`) 이 목록에 `api`가 있으면 `API`라는 라벨은 따로 생기지 않는다. 문서 목록의 `label` 필터도 대소문자를 구분하지 않는다 — `?label=API`가 `api` 라벨이 붙은 문서를 찾는다.
+
 ```json
 [
   { "labelId": 1, "name": "결제" },
@@ -838,7 +840,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 | 참여자지만 ADMIN 미만이 삭제를 시도 | 403 | `WORKSPACE_ADMIN_REQUIRED` |
 | 제목이 비었거나 200자 초과(도메인 검증) | 400 | `DOCUMENT_INVALID_TITLE` |
 | 본문이 비었거나 10,000자 초과(도메인 검증) | 400 | `DOCUMENT_INVALID_CONTENT` |
-| 라벨이 6개 이상 | 400 | `DOCUMENT_LABEL_LIMIT_EXCEEDED` |
+| 라벨이 6개 이상(**요청 배열 기준**. 대소문자 접기 전에 센다) | 400 | `DOCUMENT_LABEL_LIMIT_EXCEEDED` |
 | 라벨 이름이 비었거나 20자 초과 | 400 | `LABEL_INVALID_NAME` |
 | **진행 중인 문서 초안이 있어 본문을 편집할 수 없음** | 409 | `DOCUMENT_DRAFT_IN_PROGRESS` |
 | **진행 중인 사전 초안의 원천 문서라 본문을 편집할 수 없음** | 409 | `DOCUMENT_SOURCE_OF_DICTIONARY_DRAFT` |
@@ -1102,6 +1104,8 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 작업을 `PENDING`으로 저장하고 대조 요청 이벤트를 발행한 뒤 `202 Accepted`와 작업 상태를 즉시 반환한다. 같은 문서에 `PENDING` 또는 `RUNNING` 작업이 있으면 중복 접수를 거절한다.
 
+**같은 워크스페이스에 사전집 초안이 진행 중이어도 접수한다**(`D-93`). 대조에 쓴 사전집 버전을 초안에 고정해 두므로, 교정하는 동안 사전집이 다음 버전으로 올라가도 발행본은 대조한 버전을 기준으로 기록된다. 막히는 것은 **같은 문서에 진행 중인 초안·리뷰**뿐이다.
+
 `GET /api/draft-documents/checks/{checkJobId}`는 폴링용 상태 조회 API다. 응답 형식은 다음과 같다.
 
 ```json
@@ -1159,6 +1163,7 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 | 없거나 삭제된 문서 초안 | 404 | `DRAFT_DOCUMENT_NOT_FOUND` |
 | 초안 본문이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_BODY` |
 | 기준 문서 버전이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_INVALID_BASE_VERSION` |
+| 기준 사전집 버전이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_INVALID_DICTIONARY_VERSION` |
 | 없거나 삭제된 제안어 | 404 | `DRAFT_DOCUMENT_SUGGESTION_TERM_NOT_FOUND` |
 | `anchor`가 올바르지 않음(역전·음수) | 400 | `DRAFT_DOCUMENT_INVALID_ANCHOR` |
 | `anchor`가 초안 본문 범위를 벗어남 | 400 | `DRAFT_DOCUMENT_ANCHOR_OUT_OF_BODY` |
@@ -1169,7 +1174,7 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 | 처리하지 않은 제안어가 남아 있음 | 409 | `DRAFT_DOCUMENT_SUGGESTION_TERM_UNHANDLED_EXISTS` |
 | 교정완료 뒤 판정·본문 수정·완료를 다시 시도 | 409 | `DRAFT_DOCUMENT_ALREADY_EXAMINED` |
 | 문서 초안 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION` |
-| 같은 문서 또는 워크스페이스에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
+| 같은 문서에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
 | 대상 문서의 리뷰가 진행 중임 | 409 | `DRAFT_DOCUMENT_UNDER_REVIEW` |
 | 초안 생성 대상 문서가 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_DOCUMENT_NOT_FOUND` |
 | 활성 사전집이 없어 대조할 수 없음 | 404 | `DRAFT_DOCUMENT_DICTIONARY_NOT_FOUND` |

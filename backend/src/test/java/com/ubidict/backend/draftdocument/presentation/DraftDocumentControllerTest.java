@@ -8,11 +8,9 @@ import static org.mockito.BDDMockito.given;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.draftdocument.domain.DraftDocumentStatus;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
-import com.ubidict.backend.draftdocument.service.DraftDocumentService;
 import com.ubidict.backend.draftdocument.service.model.DraftDocumentResult;
 import com.ubidict.backend.draftdocument.service.model.ExamineProgressResult;
 import com.ubidict.backend.draftdocument.service.model.UpdateDraftBodyCommand;
-import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -21,10 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
@@ -35,8 +30,6 @@ class DraftDocumentControllerTest extends com.ubidict.backend.support.Controller
 
     @Autowired
     private MockMvc mockMvc;
-
-
 
     @BeforeEach
     void setUp() {

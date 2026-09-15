@@ -12,9 +12,14 @@ public class DraftDocumentWriter {
     private final DraftDocumentRepository draftDocumentRepository;
 
     public DraftDocument append(
-            Long documentId, int baseVersionNo, String draftBody, Long requestedBy, Long createdBy) {
+            Long documentId,
+            int baseVersionNo,
+            int dictionaryVersionNo,
+            String draftBody,
+            Long requestedBy,
+            Long createdBy) {
         DraftDocument draftDocument =
-                DraftDocument.create(documentId, baseVersionNo, draftBody, requestedBy, createdBy);
+                DraftDocument.create(documentId, baseVersionNo, dictionaryVersionNo, draftBody, requestedBy, createdBy);
 
         return draftDocumentRepository.save(draftDocument);
     }

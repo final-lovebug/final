@@ -1,10 +1,5 @@
 package com.ubidict.backend.support;
 
-import com.ubidict.backend.member.infra.security.JwtProvider;
-import com.ubidict.backend.member.infra.security.OAuthExchangeCodeRedisRepository;
-import com.ubidict.backend.member.infra.security.RefreshTokenRedisRepository;
-import com.ubidict.backend.member.infra.security.RegistrationTokenRedisRepository;
-import com.ubidict.backend.member.presentation.RefreshTokenCookieProvider;
 import com.ubidict.backend.dictionary.service.DictionaryService;
 import com.ubidict.backend.document.service.DocumentService;
 import com.ubidict.backend.draftdictionary.service.CandidateTermService;
@@ -15,6 +10,11 @@ import com.ubidict.backend.draftdocument.service.DraftDocumentCheckCallbackServi
 import com.ubidict.backend.draftdocument.service.DraftDocumentCheckService;
 import com.ubidict.backend.draftdocument.service.DraftDocumentService;
 import com.ubidict.backend.draftdocument.service.SuggestionTermService;
+import com.ubidict.backend.member.infra.security.JwtProvider;
+import com.ubidict.backend.member.infra.security.OAuthExchangeCodeRedisRepository;
+import com.ubidict.backend.member.infra.security.RefreshTokenRedisRepository;
+import com.ubidict.backend.member.infra.security.RegistrationTokenRedisRepository;
+import com.ubidict.backend.member.presentation.RefreshTokenCookieProvider;
 import com.ubidict.backend.member.service.DevLoginService;
 import com.ubidict.backend.member.service.LogoutService;
 import com.ubidict.backend.member.service.MemberDirectory;
@@ -38,12 +38,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
 /** Presentation 테스트의 공통 MVC 컨텍스트와 인증 관련 대역. */
 @ActiveProfiles("test")
@@ -67,34 +67,89 @@ public abstract class ControllerTest {
     @MockitoBean
     protected RegistrationTokenRedisRepository registrationTokenRedisRepository;
 
-    @MockitoBean protected DictionaryService dictionaryService;
-    @MockitoBean protected DocumentService documentService;
-    @MockitoBean protected CandidateTermService candidateTermService;
-    @MockitoBean protected DraftDictionaryExtractionCallbackService draftDictionaryExtractionCallbackService;
-    @MockitoBean protected DraftDictionaryExtractionService draftDictionaryExtractionService;
-    @MockitoBean protected DraftDictionaryService draftDictionaryService;
-    @MockitoBean protected DraftDocumentCheckCallbackService draftDocumentCheckCallbackService;
-    @MockitoBean protected DraftDocumentCheckService draftDocumentCheckService;
-    @MockitoBean protected DraftDocumentService draftDocumentService;
-    @MockitoBean protected SuggestionTermService suggestionTermService;
-    @MockitoBean protected DevLoginService devLoginService;
-    @MockitoBean protected LogoutService logoutService;
-    @MockitoBean protected MemberDirectory memberDirectory;
-    @MockitoBean protected MemberOAuthLoginService memberOAuthLoginService;
-    @MockitoBean protected MemberService memberService;
-    @MockitoBean protected TokenReissueService tokenReissueService;
-    @MockitoBean protected NotificationService notificationService;
-    @MockitoBean protected CommentService commentService;
-    @MockitoBean protected DraftReviewRequestService draftReviewRequestService;
-    @MockitoBean protected ReexamineService reexamineService;
-    @MockitoBean protected ReviewRequestService reviewRequestService;
-    @MockitoBean protected ReviewService reviewService;
-    @MockitoBean protected ReviewerService reviewerService;
-    @MockitoBean protected ReviseService reviseService;
-    @MockitoBean protected RevisionService revisionService;
-    @MockitoBean protected InvitationService invitationService;
-    @MockitoBean protected ParticipantService participantService;
-    @MockitoBean protected WorkspaceService workspaceService;
+    @MockitoBean
+    protected DictionaryService dictionaryService;
+
+    @MockitoBean
+    protected DocumentService documentService;
+
+    @MockitoBean
+    protected CandidateTermService candidateTermService;
+
+    @MockitoBean
+    protected DraftDictionaryExtractionCallbackService draftDictionaryExtractionCallbackService;
+
+    @MockitoBean
+    protected DraftDictionaryExtractionService draftDictionaryExtractionService;
+
+    @MockitoBean
+    protected DraftDictionaryService draftDictionaryService;
+
+    @MockitoBean
+    protected DraftDocumentCheckCallbackService draftDocumentCheckCallbackService;
+
+    @MockitoBean
+    protected DraftDocumentCheckService draftDocumentCheckService;
+
+    @MockitoBean
+    protected DraftDocumentService draftDocumentService;
+
+    @MockitoBean
+    protected SuggestionTermService suggestionTermService;
+
+    @MockitoBean
+    protected DevLoginService devLoginService;
+
+    @MockitoBean
+    protected LogoutService logoutService;
+
+    @MockitoBean
+    protected MemberDirectory memberDirectory;
+
+    @MockitoBean
+    protected MemberOAuthLoginService memberOAuthLoginService;
+
+    @MockitoBean
+    protected MemberService memberService;
+
+    @MockitoBean
+    protected TokenReissueService tokenReissueService;
+
+    @MockitoBean
+    protected NotificationService notificationService;
+
+    @MockitoBean
+    protected CommentService commentService;
+
+    @MockitoBean
+    protected DraftReviewRequestService draftReviewRequestService;
+
+    @MockitoBean
+    protected ReexamineService reexamineService;
+
+    @MockitoBean
+    protected ReviewRequestService reviewRequestService;
+
+    @MockitoBean
+    protected ReviewService reviewService;
+
+    @MockitoBean
+    protected ReviewerService reviewerService;
+
+    @MockitoBean
+    protected ReviseService reviseService;
+
+    @MockitoBean
+    protected RevisionService revisionService;
+
+    @MockitoBean
+    protected InvitationService invitationService;
+
+    @MockitoBean
+    protected ParticipantService participantService;
+
+    @MockitoBean
+    protected WorkspaceService workspaceService;
 
     @BeforeEach
     void setUpControllerTest() {

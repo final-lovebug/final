@@ -3,8 +3,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, ColFlex, Pill, Toolbar, ToolbarSpacer, TwoCol } from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
 import { ApiError } from '../../shared/api/httpClient'
+import { dictionaryVersionLabel } from '../../features/document/model/dictionaryVersionLabel'
 import { useDocument } from '../../features/document/hooks/useDocument'
 import { useCreateCheckJob } from '../../features/document/hooks/useCreateCheckJob'
+import { useDeleteDocument } from '../../features/document/hooks/useDeleteDocument'
 
 // ui/main.js renderDocDetailScreen() 이식 — 본문(넓게) + 속성 패널(320px) 2단.
 //
@@ -19,7 +21,9 @@ export function DocumentDetailPage() {
   const navigate = useNavigate()
   const { data: document, isLoading, isError } = useDocument(workspaceId, documentId)
   const createCheckJob = useCreateCheckJob(workspaceId, documentId)
-  const [checkError, setCheckError] = useState<string | null>(null)
+  const deleteDocument = useDeleteDocument(workspaceId, documentId)
+  // 대조 접수와 삭제가 같은 자리에 오류를 띄운다 — 툴바 동작은 한 번에 하나만 실행된다.
+  const [actionError, setActionError] = useState<string | null>(null)
 
   if (isLoading) return <p className="text-sm text-text-tertiary">불러오는 중…</p>
   if (isError || !document) {
@@ -27,13 +31,30 @@ export function DocumentDetailPage() {
   }
 
   function handleRunCheck() {
-    setCheckError(null)
+    setActionError(null)
     createCheckJob.mutate(undefined, {
       onSuccess: (created) =>
-        navigate(`${routes.documentReview(workspaceId, documentId)}?checkJob=${created.id}`),
+        navigate(`${routes.documentDraft(workspaceId, documentId)}?checkJob=${created.id}`),
       onError: (error) =>
-        setCheckError(
+        setActionError(
           error instanceof ApiError ? error.message : '대조 작업을 접수하지 못했습니다.',
+        ),
+    })
+  }
+
+  // 삭제 버튼은 목록이 아니라 이 툴바에만 둔다(`CONFLICTS.md` D-92) — 목록은 행·카드 전체가
+  // 상세로 가는 클릭 영역이고, 되돌리기 어려운 동작은 내용을 확인한 자리에서 누르는 편이 안전하다.
+  // 권한으로 감추지 않는다 — 참여자면 누구나 지울 수 있고, 최종 판정은 서버가 한다.
+  const title = document.title
+
+  function handleDelete() {
+    if (!window.confirm(`「${title}」 문서를 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return
+    setActionError(null)
+    deleteDocument.mutate(undefined, {
+      onSuccess: () => navigate(routes.documents(workspaceId)),
+      onError: (error) =>
+        setActionError(
+          error instanceof ApiError ? error.message : '문서를 삭제하지 못했습니다.',
         ),
     })
   }
@@ -56,17 +77,17 @@ export function DocumentDetailPage() {
           </Pill>
         )}
         <ToolbarSpacer />
-        <Link to={routes.documentReview(workspaceId, documentId)}>
-          <Button variant="primary">검토 화면으로</Button>
-        </Link>
         <Button variant="outline" disabled={createCheckJob.isPending} onClick={handleRunCheck}>
           {createCheckJob.isPending ? '접수 중…' : '최신 사전집으로 갱신'}
         </Button>
+        <Button variant="dangerText" disabled={deleteDocument.isPending} onClick={handleDelete}>
+          {deleteDocument.isPending ? '삭제 중…' : '삭제'}
+        </Button>
       </Toolbar>
 
-      {checkError && (
+      {actionError && (
         <Card className="mb-4 border-danger-border bg-danger-bg p-4 text-[12.5px] text-danger">
-          {checkError}
+          {actionError}
         </Card>
       )}
 
@@ -74,7 +95,7 @@ export function DocumentDetailPage() {
         <ColFlex>
           <Card className="px-[30px] py-[26px]">
             <div className="mb-4 font-display text-base font-bold">{document.title}</div>
-            <p className="whitespace-pre-wrap text-[13.5px] leading-[1.9] text-text-secondary">
+            <p className="whitespace-pre-wrap wrap-break-word text-[13.5px] leading-[1.9] text-text-secondary">
               {document.content}
             </p>
           </Card>
@@ -85,9 +106,7 @@ export function DocumentDetailPage() {
             <Property label="적용 사전집">
               <span className="flex items-center gap-[6px]">
                 <Pill tone="outline">
-                  {document.dictionaryVersionNo === null || document.dictionaryVersionNo === undefined
-                    ? '—'
-                    : `r${document.dictionaryVersionNo}`}
+                  {dictionaryVersionLabel(document.dictionaryVersionNo)}
                 </Pill>
                 {document.badge && (
                   <Pill tone={document.badge === 'danger' ? 'danger' : 'neutral'}>
