@@ -10,6 +10,26 @@ REGION=ap-northeast-2
 REGISTRY=416121583617.dkr.ecr.ap-northeast-2.amazonaws.com
 IMAGE_REPO="$REGISTRY/lovebug/fastapi"
 
+# ── 선행 조건 확인 ────────────────────────────────────────────────────────
+# 아래는 전부 외부 명령에 의존한다. 하나라도 없으면 `set -euo pipefail` 때문에
+# 파이프 중간에서 그냥 exit 127("command not found")로 죽고, CodeDeploy 로그에는
+# "failed with exit code 127"만 남아 무엇이 없는지 알 수 없다(2026-09-15에 실제로
+# 겪음 — 인스턴스에 docker·aws 둘 다 없었다). 그래서 여기서 먼저 이름을 찍는다.
+# stop_container.sh는 `|| true`로 docker 부재를 삼키므로 이 훅이 첫 신호다.
+MISSING=()
+# curl은 이 스크립트가 아니라 뒤따르는 validate.sh가 쓴다 — 여기서 같이 잡지 않으면
+# 헬스체크가 150초를 헛돌고 나서야 실패한다.
+for CMD in aws docker curl; do
+  command -v "$CMD" >/dev/null 2>&1 || MISSING+=("$CMD")
+done
+if [ "${#MISSING[@]}" -ne 0 ]; then
+  echo "선행 조건 없음: ${MISSING[*]} — 인스턴스에 설치돼 있지 않다." >&2
+  echo "  이 인스턴스는 Ubuntu다(AL2023이 아니다 — dnf가 없다)." >&2
+  echo "  docker : sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl enable --now docker" >&2
+  echo "  aws    : awscli-exe-linux-aarch64.zip(Graviton)로 v2를 설치한다. apt의 awscli는 v1이라 쓰지 않는다." >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TAG=$(cat "$SCRIPT_DIR/../IMAGE_TAG")
 echo "deploying tag: $TAG"

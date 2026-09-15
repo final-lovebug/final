@@ -20,17 +20,34 @@ import asyncio
 import json
 import logging
 import os
+import re
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import boto3
 
+from app.backend_db import fetch_active_preferred_forms, fetch_document_body
 from app.queue_schema import LlmJobRequest
 
 logger = logging.getLogger("queue_consumer")
 
 _POLL_WAIT_SECONDS = 20  # SQS 롱폴링 최대치
 _running = False
+
+# 대조 MOCK 이 본문에서 찾아 볼 비표준 표기. 왼쪽이 본문에 있고 오른쪽이 **활성 사전집의
+# 표준어일 때만** 제안한다 — 사전집에 없는 말을 제안하면 초안은 만들어져도 「적용」이
+# DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM 으로 막힌다(SuggestionTermProcessor.accept).
+_MOCK_VARIANTS: tuple[tuple[str, str], ...] = (
+    ("유저", "이용자"),
+    ("고객", "회원"),
+    ("페이먼트", "결제"),
+    ("어드민", "관리자"),
+    ("오더", "주문"),
+)
+_MOCK_SUGGESTION_LIMIT = 3
+# 폴백이 집는 낱말의 상한. 공백 없는 본문이면 첫 낱말이 문단 전체가 돼 하이라이트가
+# 본문을 통째로 덮는다. 잘라도 본문의 연속 구간이라 앵커는 그대로 유효하다.
+_MOCK_FALLBACK_MAX_CHARS = 10
 
 
 def build_sqs_client():
@@ -121,15 +138,86 @@ def _callback_for(job: LlmJobRequest) -> tuple[str, dict]:
             {"requestId": job.requestId, "sourceDocumentIds": job.sourceDocumentIds, "terms": terms},
         )
 
-    # 문서 대조는 mock 에서도 빈 제안을 돌려준다. 백엔드의 CheckSuggestionValidator 가
-    # 본문을 anchor 로 잘라 originTerm 과 대조하므로(docs/AI_CONTRACT.md), 본문을 읽지
-    # 않고 만든 anchor 는 DRAFT_DOCUMENT_CHECK_INVALID_RESULT 로 거절된다 — 추출과 달리
-    # 임시 데이터를 지어낼 수가 없다. 데이터가 필요하면 REAL 로 돌린다.
-    suggestions: list[dict] = []
+    # 문서 대조의 MOCK 은 **본문을 읽어야** 목 데이터를 만들 수 있다. 백엔드의
+    # CheckSuggestionValidator 가 body.substring(anchor) 와 originTerm 이 같은지 보므로
+    # (docs/AI_CONTRACT.md 6-2), 본문을 모르고 지어낸 anchor 는 예외 없이
+    # DRAFT_DOCUMENT_CHECK_INVALID_RESULT 로 거절된다. 그래서 추출 MOCK 과 달리 읽기
+    # 전용 DB 조회 한 번을 한다 — 모델은 여전히 부르지 않는다.
+    if job.mode == "MOCK":
+        try:
+            body = fetch_document_body(job.documentId, job.documentVersionNo)
+        except Exception:
+            logger.exception("jobId=%s 목 대조 결과를 만들 본문을 읽지 못했다", job.jobId)
+            return _failure_callback(job, "목 대조 결과를 만들 문서 본문을 읽지 못했습니다.", "MOCK_BODY_READ_FAILED")
+        if body is None:
+            return _failure_callback(job, "대조할 문서 본문을 찾지 못했습니다.", "DOCUMENT_NOT_FOUND")
+        try:
+            preferred_forms = fetch_active_preferred_forms(job.workspaceId)
+        except Exception:
+            logger.exception("jobId=%s 활성 사전집의 표준어를 읽지 못했다", job.jobId)
+            return _failure_callback(job, "목 대조 결과를 만들 사전집을 읽지 못했습니다.", "MOCK_TERMS_READ_FAILED")
+        suggestions = _mock_suggestions(body, preferred_forms)
+    else:
+        suggestions = []
+
     return (
         f"/api/internal/llm/checks/{job.jobId}/result",
         {"requestId": job.requestId, "documentVersionNo": job.documentVersionNo, "suggestions": suggestions},
     )
+
+
+def _mock_suggestions(body: str, preferred_forms: list[str]) -> list[dict]:
+    """본문에 실제로 있는 자리에만 앵커를 달고, 대체 용어는 **활성 사전집의 표준어**만 쓴다.
+
+    두 조건 모두 백엔드가 강제한다 — 앵커는 대조 콜백에서(``CheckSuggestionValidator``),
+    대체 용어는 「적용」에서(``SuggestionTermProcessor.accept``) 본다. 한쪽만 맞추면 초안은
+    만들어지지만 사용자가 적용을 누르는 순간 막힌다.
+    """
+    if not preferred_forms:
+        # 표준어가 없으면 적용 가능한 제안을 만들 수 없다. 지어내지 않고 빈 결과로 끝낸다.
+        return []
+
+    available = set(preferred_forms)
+    suggestions: list[dict] = []
+    for origin, replacement in _MOCK_VARIANTS:
+        if replacement not in available:
+            continue
+        index = body.find(origin)
+        if index == -1:
+            continue
+        suggestions.append(_suggestion(body, index, origin, replacement))
+        if len(suggestions) == _MOCK_SUGGESTION_LIMIT:
+            return suggestions
+    if suggestions:
+        return suggestions
+
+    # 알고 있는 비표준 표기가 본문에 하나도 없으면, 첫 낱말을 아무 표준어로 바꿔 보게 둔다.
+    # 화면이 하이라이트와 적용을 실제로 도는지 보려는 것이 목적이라 빈 결과보다 낫다.
+    replacement = sorted(available)[0]
+    for match in re.finditer(r"\S+", body):
+        token = match.group()[:_MOCK_FALLBACK_MAX_CHARS]
+        if token != replacement:
+            return [_suggestion(body, match.start(), token, replacement)]
+    return []
+
+
+def _suggestion(body: str, index: int, origin: str, replacement: str) -> dict:
+    start = _utf16_length(body[:index])
+    return {
+        "anchor": {"startOffset": start, "endOffset": start + _utf16_length(origin)},
+        "originTerm": origin,
+        "suggestionTerm": replacement,
+    }
+
+
+def _utf16_length(text: str) -> int:
+    """Java String.substring 이 세는 UTF-16 코드 유닛 길이.
+
+    파이썬 문자열 인덱스는 코드 포인트라 한글·영문에서는 같은 값이지만, 이모지 같은
+    BMP 밖 문자가 본문에 있으면 한 글자가 2 유닛이라 어긋난다 — 앵커가 한 칸씩 밀려
+    검증에서 떨어지므로 여기서 맞춰 센다.
+    """
+    return len(text.encode("utf-16-le")) // 2
 
 
 def _mock_term(document_id: int) -> dict:
