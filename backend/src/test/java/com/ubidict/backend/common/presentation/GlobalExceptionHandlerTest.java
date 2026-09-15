@@ -19,9 +19,11 @@ import jakarta.validation.ValidatorFactory;
 import jakarta.validation.constraints.NotBlank;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -58,6 +60,12 @@ class GlobalExceptionHandlerTest {
         RestAssuredMockMvc.mockMvc(mockMvc);
     }
 
+    /** MDC는 스레드에 붙어 있어 테스트 워커 스레드가 재사용되면 다음 테스트로 새어 나간다. */
+    @AfterEach
+    void clearTraceContext() {
+        MDC.clear();
+    }
+
     @DisplayName("BusinessException이 발생하면 에러 코드가 가진 상태와 코드로 응답한다.")
     @Test
     void handleBusinessException() {
@@ -68,6 +76,42 @@ class GlobalExceptionHandlerTest {
                 .statusCode(HttpStatus.CONFLICT.value())
                 .body("code", equalTo("TEST_ALREADY_REGISTERED"))
                 .body("message", equalTo("이미 등록된 대상이다."));
+    }
+
+    @DisplayName("추적 문맥이 있으면 에러 응답에 traceId를 싣는다.")
+    @Test
+    void handleBusinessException_withTraceId() {
+        // given — 실제로는 OpenTelemetry 계측이 채우는 자리다(D-96)
+        MDC.put("traceId", "8f3a1c2d4e5b6a7c8d9e0f1a2b3c4d5e");
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .when()
+                .get("/test/business")
+                .then()
+                .body("traceId", equalTo("8f3a1c2d4e5b6a7c8d9e0f1a2b3c4d5e"));
+    }
+
+    @DisplayName("검증 실패 응답에도 traceId를 싣는다.")
+    @Test
+    void handleMethodArgumentNotValid_withTraceId() {
+        // given
+        MDC.put("traceId", "8f3a1c2d4e5b6a7c8d9e0f1a2b3c4d5e");
+
+        // when & then
+        RestAssuredMockMvc.given()
+                .contentType(ContentType.JSON)
+                .body(new TestRequest(" "))
+                .when()
+                .post("/test/body")
+                .then()
+                .body("traceId", equalTo("8f3a1c2d4e5b6a7c8d9e0f1a2b3c4d5e"));
+    }
+
+    @DisplayName("추적 문맥이 없으면 traceId 필드를 응답에 포함하지 않는다.")
+    @Test
+    void handleBusinessException_withoutTraceId() {
+        RestAssuredMockMvc.given().when().get("/test/business").then().body("$", not(hasKey("traceId")));
     }
 
     @DisplayName("검증 실패 정보가 없으면 errors 필드를 응답에 포함하지 않는다.")
