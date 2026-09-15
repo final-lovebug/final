@@ -83,6 +83,69 @@ def fetch_documents(document_ids: list[int]) -> list[DocumentInput]:
     ]
 
 
+def fetch_document_body(document_id: int, version_no: int | None) -> str | None:
+    """대조 대상 문서의 본문 한 건. 없거나 삭제됐으면 ``None``이다.
+
+    ``version_no``가 가리키는 버전을 읽는다(``docs/AI_CONTRACT.md`` 5-4). 백엔드는
+    콜백에 실린 버전이 현재 버전과 다르면 결과를 버리므로, 여기서 다른 버전을 읽으면
+    앵커 오프셋이 조용히 어긋난다. ``None``이면 현재 확정본을 읽는다.
+    """
+    if version_no is None:
+        sql = """
+            SELECT dv.body AS body
+            FROM document d
+            JOIN document_version dv
+              ON dv.document_id = d.id AND dv.version_no = d.current_version_no
+            WHERE d.id = %s AND d.deleted_at IS NULL
+        """
+        params: tuple = (document_id,)
+    else:
+        sql = """
+            SELECT dv.body AS body
+            FROM document d
+            JOIN document_version dv
+              ON dv.document_id = d.id AND dv.version_no = %s
+            WHERE d.id = %s AND d.deleted_at IS NULL
+        """
+        params = (version_no, document_id)
+
+    conn = _connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    return row["body"] if row else None
+
+
+def fetch_active_preferred_forms(workspace_id: int) -> list[str]:
+    """워크스페이스 활성 사전집의 표준어 목록. 사전집이 없거나 비어 있으면 빈 목록이다.
+
+    대조 MOCK 이 쓴다. 백엔드는 제안어를 적용할 때 **대체 용어가 활성 사전집의 표준어인지**
+    확인하므로(``SuggestionTermProcessor.accept``), 사전집에 없는 말을 지어내면 초안은 만들어져도
+    「적용」이 ``DRAFT_DOCUMENT_INVALID_SUGGESTION_TERM`` 으로 막힌다.
+
+    활성 사전집은 워크스페이스당 하나다(``docs/AI_CONTRACT.md`` 5-5).
+    """
+    sql = """
+        SELECT t.preferred_form AS preferred_form
+        FROM dictionary d
+        JOIN term t ON t.dictionary_id = d.id
+        WHERE d.workspace_id = %s AND d.status = 'ACTIVE'
+    """
+    conn = _connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (workspace_id,))
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    return [row["preferred_form"] for row in rows if row["preferred_form"]]
+
+
 def fetch_existing_terms(dictionary_id: int) -> list[ExistingTerm]:
     """extract용 — `definition` 없이 termId/preferredForm/englishName만."""
     return [
