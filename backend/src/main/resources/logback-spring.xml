@@ -21,6 +21,29 @@
         <captureLoggerContext>true</captureLoggerContext>
     </appender>
 
+    <!--
+      익스포터 자신의 로그는 CONSOLE 로만 보낸다(additivity="false").
+
+      이것이 되먹임을 끊는 지점이다 — 이 로그가 OTEL appender 로 가면 「export 실패 로그」가 다시
+      export 대상이 되고, 그 export 가 또 실패해 로그를 낳는다.
+
+      **레벨로 끊으려 하지 않는다.** HttpExporter 는 연결 실패를 SEVERE(=ERROR), HTTP 상태코드
+      실패(예: Grafana Cloud 401)를 WARNING 으로 찍는다. 로거 레벨을 ERROR 로 두면 시끄러운
+      쪽(연결 실패)은 그대로 나오고 진단에 꼭 필요한 쪽(401)만 가려진다 — 정확히 거꾸로다.
+
+      메시지는 stdout 에 그대로 남긴다. 텔레메트리가 안 올 때 원인을 볼 유일한 창이고,
+      OTel 의 ThrottlingLogger 가 같은 메시지를 분당 1회로 묶어 주므로 폭주하지 않는다.
+    -->
+    <logger name="io.opentelemetry.exporter" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="io.opentelemetry.sdk.internal" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="io.micrometer.registry.otlp" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="OTEL"/>

@@ -61,13 +61,9 @@ management:
       # 로컬·테스트는 전량 수집한다. prod 는 비용 때문에 낮춘다.
       probability: 1.0
 
-logging:
-  level:
-    # OTLP export 실패 WARN 이 다시 로그 레코드가 되어 export 되는 되먹임을 끊는다(D-98).
-    # 수집기가 내려가 있을 때 이것이 없으면 실패 로그가 실패 로그를 낳는다.
-    io.opentelemetry.exporter.internal: ERROR
-    io.opentelemetry.sdk.internal: ERROR
-    io.micrometer.registry.otlp: ERROR
+# 익스포터 실패 로그의 되먹임 차단은 logback-spring.xml 이 맡는다(D-98). 로거 레벨로는 끊을 수 없다 —
+# HttpExporter 가 연결 실패를 SEVERE 로, HTTP 상태코드 실패(401 등)를 WARNING 으로 찍어서
+# 레벨을 올리면 진단에 필요한 쪽만 가려진다.
 
 app:
   messaging:
