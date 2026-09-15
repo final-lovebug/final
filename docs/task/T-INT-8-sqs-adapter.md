@@ -1,61 +1,51 @@
 # T-INT-8 — 추출·대조 real 어댑터(SQS)
 
-상태: 대기 | 담당자: (미정)
+상태: **완료(대체됨, 2026-09-14)** | 담당자: `WLSH-166`(AI 워커 전환 세션)
 근거: `docs/plan/INTEGRATION_PLAN.md` 1절(변환 매핑) · 2절 Track B(T-INT-8a/8b/8c)
-의존: T-INT-7(큐 계약·프로퍼티 키가 먼저 있어야 한다)
+의존: T-INT-7(→ 함께 대체됨)
 
-`TermExtractorPort`/`TermCheckerPort`의 `real` 어댑터를 만들어 실제로 ubidict-py와
-SQS로 왕복한다. **포트 반환값을 없애고 "발행만" 하는 형태로 바꾼다** — 응답이 비동기로
-딴 리스너에서 오기 때문이다(기존 `DraftDocumentCheckEventListener`/
-`DraftDictionaryExtractionEventListener`가 포트를 동기 호출해 반환값을 바로 쓰던
-구조에서, "요청 발행" + "응답 리스너가 job 완료 처리" 2단계로 바뀐다).
+## ⚠️ 이 태스크는 다른 세션이 다른 모양으로 이미 끝냈다
 
-## 8a. 추출(Extraction) 어댑터
+`T-INT-7`과 같은 경위다 — **AI 워커 전환 세션**(`WLSH-166`, PR #62)이 `D-66`~`D-78`로
+설계를 다시 잡고 구현·테스트까지 마쳤다. 아래 체크리스트의 클래스 이름은 하나도 실재하지
+않는다. **기능은 전부 있고, 있는 자리가 다르다.**
 
-- [ ] `draftdictionary/infra/adapter/SqsTermExtractorAdapter.java` 신설 —
-      `sourceDocumentIds`+문서 본문 조회, `TermSnapshot` 목록을 ubidict-py
-      `ExtractRequest` shape으로 변환해 `lovebug-llm-request` 큐에 발행
-      (`INTEGRATION_PLAN.md` 1-3절 매핑표의 extract 행 그대로 적용)
-- [ ] `draftdictionary/infra/event/ExtractionReplyListener.java` 신설 —
-      `@SqsListener("${app.messaging.sqs.llm-reply-queue}")`로 응답 수신,
-      `type=="extract"`만 처리, `jobId`를 `Long.parseLong`, `ExtractResponse.candidates`를
-      `List<ExtractedTerm>`으로 변환(매핑표 그대로 — `HomographCandidate`는 건너뛰고
-      경고 로그)
-- [ ] 변환 결과를 `DraftDictionaryExtractionExecutionService.complete(jobId, terms)` /
-      `.fail(jobId, reason)`에 직접 전달(포트를 거치지 않는다 — 응답은 요청 호출자와
-      다른 스레드/시점에서 온다)
-- [ ] `TermExtractorPort` 인터페이스에서 동기 반환값이 필요 없어졌는지 확인하고 필요시
-      시그니처 정리(요청 발행 전용 메서드로)
+### 설계가 바뀐 지점
 
-## 8b. 대조(Contrast/Check) 어댑터
+| 이 파일의 전제 | 실제 구현 |
+| --- | --- |
+| `TermExtractorPort`/`TermCheckerPort`의 `real` 어댑터를 만든다 | **두 포트와 스텁을 통째로 제거했다**(`D-66`·`R-26`). 감출 대상이 프로세스 경계 밖으로 나가 인터페이스가 남을 자리가 없다 |
+| 도메인마다 `Sqs*Adapter`를 하나씩 | **공용 포트 하나**(`common/infra/ai/LlmJobRequestSender`) + 어댑터 둘 — `InProcessLlmJobRequestSender`(대역)·`SqsLlmJobRequestSender`(실 큐). 선택은 `app.ai.dispatch.mode` |
+| 응답을 `@SqsListener`로 받는 `ExtractionReplyListener`/`CheckReplyListener` | **응답 큐가 없다**(`D-68`). 워커가 치는 동기 HTTP 콜백을 `ExtractionCallbackController`·`CheckCallbackController`(`/api/internal/llm/**`)가 받는다 |
+| 어댑터가 문서 본문·용어를 담아 보낸다 | **식별자만 보낸다**(`D-69`). 워커가 DB를 직접 읽으므로 `ubidict-py` 스키마로의 변환 매핑표 자체가 백엔드 범위에서 사라졌다 |
+| `app.ai.extractor.mode`/`app.ai.checker.mode`로 `real` 선택 | 두 키는 **제거됐다**. 축이 둘로 갈렸다 — `app.ai.dispatch.mode`(백엔드가 어디로 보낼지)와 `app.ai.mode`(워커가 실제 모델을 부를지, `D-71`) |
 
-- [ ] `draftdocument/infra/adapter/SqsTermCheckerAdapter.java` 신설 — `DocumentSnapshot`
-      단일 문서를 `documents:[그 문서 하나]`로 감싸고 `TermSnapshot`을
-      `ContrastRequest.dictionary[]`로 변환해 `lovebug-llm-request` 큐에 발행
-      (`type` 와이어 값은 `"contrast"` — 백엔드 내부 명칭 "check"와 다름, 매핑표 참고)
-- [ ] `draftdocument/infra/event/CheckReplyListener.java` 신설 — 동일 패턴,
-      `type=="contrast"`만 처리, `ContrastResponse.suggestions`를
-      `List<CheckSuggestion>`으로 변환(`anchor=TextRange(charStart,charEnd)`,
-      `originTerm=foundForm`, `suggestionTerm=preferredForm`)
-- [ ] `DraftDocumentCheckExecutionService.complete/fail`에 직접 연결
+### 체크리스트 대조 결과 — 요구한 기능은 전부 있다
 
-## 8c. 프로퍼티 전환
+- [x] **요청 발행** — `SqsLlmJobRequestSender`(전용 LLM 요청 큐로 발행)
+      + `InProcessLlmJobRequestSender`(로컬·테스트 대역)
+- [x] **"발행만" 하는 형태로 전환** — `DraftDictionaryExtractionDispatchListener`·
+      `DraftDocumentCheckDispatchListener`가 `AFTER_COMMIT`에 상관 식별자를 새기고 발행만
+      한다. **발행 실패 시 작업을 `FAILED`로 끝낸다**(그대로 두면 다음 요청이 영구히 막힌다)
+- [x] **결과 수신 → `complete`/`fail` 직접 연결** —
+      `DraftDictionaryExtractionCallbackService`·`DraftDocumentCheckCallbackService`
+- [x] **멱등성** — 종단 상태에 도착한 중복·지각 콜백은 무시하고 **그 경우에도 2xx**로 답한다
+      (`D-72`). 4xx로 답하면 워커가 영원히 재시도한다
+- [x] **상관 식별자 대조** — 작업마다 발행되는 UUIDv4(`requestId`)를 작업 행에 저장해 두고
+      콜백이 같은 값을 돌려주지 못하면 403(`D-70`, 비교는 `MessageDigest.isEqual`)
+- [x] **테스트** — `SqsLlmJobRequestSenderTest`, 두 `*DispatchListenerTest`,
+      두 `*CallbackControllerTest`(상태 코드를 못 박는다, `D-73`), 두 `*CallbackServiceTest`,
+      두 `*TimeoutServiceTest`, 그리고 `support/ai/FakeLlmWorker`가 LocalStack 위에서
+      FastAPI 자리를 대신한다(`D-75`)
+- [x] `PARTIAL` 취급 — **해당 없음.** 콜백 계약에 `status` 필드가 없다(성공·실패 엔드포인트가
+      갈려 있다)
+- [x] `jobId` 문자열↔`Long` 변환 — **해당 없음.** `jobId`가 `Long` 그대로 나가고 경로 변수로
+      돌아온다
+- [x] 응답 없는 작업 회수 — 체크리스트에 없던 항목이지만 함께 들어왔다. `@Scheduled` 스위퍼가
+      `app.ai.timeout.job` 뒤에 `FAILED`로 회수한다(`D-77`) — 이것이 없으면 고아 작업 하나가
+      워크스페이스 전체의 추출을 영구히 막는다
 
-- [ ] `app.ai.extractor.mode`/`app.ai.checker.mode`에 `@ConditionalOnProperty(havingValue
-      = "real")`로 두 어댑터 등록(기존 `TermExtractorStub`/`TermCheckerStub`는 그대로
-      두고 `stub`이 여전히 기본값)
-- [ ] 로컬에서 `AI_EXTRACTOR_MODE=real AI_CHECKER_MODE=real
-      MESSAGING_MODE=sqs`로 기동해 SQS 어댑터가 뜨는지 확인(실제 AWS 큐 접근 필요 —
-      자격증명 준비)
+### 남은 것
 
-## 공통
-
-- [ ] 두 응답 봉투 모두 `status=="PARTIAL"`을 `SUCCESS`로 취급하는지 확인
-- [ ] `jobId` 문자열↔`Long` 변환 양방향 단위 테스트
-- [ ] 리스너가 멱등한지 확인 — 같은 `jobId` 응답이 중복 수신돼도 `complete()`가
-      이미 `SUCCEEDED`인 job에 재호출되지 않게 가드(`CheckJob`/`ExtractionJob`
-      도메인 메서드의 상태 검증에 기대거나 명시적으로 확인)
-- [ ] 기존 `RealSqsRoundTripITest` 패턴을 참고해 수동/선택 통합 테스트 작성(기본
-      `./gradlew check`에는 포함하지 않음 — 실 AWS 비용)
-- [ ] `./gradlew spotlessApply && ./gradlew check` 통과(stub 경로 기준)
-- [ ] 커밋 브랜치 `feat/WLSH-{티켓}-t-int-8`, PR 생성(8a/8b/8c를 커밋 단위로 분리)
+**백엔드에는 없다.** 실제 왕복은 FastAPI 워커가 떠야 볼 수 있고, 그건 이 저장소 밖이다 —
+루트 `CLAUDE.md` 「미구성 항목」의 「AI 워커(FastAPI) 구현이 이 저장소에 없다」가 그 기록이다.

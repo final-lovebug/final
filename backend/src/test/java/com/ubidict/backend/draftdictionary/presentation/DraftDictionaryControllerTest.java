@@ -12,7 +12,6 @@ import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
 import com.ubidict.backend.draftdictionary.service.DraftDictionaryService;
 import com.ubidict.backend.draftdictionary.service.model.CompleteExamineCommand;
 import com.ubidict.backend.draftdictionary.service.model.DraftDictionaryResult;
-import com.ubidict.backend.draftdictionary.service.model.ExamineProgressResult;
 import com.ubidict.backend.member.infra.security.JwtProvider;
 import com.ubidict.backend.support.WithLoginMember;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
@@ -93,26 +92,6 @@ class DraftDictionaryControllerTest {
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .body("status", equalTo("EXAMINED"));
-    }
-
-    @DisplayName("초안의 상태별 교정 진행률을 응답한다.")
-    @Test
-    void readExamineProgress() {
-        given(draftDictionaryService.readExamineProgress(DRAFT_DICTIONARY_ID, MEMBER_ID))
-                .willReturn(new ExamineProgressResult(7, 1, 1, 1, 1, 1, 1));
-
-        RestAssuredMockMvc.given()
-                .when()
-                .get("/api/draft-dictionaries/{draftDictionaryId}/examine-progress", DRAFT_DICTIONARY_ID)
-                .then()
-                .statusCode(HttpStatus.OK.value())
-                .body("total", equalTo(7))
-                .body("pending", equalTo(1))
-                .body("kept", equalTo(1))
-                .body("approved", equalTo(1))
-                .body("merged", equalTo(1))
-                .body("rejected", equalTo(1))
-                .body("onHold", equalTo(1));
     }
 
     private static DraftDictionaryResult draftDictionaryResult() {

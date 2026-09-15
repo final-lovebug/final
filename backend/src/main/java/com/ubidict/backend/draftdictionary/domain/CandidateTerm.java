@@ -232,35 +232,11 @@ public class CandidateTerm extends BaseEntity {
         mergeTargetTermId = null;
     }
 
-    public boolean isPending() {
-        return status == CandidateTermStatus.PENDING;
-    }
-
-    public boolean isDecided() {
-        return status != CandidateTermStatus.PENDING;
-    }
-
-    public boolean isRegistrationApproved() {
-        return status == CandidateTermStatus.REGISTRATION_APPROVED;
-    }
-
-    public boolean isMergedAsSynonym() {
-        return status == CandidateTermStatus.MERGED_AS_SYNONYM;
-    }
-
-    public boolean isRejected() {
-        return status == CandidateTermStatus.REJECTED;
-    }
-
-    public boolean isKept() {
-        return status == CandidateTermStatus.KEPT;
-    }
-
-    public boolean isOnHold() {
-        return status == CandidateTermStatus.ON_HOLD;
-    }
-
-    public boolean isPublished() {
-        return isRegistrationApproved() || isKept();
-    }
+    // 판정 상태를 읽던 술어 8종(isPending·isDecided·isRegistrationApproved·isMergedAsSynonym
+    // ·isRejected·isKept·isOnHold·isPublished)은 **제거했다**(docs/plan/DRAFT_PLAN.md).
+    // 준비 조건과 발행 목록이 판정 상태를 보지 않게 되면서 호출부가 0곳이 됐다 —
+    // 마지막 소비자였던 사전 초안 교정 진행률(examine-progress)도 함께 지웠다.
+    //
+    // status 필드와 CandidateTermStatus 는 남아 있다. 이미 판정이 기록된 초안 행을 읽어야
+    // 하기 때문이며(그 이유는 enum javadoc 에 있다), 상태가 필요하면 getStatus() 로 읽는다.
 }

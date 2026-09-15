@@ -55,6 +55,7 @@
 | [T-INT-18](T-INT-18-participant-member-info.md) | 회원 배치/단건 조회 API 신설(백엔드) | B | 없음 | **완료**(2026-09-14) | |
 | [T-INT-20](T-INT-20-draft-dictionary-lookup.md) | 워크스페이스의 진행 중 사전 초안 조회(백엔드) | B | 없음 | **완료**(2026-09-14) | |
 | [T-INT-21](T-INT-21-design-alignment.md) | 프론트 디자인 정합(`ui/` 기준) + 잔여 API 연동 | A | 트랙 A·T-INT-17 | **코드 작성 완료**(QA 대기, 2026-09-14) | |
+| [T-INT-22](T-INT-22-dictionary-draft-single-page.md) | 사전집 초안 단일 페이지 전환(백엔드+프런트) | A | T-INT-21 | **코드 작성 완료**(컨테이너 테스트 미검증 — Docker 디스크 부족, 2026-09-15) | |
 
 **트랙 A**(프론트 목업 제거, T-INT-9~16)는 서로 완전히 독립이라 몇 명이 동시에 붙어도
 된다. **트랙 B**(SQS↔FastAPI 실연동)는 T-INT-7 → T-INT-8 → T-INT-17 순서로 이어진다.

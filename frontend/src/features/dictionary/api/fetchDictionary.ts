@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/httpClient'
+import { fetchAllPagesWith } from '../../../shared/api/fetchAllPages'
 import type { Dictionary, Term } from '../model/types'
 import type { WorkspaceId } from '../../../shared/types/ids'
 
@@ -47,8 +48,9 @@ export interface WorkspaceDictionary {
 // 이 id를 요구하므로 이제 실제 값을 그대로 쓴다. 발행자 필드명도 `publishedBy`가 아니라
 // `createdBy`라 그동안 `publishedBy`가 undefined였다.
 //
-// 페이지네이션: 지금은 한 번에 최대 200개까지만 가져온다(첫 페이지, size=200) — 화면에
-// 페이징 UI가 아직 없다. 사전집 용어가 200개를 넘으면 나머지가 잘린다(후속 과제).
+// 페이지네이션: 화면에 페이징 UI가 없어 용어 전체가 필요하다. `size=200`으로 한 번에
+// 받으려 했지만 규격 상한이 100이라 **모든 요청이 400(`COMMON_INVALID_REQUEST`)이었다** —
+// 사전집 화면이 통째로 열리지 않던 원인이다. 상한 크기로 끝까지 페이징한다.
 export async function fetchDictionary(
   workspaceId: WorkspaceId,
   /** 보관 버전을 열어 볼 때만 준다. 없으면 활성 사전집이다. */
@@ -58,8 +60,12 @@ export async function fetchDictionary(
     versionNo === undefined
       ? `/api/workspaces/${workspaceId}/dictionary`
       : `/api/workspaces/${workspaceId}/dictionary/versions/${versionNo}`
-  const response = await httpClient.get<ActiveDictionaryResponse>(
-    `${path}?page=0&size=200&sort=preferredForm,asc`,
+  const { first: response, content: termContent } = await fetchAllPagesWith(
+    (page, size) =>
+      httpClient.get<ActiveDictionaryResponse>(
+        `${path}?page=${page}&size=${size}&sort=preferredForm,asc`,
+      ),
+    (body) => body.terms,
   )
   const dictionary: Dictionary = {
     id: String(response.dictionaryId),
@@ -70,7 +76,7 @@ export async function fetchDictionary(
     publishedAt: response.publishedAt,
     publishedBy: String(response.createdBy),
   }
-  const terms: Term[] = response.terms.content.map((term) => ({
+  const terms: Term[] = termContent.map((term) => ({
     id: String(term.termId),
     preferredForm: term.preferredForm,
     englishName: term.englishName,

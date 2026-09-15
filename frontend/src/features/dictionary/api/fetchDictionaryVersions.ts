@@ -1,7 +1,9 @@
 import { httpClient } from '../../../shared/api/httpClient'
+import { fetchAllPages, fetchAllPagesWith } from '../../../shared/api/fetchAllPages'
 import { fetchMemberNames } from '../../../shared/api/memberNames'
 import type { DictionaryStatus } from '../model/types'
 import type { WorkspaceId } from '../../../shared/types/ids'
+import type { Page } from '../../../shared/types/common'
 
 // 사전집 리비전 이력(ui/main.js renderDictHistoryScreen).
 //
@@ -19,10 +21,6 @@ interface DictionaryVersionApiItem {
   termCount: number
 }
 
-interface PageResponse<T> {
-  content: T[]
-}
-
 interface TermSummary {
   termId: number
   preferredForm: string
@@ -31,7 +29,7 @@ interface TermSummary {
 
 interface DictionaryVersionDetailResponse {
   versionNo: number
-  terms: PageResponse<TermSummary>
+  terms: Page<TermSummary>
 }
 
 export interface DictionaryVersionSummary {
@@ -46,13 +44,16 @@ export interface DictionaryVersionSummary {
 export async function fetchDictionaryVersions(
   workspaceId: WorkspaceId,
 ): Promise<DictionaryVersionSummary[]> {
-  const response = await httpClient.get<PageResponse<DictionaryVersionApiItem>>(
-    `/api/workspaces/${workspaceId}/dictionary/versions?page=0&size=100`,
+  // 상한(100)에 딱 맞춰 부르고 있었다 — 버전이 100개를 넘으면 조용히 잘린다. 끝까지 읽는다.
+  const versions = await fetchAllPages<DictionaryVersionApiItem>((page, size) =>
+    httpClient.get<Page<DictionaryVersionApiItem>>(
+      `/api/workspaces/${workspaceId}/dictionary/versions?page=${page}&size=${size}`,
+    ),
   )
-  if (response.content.length === 0) return []
+  if (versions.length === 0) return []
 
-  const nameByMemberId = await fetchMemberNames(response.content.map((v) => v.createdBy))
-  return response.content
+  const nameByMemberId = await fetchMemberNames(versions.map((v) => v.createdBy))
+  return versions
     .map((version) => ({
       versionNo: version.versionNo,
       status: version.status,
@@ -81,10 +82,16 @@ async function fetchVersionTerms(
   workspaceId: WorkspaceId,
   versionNo: number,
 ): Promise<TermSummary[]> {
-  const response = await httpClient.get<DictionaryVersionDetailResponse>(
-    `/api/workspaces/${workspaceId}/dictionary/versions/${versionNo}?page=0&size=500&sort=preferredForm,asc`,
+  // `size=500`은 규격 상한(100)을 넘어 400이었다 — 버전 간 diff가 전혀 계산되지 않았다.
+  // diff는 두 버전의 용어 전체를 비교해야 정확하므로 끝까지 페이징한다.
+  const { content } = await fetchAllPagesWith(
+    (page, size) =>
+      httpClient.get<DictionaryVersionDetailResponse>(
+        `/api/workspaces/${workspaceId}/dictionary/versions/${versionNo}?page=${page}&size=${size}&sort=preferredForm,asc`,
+      ),
+    (body) => body.terms,
   )
-  return response.terms.content
+  return content
 }
 
 /**

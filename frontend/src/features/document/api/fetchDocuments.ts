@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/httpClient'
+import { fetchAllPages } from '../../../shared/api/fetchAllPages'
 import { fetchMemberNames } from '../../../shared/api/memberNames'
 import type { DocumentListItem } from '../model/fixtures'
 import type { WorkspaceId } from '../../../shared/types/ids'
@@ -36,15 +37,18 @@ interface PageResponse<T> {
 // 라벨도 배열(최대 5개)인데 화면은 1개만 보여줘 첫 번째만 쓴다. `badge`는 `aligned`/`edited`에서
 // 유도한다.
 //
-// 페이지네이션: 지금은 최대 100개까지만 조회한다(size=100, 화면에 페이징 UI 없음).
+// 페이지네이션: 화면에 페이징 UI가 없어 문서 전체가 필요하다. 상한(100)에 딱 맞춰 한 번만
+// 부르고 있었는데, 문서가 100개를 넘으면 조용히 잘렸다 — 상한 크기로 끝까지 페이징한다.
 export async function fetchDocuments(workspaceId: WorkspaceId): Promise<DocumentListItem[]> {
-  const response = await httpClient.get<PageResponse<DocumentListApiItem>>(
-    `/api/workspaces/${workspaceId}/documents?page=0&size=100&sort=createdAt,desc`,
+  const documents = await fetchAllPages<DocumentListApiItem>((page, size) =>
+    httpClient.get<PageResponse<DocumentListApiItem>>(
+      `/api/workspaces/${workspaceId}/documents?page=${page}&size=${size}&sort=createdAt,desc`,
+    ),
   )
-  if (response.content.length === 0) return []
+  if (documents.length === 0) return []
 
-  const nameByMemberId = await fetchMemberNames(response.content.map((doc) => doc.uploaderId))
-  return response.content.map((doc) => ({
+  const nameByMemberId = await fetchMemberNames(documents.map((doc) => doc.uploaderId))
+  return documents.map((doc) => ({
     id: String(doc.documentId),
     workspaceId,
     title: doc.title,

@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사전집 초안 단일 페이지 전환 — 프리뷰</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  docs/plan/DRAFT_PLAN.md 를 화면으로 옮긴 **프리뷰**다. 구현이 아니라 "이 계획대로
+  고치면 어떤 화면이 나오는가"를 눈으로 확인하는 용도다.
+
+  style.css 를 그대로 링크한다 — 토큰·컴포넌트 클래스를 복제하지 않으므로 디자인 원본이
+  바뀌면 이 프리뷰도 따라간다. 이 파일은 디자인 핸드오프(index.html/main.js/data.js)의
+  일부가 아니며, 계획이 구현되면 지워도 된다.
+-->
+<link rel="stylesheet" href="style.css">
+<style>
+  /* 프리뷰 전용 장치. 실제 화면에는 없는 것들이다. */
+  .preview-bar {
+    position: sticky; top: 0; z-index: 60;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; background: #14161A; color: #fff; font-size: 12.5px;
+  }
+  .preview-bar .pv-label { font-family: var(--font-display); font-weight: 700; }
+  .preview-bar .pv-tab {
+    padding: 5px 11px; border-radius: 6px; cursor: pointer;
+    background: rgba(255,255,255,.1); font-weight: 600;
+  }
+  .preview-bar .pv-tab.active { background: var(--accent); }
+  .preview-bar .pv-note { margin-left: auto; opacity: .6; font-size: 11.5px; }
+  .pv-screen { display: none; }
+  .pv-screen.active { display: block; }
+  /* 계획이 "없앤다"고 적은 것을 표시하는 주석 말풍선 */
+  .pv-removed {
+    margin: 0 0 16px; padding: 10px 14px; border-radius: 8px;
+    background: #FDECEC; border: 1px solid #F6C9C7; color: #B3261E;
+    font-size: 11.5px; line-height: 1.7;
+  }
+  .pv-removed b { font-weight: 700; }
+  .pv-added {
+    margin: 0 0 16px; padding: 10px 14px; border-radius: 8px;
+    background: #E8F6EE; border: 1px solid #C8ECDA; color: #1F7A4D;
+    font-size: 11.5px; line-height: 1.7;
+  }
+
+  /* ── GitHub 모티브 조각들 ─────────────────────────────────────────────
+     프리뷰이므로 열림/닫힘만 클래스로 토글한다. */
+  .pv-pop-host { position: relative; }
+  .pv-pop { display: none; }
+  .pv-pop.open { display: block; animation: fadeIn .12s ease-out; }
+
+  /* 리뷰 마무리 팝오버 — GitHub "Finish your review" */
+  .review-pop {
+    position: absolute; top: calc(100% + 8px); right: 0; width: 360px; z-index: 40;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-md); box-shadow: var(--shadow-pop);
+  }
+  .review-pop-head {
+    padding: 12px 14px; border-bottom: 1px solid var(--border-soft);
+    font-family: var(--font-display); font-weight: 700; font-size: 13.5px;
+  }
+  .review-pop-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .review-pop-foot {
+    padding: 12px 14px; border-top: 1px solid var(--border-soft);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .verdict-option {
+    display: flex; gap: 9px; padding: 9px 10px; border-radius: var(--r-sm);
+    border: 1px solid transparent; cursor: pointer;
+  }
+  .verdict-option:hover { background: var(--bg); }
+  .verdict-option.selected { border-color: var(--accent-border); background: var(--accent-bg-strong); }
+  .verdict-option .vo-title { font-size: 12.5px; font-weight: 700; }
+  .verdict-option .vo-desc { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; line-height: 1.55; }
+  .verdict-option .radio-dot { margin-top: 2px; }
+
+  /* 리뷰어 패널 — GitHub 우측 사이드바 최상단 */
+  .reviewers-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  }
+  .reviewers-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px; border-bottom: 1px solid var(--border-soft);
+  }
+  .reviewers-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+  .gear-btn {
+    width: 24px; height: 24px; border-radius: var(--r-xs); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--text-quaternary);
+  }
+  .gear-btn:hover { background: var(--bg); color: var(--text-secondary); }
+  .reviewer-row {
+    display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+    border-bottom: 1px solid var(--border-faint); font-size: 12.5px;
+  }
+  .reviewer-row:last-child { border-bottom: none; }
+  .reviewer-row .rr-name { font-weight: 600; }
+  .reviewer-row .rr-state { margin-left: auto; font-size: 11px; font-weight: 700; }
+  .rr-approved { color: var(--success); }
+  .rr-changes  { color: var(--warn); }
+  .rr-pending  { color: var(--text-quaternary); font-weight: 600; }
+  .reviewer-row .rr-x { color: var(--text-disabled); cursor: pointer; font-weight: 700; }
+  .reviewer-row:hover .rr-x { color: var(--danger); }
+
+  /* 리뷰어 추가 드롭다운 — GitHub reviewer picker */
+  .reviewer-pick {
+    position: absolute; top: 40px; right: 10px; width: 260px; z-index: 40;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-md); box-shadow: var(--shadow-pop); overflow: hidden;
+  }
+  .reviewer-pick-head {
+    padding: 10px 12px; border-bottom: 1px solid var(--border-soft);
+    font-size: 11.5px; font-weight: 700; color: var(--text-secondary);
+  }
+  .reviewer-pick-item {
+    display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+    border-bottom: 1px solid var(--border-faint); font-size: 12.5px; cursor: pointer;
+  }
+  .reviewer-pick-item:hover { background: var(--surface-muted); }
+  .reviewer-pick-item .rp-check { margin-left: auto; color: var(--accent); font-weight: 700; }
+  .reviewer-pick-note {
+    padding: 9px 12px; font-size: 10.5px; color: var(--text-quaternary); line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="preview-bar">
+  <span class="pv-label">DRAFT_PLAN.md 프리뷰</span>
+  <span class="pv-tab active" data-screen="ready">① 초안 · 리뷰 요청 가능</span>
+  <span class="pv-tab" data-screen="blocked">② 초안 · 정의 누락으로 막힘</span>
+  <span class="pv-tab" data-screen="revision">③ 사전 개정안(이동 후)</span>
+  <span class="pv-tab" data-screen="reexamine">④ 초안 · 재교정 중</span>
+  <span class="pv-note">style.css 를 그대로 쓰므로 실제 화면과 같은 규격입니다</span>
+</div>
+
+<div class="app-shell">
+
+  <!-- ── 사이드바: 변경 없음 ─────────────────────────────────────────── -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="logo-mark" style="width:24px;height:24px;font-size:10px;">P</div>
+        <span class="display-font" style="font-size:13.5px;">POTENUP_BE</span>
+      </div>
+      <span style="font-size:11px;color:var(--text-quaternary);">▾</span>
+    </div>
+    <div class="sidebar-nav">
+      <div>
+        <div class="sidebar-group-header">
+          <span class="sidebar-group-title">문서</span>
+          <span class="sidebar-chevron">▾</span>
+        </div>
+        <div class="sidebar-item">문서</div>
+        <div class="sidebar-item">초안</div>
+        <div class="sidebar-item">개정안</div>
+      </div>
+      <div>
+        <div class="sidebar-group-header">
+          <span class="sidebar-group-title">사전집</span>
+          <span class="sidebar-chevron">▾</span>
+        </div>
+        <div class="sidebar-item">사전집</div>
+        <div class="sidebar-item pv-nav-draft active">초안</div>
+        <div class="sidebar-item pv-nav-revision">개정안</div>
+        <div class="sidebar-item">리비전 이력</div>
+      </div>
+      <div class="sidebar-settings">
+        <div class="sidebar-item">설정<span class="badge-hint" style="margin-left:auto;">ADMIN+</span></div>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="avatar avatar-accent" style="width:30px;height:30px;font-size:13px;">민</div>
+      <div style="font-size:12.5px;font-weight:600;">민뱅</div>
+      <div style="margin-left:auto;font-size:10px;font-weight:600;color:var(--accent-strong);background:var(--accent-bg);padding:2px 7px;border-radius:5px;">OWNER</div>
+    </div>
+  </div>
+
+  <div class="main-col">
+    <div class="topbar">
+      <div class="topbar-title pv-topbar-title">사전집 초안</div>
+      <div class="topbar-right">
+        <span class="pill pill-lg tone-accent">사전집 r7</span>
+        <div class="avatar-stack">
+          <div class="avatar avatar-accent"></div><div class="avatar avatar-warn"></div>
+          <div class="avatar avatar-success"></div><div class="avatar avatar-danger"></div>
+          <div class="avatar avatar-neutral"></div>
+        </div>
+        <div class="bell-btn"><span class="bell-icon"></span><span class="bell-dot"></span></div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ══════════════════════════════════════════════════════════════
+           ① 초안 · 모든 후보어가 대표어 + 정의를 가진 상태 → 리뷰 요청 활성
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="pv-screen active" id="pv-ready">
+
+        <p class="pv-removed">
+          <b>없어진 것</b> — 후보어별 <b>작성자</b>·<b>담당자</b>·<b>판정 상태</b> 컬럼,
+          행마다의 <b>체크박스</b>와 <b>일괄 처리</b> 막대, 상세 패널의
+          <b>작성 담당자</b>·<b>등재 승인</b>·<b>보류</b> 버튼.
+        </p>
+        <p class="pv-added">
+          <b>새로 생긴 것</b> — 머리말의 <b>초안 작성자 한 명</b>(<code>creatorName</code>),
+          그리고 준비가 끝나면 켜지는 <b>리뷰 요청</b> 버튼. 누르면 중간 탭 없이 사전 개정안
+          상세로 바로 넘어간다.
+        </p>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="screen-title" style="margin-bottom:0;">사전집 초안</div>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-tertiary);">
+              <span class="avatar avatar-accent" style="width:22px;height:22px;font-size:9px;">민</span>
+              작성자 <b style="color:var(--text);font-weight:700;">민뱅</b>
+            </span>
+          </div>
+          <div class="btn btn-primary pv-go-revision">리뷰 요청</div>
+        </div>
+        <div class="screen-subtitle" style="margin-bottom:18px;">
+          후보어 묶음마다 대표어를 고르고 정의를 채웁니다. 전부 채우면 리뷰를 요청할 수 있고,
+          요청과 동시에 사전 개정안이 만들어집니다.
+        </div>
+
+        <div class="toolbar">
+          <div class="filter-chip">유형 전체 ▾</div>
+          <div class="filter-chip filter-search" style="width:160px;">검색</div>
+          <div class="spacer"></div>
+          <div style="font-size:11px;color:var(--text-quaternary);">
+            추출 실행 09-14 21:40 · 후보 8건 · <span style="color:var(--success);font-weight:700;">정의 누락 0건</span>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="col-flex card" style="overflow:hidden;">
+            <table class="dtable">
+              <tr><th>후보 단어</th><th>유형</th><th>출현/문서</th></tr>
+
+              <tr class="clickable" style="background:var(--accent-bg-strong);box-shadow:inset 3px 0 0 var(--accent);">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">이용 보류</span>
+                  <span style="color:var(--text-quaternary);">, 휴면 전환, suspend_account</span>
+                </td>
+                <td>동의어</td><td>23 / 5</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">주문</span></td>
+                <td>동형이의</td><td>47 / 9</td>
+              </tr>
+              <tr class="clickable">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">결제 취소</span>
+                  <span style="color:var(--text-quaternary);">, 매출 차감, pg_refund</span>
+                </td>
+                <td>동의어</td><td>19 / 4</td>
+              </tr>
+              <tr class="clickable">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">큐레이션</span>
+                  <span style="color:var(--text-quaternary);">, 개인화 타겟팅, get_suggested_list</span>
+                </td>
+                <td>동의어</td><td>14 / 3</td>
+              </tr>
+              <tr class="clickable">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">별점 리뷰</span>
+                  <span style="color:var(--text-quaternary);">, 유저 반응(UGC), update_star_score</span>
+                </td>
+                <td>동의어</td><td>11 / 3</td>
+              </tr>
+              <tr class="clickable">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">로그인</span>
+                  <span style="color:var(--text-quaternary);">, 로그 인, login</span>
+                </td>
+                <td>표기 변형</td><td>12 / 5</td>
+              </tr>
+              <tr class="clickable">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">동시접속 제한</span>
+                  <span style="color:var(--text-quaternary);">, 계정 공유 차단, max_session_error</span>
+                </td>
+                <td>동의어</td><td>8 / 2</td>
+              </tr>
+              <tr class="clickable">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">배송 완료</span>
+                  <span style="color:var(--text-quaternary);">, 발송 처리, shipped</span>
+                </td>
+                <td>동의어</td><td>7 / 2</td>
+              </tr>
+            </table>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border-soft);">
+              <div class="input-box muted" style="flex:1;padding:7px 12px;font-size:12.5px;">새 후보 단어</div>
+              <div class="input-box" style="padding:7px 10px;font-size:12.5px;">동의어 ▾</div>
+              <div class="btn btn-primary btn-sm">+ 추가</div>
+            </div>
+          </div>
+
+          <!-- 상세 패널: 대표어 선택 · 직접 입력 · 정의 · 근거 문장만 남는다 -->
+          <div class="detail-panel" style="width:420px;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="display-font" style="font-size:16px;">이용 보류</span>
+                <span class="pill tone-neutral">동의어</span>
+              </div>
+              <span style="font-size:11px;color:var(--text-quaternary);flex-shrink:0;">출현 23회 · 문서 5건</span>
+            </div>
+
+            <div>
+              <div class="field-label">대표어 <span class="req-mark">*</span></div>
+              <div style="display:flex;flex-direction:column;gap:7px;">
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);">
+                  <div class="radio-dot checked"></div>이용 보류
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);">
+                  <div class="radio-dot"></div>휴면 전환
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);">
+                  <div class="radio-dot"></div>suspend_account
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);">
+                  <div class="radio-dot"></div>직접 입력
+                  <div style="flex:1;border:1px solid var(--border-strong);border-radius:6px;height:28px;background:var(--surface-muted);"></div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;color:var(--text-quaternary);margin-top:5px;">
+                고른 표기만 개정안 행으로 올라갑니다 · 나머지 표기는 묶음으로 남습니다
+              </div>
+            </div>
+
+            <div>
+              <div class="field-label">정의 <span class="req-mark">*</span></div>
+              <div style="border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:10px 12px;font-size:12.5px;color:var(--text-secondary);line-height:1.6;background:var(--surface-muted);min-height:64px;">
+                이용자가 일정 기간 서비스를 쓰지 않도록 계정을 잠시 멈춘 상태.
+              </div>
+              <div style="font-size:10.5px;color:var(--text-quaternary);margin-top:5px;">AI 초안 · 수정할 수 있습니다</div>
+            </div>
+
+            <div>
+              <div class="field-label">근거 문장</div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div class="quote-block">
+                  <div class="quote-text">"이용을 보류 처리하면 로그인이 제한된다"</div>
+                  <div class="quote-source">커머스기획안.md · 4절</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════════════
+           ② 초안 · 정의가 빈 후보어가 있어 리뷰 요청이 막힌 상태
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="pv-screen" id="pv-blocked">
+
+        <p class="pv-added">
+          <b>리뷰 요청 준비 조건이 판정 상태에서 「전체 후보어의 유효성」으로 바뀐다.</b>
+          승인·보류를 몇 건 했는지가 아니라, <b>모든 후보어가 대표어와 정의를 가졌는지</b>로만
+          판단한다. 기본 <code>form</code> 값은 대표어로 인정하므로 실제로 막는 것은 대개 정의다.
+        </p>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="screen-title" style="margin-bottom:0;">사전집 초안</div>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-tertiary);">
+              <span class="avatar avatar-accent" style="width:22px;height:22px;font-size:9px;">민</span>
+              작성자 <b style="color:var(--text);font-weight:700;">민뱅</b>
+            </span>
+          </div>
+          <div class="btn btn-disabled" title="정의가 빈 후보어가 2건 남아 있습니다">리뷰 요청</div>
+        </div>
+        <div class="screen-subtitle" style="margin-bottom:18px;">
+          후보어 묶음마다 대표어를 고르고 정의를 채웁니다. 전부 채우면 리뷰를 요청할 수 있고,
+          요청과 동시에 사전 개정안이 만들어집니다.
+        </div>
+
+        <div class="banner banner-accent" style="margin-bottom:16px;">
+          정의가 비어 있는 후보어가 <b>2건</b> 남아 있어 리뷰를 요청할 수 없습니다 —
+          <b>큐레이션</b>, <b>배송 완료</b>.
+        </div>
+
+        <div class="toolbar">
+          <div class="filter-chip">유형 전체 ▾</div>
+          <div class="filter-chip filter-search" style="width:160px;">검색</div>
+          <div class="spacer"></div>
+          <div style="font-size:11px;color:var(--text-quaternary);">
+            추출 실행 09-14 21:40 · 후보 8건 · <span style="color:var(--warn);font-weight:700;">정의 누락 2건</span>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="col-flex card" style="overflow:hidden;">
+            <table class="dtable">
+              <tr><th>후보 단어</th><th>유형</th><th>출현/문서</th></tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">이용 보류</span><span style="color:var(--text-quaternary);">, 휴면 전환, suspend_account</span></td>
+                <td>동의어</td><td>23 / 5</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">주문</span></td>
+                <td>동형이의</td><td>47 / 9</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">결제 취소</span><span style="color:var(--text-quaternary);">, 매출 차감, pg_refund</span></td>
+                <td>동의어</td><td>19 / 4</td>
+              </tr>
+              <tr class="clickable" style="background:var(--accent-bg-strong);box-shadow:inset 3px 0 0 var(--accent);">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">큐레이션</span>
+                  <span style="color:var(--text-quaternary);">, 개인화 타겟팅, get_suggested_list</span>
+                  <span class="pill tone-warn" style="margin-left:6px;">정의 필요</span>
+                </td>
+                <td>동의어</td><td>14 / 3</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">별점 리뷰</span><span style="color:var(--text-quaternary);">, 유저 반응(UGC), update_star_score</span></td>
+                <td>동의어</td><td>11 / 3</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">로그인</span><span style="color:var(--text-quaternary);">, 로그 인, login</span></td>
+                <td>표기 변형</td><td>12 / 5</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">동시접속 제한</span><span style="color:var(--text-quaternary);">, 계정 공유 차단, max_session_error</span></td>
+                <td>동의어</td><td>8 / 2</td>
+              </tr>
+              <tr class="clickable">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">배송 완료</span>
+                  <span style="color:var(--text-quaternary);">, 발송 처리, shipped</span>
+                  <span class="pill tone-warn" style="margin-left:6px;">정의 필요</span>
+                </td>
+                <td>동의어</td><td>7 / 2</td>
+              </tr>
+            </table>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border-soft);">
+              <div class="input-box muted" style="flex:1;padding:7px 12px;font-size:12.5px;">새 후보 단어</div>
+              <div class="input-box" style="padding:7px 10px;font-size:12.5px;">동의어 ▾</div>
+              <div class="btn btn-primary btn-sm">+ 추가</div>
+            </div>
+          </div>
+
+          <div class="detail-panel" style="width:420px;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="display-font" style="font-size:16px;">큐레이션</span>
+                <span class="pill tone-neutral">동의어</span>
+              </div>
+              <span style="font-size:11px;color:var(--text-quaternary);flex-shrink:0;">출현 14회 · 문서 3건</span>
+            </div>
+
+            <div>
+              <div class="field-label">대표어 <span class="req-mark">*</span></div>
+              <div style="display:flex;flex-direction:column;gap:7px;">
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);">
+                  <div class="radio-dot checked"></div>큐레이션
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);">
+                  <div class="radio-dot"></div>개인화 타겟팅
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);">
+                  <div class="radio-dot"></div>get_suggested_list
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);">
+                  <div class="radio-dot"></div>직접 입력
+                  <div style="flex:1;border:1px solid var(--border-strong);border-radius:6px;height:28px;background:var(--surface-muted);"></div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="field-label">정의 <span class="req-mark">*</span></div>
+              <div style="border:1.5px solid var(--warn-border);border-radius:var(--r-sm);padding:10px 12px;font-size:12.5px;color:var(--text-quaternary);line-height:1.6;background:var(--warn-bg);min-height:64px;">
+                정의를 입력하세요
+              </div>
+              <div style="font-size:10.5px;color:var(--warn);margin-top:5px;font-weight:600;">
+                정의가 비어 있어 리뷰 요청이 막혀 있습니다
+              </div>
+            </div>
+
+            <div>
+              <div class="field-label">근거 문장</div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div class="quote-block">
+                  <div class="quote-text">"큐레이션 결과는 최근 조회 기록을 반영한다"</div>
+                  <div class="quote-source">캠페인실행안.md · 2절</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════════════
+           ③ 리뷰 요청 직후 도착하는 사전 개정안 — 대표어만 행으로
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="pv-screen" id="pv-revision">
+
+        <p class="pv-added">
+          <b>대표 표기(<code>form</code>)만 개정안 행이 된다.</b>
+          <code>variantForms</code>의 나머지 표현(휴면 전환, suspend_account …)은 별도 행으로
+          나타나지 않는다. 판정 상태와 무관하게 <b>모든 후보어의 대표어가 포함</b>된다.
+        </p>
+        <p class="pv-added" style="background:#F0EEFE;border-color:#DBD7FC;color:#4A46E0;">
+          <b>GitHub 모티브로 바꾼 두 곳</b> —
+          ① 오른쪽 위 <b>리뷰어</b> 패널에서 요청자(ADMIN 이상)가 워크스페이스 참여자를
+          리뷰어로 넣고 뺀다(⚙ 를 누르면 후보 목록이 열린다).
+          ② <b>승인·변경 요청</b>을 버튼 두 개로 바로 누르는 대신
+          <b>「리뷰 마무리」 → 라디오 선택 → 제출</b> 한 흐름으로 묶었다.
+        </p>
+        <p class="pv-added" style="background:#FFF3DC;border-color:#F6DDA8;color:#92590B;">
+          <b>「재교정」은 제출이 아니라 이동이다.</b> 변경 요청을 받으면 고쳐야 할 것은
+          개정안 표가 아니라 <b>그 개정안이 물고 있는 사전집 초안의 후보어</b>다 — 누르면
+          ④ 초안 화면으로 가서 대표어·정의를 고치고, 거기서 <b>재교정 완료</b>를 누르면
+          회차가 올라가며 이 화면으로 돌아온다.
+        </p>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="display-font" style="font-size:18px;">사전집 개정안 — r7 → r8</div>
+            <span class="pill tone-warn">CHANGES_REQUESTED</span>
+            <span style="font-size:11px;color:var(--text-quaternary);">재교정 1회차</span>
+          </div>
+
+          <div style="display:flex;gap:10px;" class="pv-pop-host">
+            <div class="btn btn-outline pv-go-reexamine" title="개정하려는 단어를 고치러 초안으로 갑니다">재교정</div>
+            <div class="btn btn-primary pv-toggle" data-pop="review-pop">리뷰 마무리 ▾</div>
+            <div class="btn btn-disabled" title="필요 정족수 2명을 채워야 발행할 수 있습니다">반영 · r8 발행</div>
+
+            <!-- GitHub "Finish your review" 팝오버 -->
+            <div class="review-pop pv-pop" id="review-pop">
+              <div class="review-pop-head">리뷰 마무리</div>
+              <div class="review-pop-body">
+                <div>
+                  <div class="field-label">전체 코멘트 <span style="color:var(--text-quaternary);font-weight:500;">(선택)</span></div>
+                  <div style="border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface-muted);min-height:64px;padding:9px 11px;font-size:12.5px;color:var(--text-quaternary);">
+                    남길 말이 있으면 적습니다. 용어별 코멘트는 표에서 따로 답니다.
+                  </div>
+                </div>
+
+                <div>
+                  <div class="field-label">판정 <span class="req-mark">*</span></div>
+                  <div style="display:flex;flex-direction:column;gap:4px;">
+                    <div class="verdict-option selected">
+                      <div class="radio-dot checked"></div>
+                      <div>
+                        <div class="vo-title">승인</div>
+                        <div class="vo-desc">이대로 r8로 발행해도 좋다는 뜻입니다. 정족수에 포함됩니다.</div>
+                      </div>
+                    </div>
+                    <div class="verdict-option">
+                      <div class="radio-dot"></div>
+                      <div>
+                        <div class="vo-title">변경 요청</div>
+                        <div class="vo-desc">요청자가 초안을 고쳐 재교정을 돌려야 합니다. 기존 승인은 무효가 됩니다.</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="font-size:10.5px;color:var(--text-quaternary);margin-top:7px;line-height:1.6;">
+                    GitHub 의 「Comment」에 해당하는 판정은 없습니다 — 백엔드
+                    <code>ReviewVerdict</code> 가 승인·변경 요청 둘뿐입니다.
+                    의견만 남기려면 표에서 용어별 코멘트를 답니다.
+                  </div>
+                </div>
+              </div>
+              <div class="review-pop-foot">
+                <span style="font-size:10.5px;color:var(--text-quaternary);line-height:1.5;">
+                  본인이 올린 요청은 본인이 승인할 수 없습니다
+                </span>
+                <div class="btn btn-primary btn-sm" style="margin-left:auto;">리뷰 제출</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:11px;color:var(--text-quaternary);margin-bottom:16px;">
+          승인 1 · 변경요청 1 · 필요 정족수 2
+          <span style="color:var(--text-faint);">
+            · 정족수는 룰셋의 <code>requiredReviewerCount</code> 로 판정합니다(지정 리뷰어 수와 무관)
+          </span>
+        </div>
+
+        <div class="two-col">
+          <div class="col-flex card" style="overflow:hidden;">
+            <table class="dtable">
+              <tr><th>용어</th><th>변경</th><th>코멘트</th></tr>
+              <tr><td style="font-weight:700;color:var(--text);">이용 보류</td><td><span class="pill tone-success">추가</span></td><td style="color:var(--text-quaternary);">—</td></tr>
+              <tr style="background:#FFFBF3;"><td style="font-weight:700;color:var(--text);">주문</td><td><span class="pill tone-warn">정의 수정</span></td><td style="color:var(--warn);font-weight:600;">💬 2개 — 기획·개발 시점 차이</td></tr>
+              <tr><td style="font-weight:700;color:var(--text);">결제 취소</td><td><span class="pill tone-success">추가</span></td><td style="color:var(--text-quaternary);">—</td></tr>
+              <tr><td style="font-weight:700;color:var(--text);">큐레이션</td><td><span class="pill tone-success">추가</span></td><td style="color:var(--text-quaternary);">—</td></tr>
+              <tr><td style="font-weight:700;color:var(--text);">별점 리뷰</td><td><span class="pill tone-success">추가</span></td><td style="color:var(--text-quaternary);">—</td></tr>
+              <tr><td style="font-weight:700;color:var(--text);">로그인</td><td><span class="pill tone-warn">정의 수정</span></td><td style="color:var(--text-quaternary);">—</td></tr>
+              <tr><td style="font-weight:700;color:var(--text);">동시접속 제한</td><td><span class="pill tone-success">추가</span></td><td style="color:var(--text-quaternary);">—</td></tr>
+              <tr><td style="font-weight:700;color:var(--text);">배송 완료</td><td><span class="pill tone-success">추가</span></td><td style="color:var(--text-quaternary);">—</td></tr>
+            </table>
+          </div>
+
+          <div class="pr-thread">
+
+            <!-- ── 오른쪽 위: 리뷰어 패널(GitHub 사이드바 최상단) ───────────── -->
+            <div class="reviewers-box pv-pop-host">
+              <div class="reviewers-head">
+                <span class="reviewers-title">리뷰어 4</span>
+                <span class="gear-btn pv-toggle" data-pop="reviewer-pick" title="리뷰어 추가·제외">⚙</span>
+              </div>
+
+              <div class="reviewer-row">
+                <div class="avatar avatar-accent" style="width:22px;height:22px;font-size:10px;">김</div>
+                <span class="rr-name">김개발</span>
+                <span class="rr-state rr-approved">✓ 승인</span>
+                <span class="rr-x" title="리뷰어에서 제외">×</span>
+              </div>
+              <div class="reviewer-row">
+                <div class="avatar avatar-success" style="width:22px;height:22px;font-size:10px;">이</div>
+                <span class="rr-name">이백엔드</span>
+                <span class="rr-state rr-changes">↻ 변경 요청</span>
+                <span class="rr-x" title="리뷰어에서 제외">×</span>
+              </div>
+              <div class="reviewer-row">
+                <div class="avatar avatar-warn" style="width:22px;height:22px;font-size:10px;">박</div>
+                <span class="rr-name">박기획</span>
+                <span class="rr-state rr-pending">대기</span>
+                <span class="rr-x" title="리뷰어에서 제외">×</span>
+              </div>
+              <div class="reviewer-row">
+                <div class="avatar avatar-danger" style="width:22px;height:22px;font-size:10px;">최</div>
+                <span class="rr-name">최마케팅</span>
+                <span class="rr-state rr-pending">대기</span>
+                <span class="rr-x" title="리뷰어에서 제외">×</span>
+              </div>
+
+              <div class="reviewer-pick-note" style="border-top:1px solid var(--border-soft);">
+                지정은 <b>알림 대상</b>을 정하는 것이고 검토 자격을 정하는 것이 아닙니다 —
+                지정되지 않은 참여자도 검토를 제출할 수 있습니다.
+              </div>
+
+              <!-- GitHub reviewer picker -->
+              <div class="reviewer-pick pv-pop" id="reviewer-pick">
+                <div class="reviewer-pick-head">워크스페이스 참여자</div>
+                <div class="reviewer-pick-item">
+                  <div class="avatar avatar-accent" style="width:20px;height:20px;font-size:9px;">김</div>
+                  김개발 <span class="rp-check">✓</span>
+                </div>
+                <div class="reviewer-pick-item">
+                  <div class="avatar avatar-success" style="width:20px;height:20px;font-size:9px;">이</div>
+                  이백엔드 <span class="rp-check">✓</span>
+                </div>
+                <div class="reviewer-pick-item">
+                  <div class="avatar avatar-warn" style="width:20px;height:20px;font-size:9px;">박</div>
+                  박기획 <span class="rp-check">✓</span>
+                </div>
+                <div class="reviewer-pick-item">
+                  <div class="avatar avatar-danger" style="width:20px;height:20px;font-size:9px;">최</div>
+                  최마케팅 <span class="rp-check">✓</span>
+                </div>
+                <div class="reviewer-pick-item" style="color:var(--text-disabled);cursor:not-allowed;">
+                  <div class="avatar avatar-neutral" style="width:20px;height:20px;font-size:9px;">민</div>
+                  민뱅 <span style="margin-left:auto;font-size:10.5px;">요청자</span>
+                </div>
+                <div class="reviewer-pick-note">
+                  ADMIN 이상만 바꿀 수 있습니다 · 요청자는 후보에서 빠집니다
+                </div>
+              </div>
+            </div>
+
+            <div style="font-size:12.5px;font-weight:700;margin-top:4px;">주문 · 코멘트</div>
+            <div class="comment-card">
+              <div class="comment-head">
+                <div class="avatar avatar-warn" style="width:22px;height:22px;font-size:10px;">박</div>
+                <span class="comment-name">박기획</span><span class="comment-time">2시간 전</span>
+              </div>
+              <div class="comment-text">장바구니 시점을 주문으로 부르던 문서가 3건 있습니다. 정의를 결제 완료로 좁히면 그 문서들이 재검사에 걸립니다.</div>
+            </div>
+            <div class="comment-card">
+              <div class="comment-head">
+                <div class="avatar avatar-success" style="width:22px;height:22px;font-size:10px;">이</div>
+                <span class="comment-name">이백엔드</span><span class="comment-time">1시간 전</span>
+              </div>
+              <div class="comment-text">결제 승인 후로 확정하는 쪽이 코드와 맞습니다. 재검사는 감당하는 편이 좋겠습니다.</div>
+            </div>
+            <div class="comment-compose">댓글 남기기…</div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ══════════════════════════════════════════════════════════════
+           ④ 초안 · 재교정 중 — ③에서 「재교정」으로 들어오는 화면
+           개정하려는 단어(후보어)의 대표어·정의를 여기서 고친다.
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="pv-screen" id="pv-reexamine">
+
+        <p class="pv-added" style="background:#FFF3DC;border-color:#F6DDA8;color:#92590B;">
+          <b>①②와 같은 초안 화면이지만 문맥이 다르다.</b> 리뷰 중인 개정안에서 들어왔으므로
+          ㉠ 무엇을 고쳐야 하는지(리뷰어 코멘트)를 함께 보여주고, ㉡ 주 버튼이
+          <b>리뷰 요청</b>이 아니라 <b>재교정 완료</b>다. 누르면
+          <code>POST /api/review-requests/{id}/reexaminations</code> 로 회차를 올리고 개정안으로 돌아간다.
+        </p>
+        <p class="pv-removed">
+          <b>플랜에 없던 것을 하나 넣었다</b> — 리뷰어 코멘트 표시.
+          DRAFT_PLAN.md 는 초안 화면을 「대표어·정의·근거 문장」으로만 정의하는데, 그것만으로는
+          <b>무엇을 왜 고쳐야 하는지 알 수 없어</b> 재교정이 성립하지 않는다. 불필요하면 빼면 된다.
+        </p>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="screen-title" style="margin-bottom:0;">사전집 초안</div>
+            <span class="pill tone-warn">재교정 1회차</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-tertiary);">
+              <span class="avatar avatar-accent" style="width:22px;height:22px;font-size:9px;">민</span>
+              작성자 <b style="color:var(--text);font-weight:700;">민뱅</b>
+            </span>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <div class="btn btn-outline pv-back-revision">개정안으로 돌아가기</div>
+            <div class="btn btn-primary pv-back-revision" title="회차를 올리고 리뷰어에게 다시 보냅니다">재교정 완료</div>
+          </div>
+        </div>
+        <div class="screen-subtitle" style="margin-bottom:18px;">
+          리뷰어가 요청한 부분을 고칩니다. 재교정 완료를 누르면 회차가 올라가고
+          <b>기존 승인은 무효</b>가 되어 리뷰어가 다시 봅니다.
+        </div>
+
+        <div class="banner banner-accent" style="margin-bottom:16px;border-color:var(--warn-border);background:var(--warn-bg);">
+          <div style="font-weight:700;margin-bottom:6px;">변경 요청 — 고쳐야 할 후보어 1건</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <span class="pill tone-warn" style="flex-shrink:0;">주문</span>
+              <span style="line-height:1.6;">
+                <b>이백엔드</b> · 결제 승인 후로 확정하는 쪽이 코드와 맞습니다. 정의를 좁혀 주세요.
+              </span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <span class="pill tone-warn" style="flex-shrink:0;">주문</span>
+              <span style="line-height:1.6;">
+                <b>박기획</b> · 장바구니 시점을 주문으로 부르던 문서가 3건 있습니다. 재검사에 걸립니다.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="filter-chip">유형 전체 ▾</div>
+          <div class="filter-chip filter-search" style="width:160px;">검색</div>
+          <div class="spacer"></div>
+          <div style="font-size:11px;color:var(--text-quaternary);">
+            후보 8건 · <span style="color:var(--warn);font-weight:700;">코멘트 달린 후보 1건</span>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="col-flex card" style="overflow:hidden;">
+            <table class="dtable">
+              <tr><th>후보 단어</th><th>유형</th><th>출현/문서</th></tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">이용 보류</span><span style="color:var(--text-quaternary);">, 휴면 전환, suspend_account</span></td>
+                <td>동의어</td><td>23 / 5</td>
+              </tr>
+              <tr class="clickable" style="background:var(--accent-bg-strong);box-shadow:inset 3px 0 0 var(--accent);">
+                <td>
+                  <span style="font-weight:700;color:var(--text);">주문</span>
+                  <span class="pill tone-warn" style="margin-left:6px;">💬 2</span>
+                </td>
+                <td>동형이의</td><td>47 / 9</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">결제 취소</span><span style="color:var(--text-quaternary);">, 매출 차감, pg_refund</span></td>
+                <td>동의어</td><td>19 / 4</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">큐레이션</span><span style="color:var(--text-quaternary);">, 개인화 타겟팅, get_suggested_list</span></td>
+                <td>동의어</td><td>14 / 3</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">별점 리뷰</span><span style="color:var(--text-quaternary);">, 유저 반응(UGC), update_star_score</span></td>
+                <td>동의어</td><td>11 / 3</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">로그인</span><span style="color:var(--text-quaternary);">, 로그 인, login</span></td>
+                <td>표기 변형</td><td>12 / 5</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">동시접속 제한</span><span style="color:var(--text-quaternary);">, 계정 공유 차단, max_session_error</span></td>
+                <td>동의어</td><td>8 / 2</td>
+              </tr>
+              <tr class="clickable">
+                <td><span style="font-weight:700;color:var(--text);">배송 완료</span><span style="color:var(--text-quaternary);">, 발송 처리, shipped</span></td>
+                <td>동의어</td><td>7 / 2</td>
+              </tr>
+            </table>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border-soft);">
+              <div class="input-box muted" style="flex:1;padding:7px 12px;font-size:12.5px;">새 후보 단어</div>
+              <div class="input-box" style="padding:7px 10px;font-size:12.5px;">동의어 ▾</div>
+              <div class="btn btn-primary btn-sm">+ 추가</div>
+            </div>
+          </div>
+
+          <div class="detail-panel" style="width:420px;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="display-font" style="font-size:16px;">주문</span>
+                <span class="pill tone-neutral">동형이의</span>
+              </div>
+              <span style="font-size:11px;color:var(--text-quaternary);flex-shrink:0;">출현 47회 · 문서 9건</span>
+            </div>
+
+            <div>
+              <div class="field-label">대표어 <span class="req-mark">*</span></div>
+              <div style="display:flex;flex-direction:column;gap:7px;">
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);">
+                  <div class="radio-dot checked"></div>주문
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);">
+                  <div class="radio-dot"></div>직접 입력
+                  <div style="flex:1;border:1px solid var(--border-strong);border-radius:6px;height:28px;background:var(--surface-muted);"></div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="field-label">정의 <span class="req-mark">*</span></div>
+              <div style="border:1.5px solid var(--accent);border-radius:var(--r-sm);padding:10px 12px;font-size:12.5px;color:var(--text);line-height:1.6;background:var(--surface);min-height:64px;">
+                결제가 <b>승인</b>되어 확정된 구매 건. 장바구니에 담긴 상태는 주문이 아니다.
+              </div>
+              <div style="font-size:10.5px;color:var(--accent-strong);margin-top:5px;font-weight:600;">
+                리뷰어 요청에 따라 수정 중 · 저장하면 개정안 표의 정의도 함께 바뀝니다
+              </div>
+            </div>
+
+            <div>
+              <div class="field-label">이 후보어에 달린 리뷰어 코멘트</div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div class="comment-card" style="padding:11px 12px;">
+                  <div class="comment-head" style="margin-bottom:6px;">
+                    <div class="avatar avatar-success" style="width:20px;height:20px;font-size:9px;">이</div>
+                    <span class="comment-name" style="font-size:12px;">이백엔드</span>
+                    <span class="comment-time">1시간 전</span>
+                  </div>
+                  <div class="comment-text" style="font-size:12px;">결제 승인 후로 확정하는 쪽이 코드와 맞습니다. 재검사는 감당하는 편이 좋겠습니다.</div>
+                </div>
+                <div class="comment-card" style="padding:11px 12px;">
+                  <div class="comment-head" style="margin-bottom:6px;">
+                    <div class="avatar avatar-warn" style="width:20px;height:20px;font-size:9px;">박</div>
+                    <span class="comment-name" style="font-size:12px;">박기획</span>
+                    <span class="comment-time">2시간 전</span>
+                  </div>
+                  <div class="comment-text" style="font-size:12px;">장바구니 시점을 주문으로 부르던 문서가 3건 있습니다.</div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="field-label">근거 문장</div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div class="quote-block">
+                  <div class="quote-text">"장바구니에 담으면 주문이 생성된다"</div>
+                  <div class="quote-source">기획팀 · 커머스기획안.md · 3절 2문단</div>
+                </div>
+                <div class="quote-block split">
+                  <div class="quote-text">"결제 승인 후 주문이 확정된다"</div>
+                  <div class="quote-source">개발팀 · 결제API명세v2.md · 2.1 상태 전이</div>
+                </div>
+                <div style="font-size:11px;color:var(--text-tertiary);">
+                  같은 말인데 기획팀은 장바구니 시점, 개발팀은 결제 완료 시점으로 쓰고 있습니다
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // 프리뷰 탭 전환. 실제 화면에는 없는 장치다.
+  var TITLES = {
+    ready: '사전집 초안', blocked: '사전집 초안',
+    revision: '사전집 개정안', reexamine: '사전집 초안'
+  };
+  document.querySelector('.preview-bar').addEventListener('click', function (event) {
+    var tab = event.target.closest('.pv-tab');
+    if (!tab) return;
+    show(tab.dataset.screen);
+  });
+  document.querySelector('.content').addEventListener('click', function (event) {
+    if (event.target.closest('.pv-go-revision')) { show('revision'); return; }
+    // 재교정: 개정안 → 초안 수정 화면, 재교정 완료: 초안 → 개정안
+    if (event.target.closest('.pv-go-reexamine')) { show('reexamine'); return; }
+    if (event.target.closest('.pv-back-revision')) { show('revision'); return; }
+
+    // 팝오버 열고 닫기(리뷰 마무리 · 리뷰어 추가). 한 번에 하나만 열린다.
+    var trigger = event.target.closest('.pv-toggle');
+    if (trigger) {
+      var target = document.getElementById(trigger.dataset.pop);
+      var wasOpen = target.classList.contains('open');
+      closeAllPops();
+      if (!wasOpen) target.classList.add('open');
+      return;
+    }
+
+    // 판정 라디오 — 실제 화면처럼 하나만 선택된다.
+    var option = event.target.closest('.verdict-option');
+    if (option) {
+      option.parentElement.querySelectorAll('.verdict-option').forEach(function (o) {
+        o.classList.toggle('selected', o === option);
+        o.querySelector('.radio-dot').classList.toggle('checked', o === option);
+      });
+      return;
+    }
+
+    // 팝오버 밖을 누르면 닫는다.
+    if (!event.target.closest('.pv-pop')) closeAllPops();
+  });
+
+  function closeAllPops() {
+    document.querySelectorAll('.pv-pop').forEach(function (pop) {
+      pop.classList.remove('open');
+    });
+  }
+  function show(name) {
+    document.querySelectorAll('.pv-tab').forEach(function (t) {
+      t.classList.toggle('active', t.dataset.screen === name);
+    });
+    document.querySelectorAll('.pv-screen').forEach(function (s) {
+      s.classList.toggle('active', s.id === 'pv-' + name);
+    });
+    closeAllPops();
+    document.querySelector('.pv-topbar-title').textContent = TITLES[name];
+    document.querySelector('.pv-nav-draft').classList.toggle('active', name !== 'revision');
+    document.querySelector('.pv-nav-revision').classList.toggle('active', name === 'revision');
+    window.scrollTo(0, 0);
+  }
+</script>
+
+</body>
+</html>
