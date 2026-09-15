@@ -73,6 +73,29 @@ npm run preview
 | 개정 이력 타임라인 | `revisionlog` 도메인에 presentation 패키지가 없다(REST 미노출) | 버전 목록 + 버전별 용어로 **직접 만든다**(diff 포함) |
 | 문서 버전 비교 | 백엔드가 본문 diff를 만들지 않는다(`D-61`) | 버전 단건 조회로 본문을 받아 화면에서 계산(`model/textDiff.ts`) |
 
+### 목록 조회는 `fetchAllPages`로 부른다 (`D-90`)
+
+백엔드 페이징 규격은 **`size` 최대 100**이고 초과하면 `400 COMMON_INVALID_REQUEST`다
+(`docs/API.md` 「페이징·정렬 규격」). 화면에 페이징 UI가 없어 「한 번에 전부」가 필요할 때
+**`size`를 키우지 말고** `shared/api/fetchAllPages.ts`를 쓴다.
+
+```ts
+const documents = await fetchAllPages<DocumentListApiItem>((page, size) =>
+  httpClient.get<Page<DocumentListApiItem>>(
+    `/api/workspaces/${workspaceId}/documents?page=${page}&size=${size}&sort=createdAt,desc`,
+  ),
+)
+```
+
+- 페이지 응답이 다른 객체 안에 있으면(`DictionaryResponse.terms` 등) `fetchAllPagesWith`를
+  쓴다 — 감싼 객체의 메타데이터가 필요하므로 첫 페이지 응답을 함께 돌려준다.
+- **`page`·`size`를 호출부에 직접 박지 않는다.** 한 번 그러면 상한을 넘겨 400이 나거나
+  상한에 닿아 조용히 잘린다 — 실제로 둘 다 일어났다(`D-90`).
+- **예외는 `size=1`로 `totalElements`나 최신 1건만 읽는 호출**이다. 개수·최신 하나가 목적이라
+  전부 읽을 이유가 없다(워크스페이스 개요의 문서 수, 최신 초안 조회).
+- 목록을 일부만 읽으면 **그 목록으로 계산하는 상태도 함께 틀린다.** 사전집 초안이 후보어를
+  앞 20건만 읽어 리뷰 요청 준비 여부를 잘못 판정하던 것이 그 예다.
+
 ### 로컬 백엔드로 연동을 테스트할 때
 
 - 백엔드는 `./gradlew bootRun --args='--spring.profiles.active=local'`로 **8080 포트**에서
@@ -86,8 +109,10 @@ npm run preview
 - `OAUTH_FRONTEND_REDIRECT_URI`는 Google 로그인 성공 후 서버가 되돌려보낼 프론트 주소다 —
   이 저장소의 콜백 라우트는 `/oauth/callback`이다.
 - 추출·대조는 **외부 FastAPI 워커**가 실행한다(`D-66`). 워커가 없는 환경
-  (`app.ai.dispatch.mode=in-process`, 로컬 기본값)에서는 대역이 **빈 결과로 작업을 끝낸다** —
-  "성공했는데 후보/제안 0건"이 정상이며 두 화면이 그 문구를 따로 갖고 있다.
+  (`app.ai.dispatch.mode=in-process`, 로컬 기본값)에서는 대역이 돌아간다. **추출 대역은 고정
+  후보어 2건("결제"·"주문")을 돌려주고**(`InProcessExtractionWorker`), 대조 대역은 빈 결과로
+  끝낸다 — "성공했는데 제안 0건"이 후자에서는 정상이며 화면이 그 문구를 갖고 있다.
+  이미 사전집에 있는 표기가 다시 나오면 후보어로 더하지 않고 승계분을 그대로 둔다(`D-91`).
 
 ---
 

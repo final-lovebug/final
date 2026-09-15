@@ -9,10 +9,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.draftdictionary.domain.CandidateTerm;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJob;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJobStatus;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
+import com.ubidict.backend.draftdictionary.implement.CandidateTermReader;
 import com.ubidict.backend.draftdictionary.implement.CandidateTermWriter;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryCreationPolicyValidator;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryEventPublisher;
@@ -36,6 +38,7 @@ class DraftDictionaryExtractionExecutionServiceTest {
     private final ExtractionJobReader jobReader = mock(ExtractionJobReader.class);
     private final DraftDictionaryWriter draftWriter = mock(DraftDictionaryWriter.class);
     private final CandidateTermWriter termWriter = mock(CandidateTermWriter.class);
+    private final CandidateTermReader termReader = mock(CandidateTermReader.class);
     private final DraftDictionaryCreationPolicyValidator creationPolicy =
             mock(DraftDictionaryCreationPolicyValidator.class);
     private final ExtractionResultValidator resultValidator = mock(ExtractionResultValidator.class);
@@ -46,10 +49,35 @@ class DraftDictionaryExtractionExecutionServiceTest {
             jobReader,
             draftWriter,
             termWriter,
+            termReader,
             creationPolicy,
             resultValidator,
             draftEventPublisher,
             completionEventPublisher);
+
+    @DisplayName("이미 승계된 표기가 추출 결과에 다시 나오면 후보어로 더하지 않는다.")
+    @Test
+    void complete_skipsCarriedOverForm() {
+        // 활성 사전집의 용어는 초안 생성 시 승계 후보어로 실린다. 문서가 같은 어휘를 계속 쓰므로
+        // 추출 결과에도 다시 나오는데, 그대로 add하면 DUPLICATE_CANDIDATE_FORM으로 추출 작업
+        // 전체가 실패한다 — 후보어를 전부 발행하게 된 뒤로는(D-88) 이게 정상 경로다.
+        ExtractionJob job = dispatchedJob();
+        DraftDictionary draft = DraftDictionary.create(1L, null, List.of(10L), 2L);
+        ReflectionTestUtils.setField(draft, "id", 40L);
+        given(jobReader.read(30L)).willReturn(job);
+        given(draftWriter.create(1L, null, List.of(10L), 2L)).willReturn(draft);
+        given(termReader.readAll(40L))
+                .willReturn(List.of(CandidateTerm.createExisting(40L, 7L, "결제", "기존 정의", "Payment", 2L)));
+        ExtractedTerm carriedOver = new ExtractedTerm("결제", "새 정의", "Payment", List.of(10L), 2, List.of("문맥"));
+        ExtractedTerm fresh = new ExtractedTerm("주문", "정의", "Order", List.of(10L), 2, List.of("문맥"));
+
+        service.complete(30L, REQUEST_ID, List.of(10L), List.of(carriedOver, fresh));
+
+        ArgumentCaptor<AddCandidateTermCommand> captor = ArgumentCaptor.forClass(AddCandidateTermCommand.class);
+        verify(termWriter).add(captor.capture());
+        assertThat(captor.getValue().form()).isEqualTo("주문");
+        assertThat(job.getStatus()).isEqualTo(ExtractionJobStatus.SUCCEEDED);
+    }
 
     @DisplayName("대기 중인 작업을 워커에게 넘기면 실행 중 상태가 되고 상관 식별자가 남는다.")
     @Test

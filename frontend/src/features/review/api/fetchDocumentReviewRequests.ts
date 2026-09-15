@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/httpClient'
+import { fetchAllPages } from '../../../shared/api/fetchAllPages'
 import type { ReviewRequestStatus } from '../model/types'
 import type { WorkspaceId } from '../../../shared/types/ids'
 import type { PageResponse, ReviewRequestApiResponse } from './reviewApi'
@@ -19,14 +20,17 @@ export interface DocumentReviewRequestListItem {
 // 하지 않는다(features 간 직접 참조 금지, frontend/docs/ARCHITECTURE.md). 다만 `title`은
 // ReviewRequest 자체의 속성이라 응답에 들어 있다.
 //
-// 페이지네이션: 지금은 최대 100건까지만 조회한다(화면에 페이징 UI가 없다).
+// 페이지네이션: 화면에 페이징 UI가 없어 전체가 필요하다. 상한(100)에 맞춰 한 번만
+// 부르던 동안은 101번째 이후 리뷰 요청이 목록에서 빠졌다.
 export async function fetchDocumentReviewRequests(
   workspaceId: WorkspaceId,
 ): Promise<DocumentReviewRequestListItem[]> {
-  const response = await httpClient.get<PageResponse<ReviewRequestApiResponse>>(
-    `/api/review-requests?workspaceId=${workspaceId}&type=DOCUMENT&page=0&size=100&sort=createdAt,desc`,
+  const requests = await fetchAllPages<ReviewRequestApiResponse>((page, size) =>
+    httpClient.get<PageResponse<ReviewRequestApiResponse>>(
+      `/api/review-requests?workspaceId=${workspaceId}&type=DOCUMENT&page=${page}&size=${size}&sort=createdAt,desc`,
+    ),
   )
-  return response.content
+  return requests
     .filter((request) => request.targetId !== null)
     .map((request) => ({
       reviewRequestId: String(request.reviewRequestId),

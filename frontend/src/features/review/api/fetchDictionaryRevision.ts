@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/httpClient'
+import { fetchAllPages } from '../../../shared/api/fetchAllPages'
 import type { Comment, ReviewRequestStatus } from '../model/types'
 import type { RevisionChangeType, RevisionDictionaryTermRow } from '../model/fixtures'
 import {
@@ -9,6 +10,7 @@ import {
   type ReviewRequestApiResponse,
 } from './reviewApi'
 import type { WorkspaceId } from '../../../shared/types/ids'
+import type { Page } from '../../../shared/types/common'
 
 /** 라우트가 개정안 id 자리에 넘기는 sentinel — "이 워크스페이스의 진행 중인 사전 개정안". */
 export const CURRENT_REVISION = 'current'
@@ -24,10 +26,6 @@ interface CandidateTermApiResponse {
   proposedDefinition: string | null
 }
 
-interface PageResponse<T> {
-  content: T[]
-}
-
 /**
  * `'current'`를 실제 리뷰 요청 id로 바꾼다.
  *
@@ -40,10 +38,12 @@ async function resolveReviewRequestId(
 ): Promise<string> {
   if (reviewRequestId !== CURRENT_REVISION) return reviewRequestId
 
-  const response = await httpClient.get<PageResponse<ReviewRequestApiResponse>>(
-    `/api/review-requests?workspaceId=${workspaceId}&type=DICTIONARY&page=0&size=20&sort=createdAt,desc`,
+  const requests = await fetchAllPages<ReviewRequestApiResponse>((page, size) =>
+    httpClient.get<Page<ReviewRequestApiResponse>>(
+      `/api/review-requests?workspaceId=${workspaceId}&type=DICTIONARY&page=${page}&size=${size}&sort=createdAt,desc`,
+    ),
   )
-  const active = response.content.find((request) => !TERMINAL_STATUSES.has(request.status))
+  const active = requests.find((request) => !TERMINAL_STATUSES.has(request.status))
   if (!active) {
     throw new Error('진행 중인 사전집 개정안이 없습니다.')
   }
@@ -92,8 +92,12 @@ export async function fetchDictionaryRevision(
   }
 
   const [candidates, commentResponses, reviewRequest] = await Promise.all([
-    httpClient.get<PageResponse<CandidateTermApiResponse>>(
-      `/api/draft-dictionaries/${revision.draftId}/candidate-terms?page=0&size=200&sort=form,asc`,
+    // `size=200`은 규격 상한(100)을 넘어 400이었다 — 개정안 화면이 열리지 않던 원인이다.
+    // 개정안은 후보어 전체가 한 화면에 실려야 하므로 상한 크기로 끝까지 페이징한다.
+    fetchAllPages<CandidateTermApiResponse>((page, size) =>
+      httpClient.get<Page<CandidateTermApiResponse>>(
+        `/api/draft-dictionaries/${revision.draftId}/candidate-terms?page=${page}&size=${size}&sort=form,asc`,
+      ),
     ),
     httpClient.get<CommentApiResponse[]>(`/api/review-requests/${reviewRequestId}/comments`),
     httpClient.get<ReviewRequestApiResponse>(`/api/review-requests/${reviewRequestId}`),
@@ -118,37 +122,36 @@ export async function fetchDictionaryRevision(
     status: reviewRequest.status,
     requesterId: String(reviewRequest.requesterId),
     baseVersionNo: revision.baseVersionNo,
-    rows: candidates.content.flatMap((candidate) => {
+    // 표기 묶음(variantForms)의 비대표 표현은 행이 되지 않는다 — 대표 표기 form 하나만
+    // 용어가 된다(`docs/plan/DRAFT_PLAN.md`).
+    rows: candidates.map((candidate) => {
       const change = toChangeType(candidate)
-      if (change === null) return []
       const id = String(candidate.candidateTermId)
       const comments = commentCountByItemId.get(id) ?? 0
-      return [
-        {
-          candidateTermId: id,
-          term: candidate.form,
-          change,
-          changeTone: change === '추가' ? ('success' as const) : ('warn' as const),
-          comments,
-          highlighted: comments > 0,
-        },
-      ]
+      return {
+        candidateTermId: id,
+        term: candidate.form,
+        change,
+        changeTone: change === '추가' ? ('success' as const) : ('neutral' as const),
+        comments,
+        highlighted: comments > 0,
+      }
     }),
     comments,
   }
 }
 
 /**
- * 개정안 표의 변경 유형(T-INT-12 결정 5).
+ * 개정안 표의 변경 유형(T-INT-12 결정 5 → `docs/plan/DRAFT_PLAN.md`로 개정).
  *
- * - `EXTRACTED` → 추가
- * - `EXISTING` 이면서 판정이 내려진 것 → 정의 수정
- * - `EXISTING` 이면서 `KEPT`(손대지 않은 승계분) → 변경이 아니므로 표에서 뺀다(`null`)
+ * - `EXTRACTED`(추출·수동 등록된 신규) → 추가
+ * - `EXISTING`(이전 사전집에서 승계) → 승계
  *
- * 이전 버전과 정의를 비교하는 API가 없어 이보다 정확히는 판별할 수 없다 — 「삭제」 분류를
- * 만들지 않은 것과 같은 이유다.
+ * **판정 상태로 거르지 않는다.** 예전에는 `KEPT`인 승계분을 「변경 아님」으로 보아 표에서
+ * 뺐지만(`null`), 판정이 사라진 뒤 모든 후보어가 `PENDING`이라 그 규칙으로는 승계분이 전부
+ * 「정의 수정」으로 잘못 찍힌다. 정말 고쳤는지는 활성 사전집과 값을 비교해야 알 수 있고 목록
+ * 응답에 정의가 없어(`D-41`) 그 비교를 할 수 없으므로, 사실만 적고 판단은 리뷰어에게 맡긴다.
  */
-function toChangeType(candidate: CandidateTermApiResponse): RevisionChangeType | null {
-  if (candidate.origin === 'EXTRACTED') return '추가'
-  return candidate.status === 'KEPT' ? null : '정의 수정'
+function toChangeType(candidate: CandidateTermApiResponse): RevisionChangeType {
+  return candidate.origin === 'EXTRACTED' ? '추가' : '승계'
 }

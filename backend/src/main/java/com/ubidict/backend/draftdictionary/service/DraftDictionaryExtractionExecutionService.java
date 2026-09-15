@@ -1,10 +1,12 @@
 package com.ubidict.backend.draftdictionary.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.draftdictionary.domain.CandidateTerm;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJob;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJobStatus;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
+import com.ubidict.backend.draftdictionary.implement.CandidateTermReader;
 import com.ubidict.backend.draftdictionary.implement.CandidateTermWriter;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryCreationPolicyValidator;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryEventPublisher;
@@ -15,8 +17,10 @@ import com.ubidict.backend.draftdictionary.implement.ExtractionResultValidator;
 import com.ubidict.backend.draftdictionary.infra.port.ExtractedTerm;
 import com.ubidict.backend.draftdictionary.service.model.AddCandidateTermCommand;
 import com.ubidict.backend.draftdictionary.service.model.ExtractionJobResult;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +34,7 @@ public class DraftDictionaryExtractionExecutionService {
     private final ExtractionJobReader extractionJobReader;
     private final DraftDictionaryWriter draftDictionaryWriter;
     private final CandidateTermWriter candidateTermWriter;
+    private final CandidateTermReader candidateTermReader;
     private final DraftDictionaryCreationPolicyValidator creationPolicyValidator;
     private final ExtractionResultValidator extractionResultValidator;
     private final DraftDictionaryEventPublisher draftDictionaryEventPublisher;
@@ -85,7 +90,23 @@ public class DraftDictionaryExtractionExecutionService {
                 extractionJob.getDictionaryId(),
                 sourceDocumentIds,
                 extractionJob.getRequestedBy());
+        // 활성 사전집의 용어는 초안을 만들 때 승계(EXISTING) 후보어로 미리 실린다. 문서가 같은 어휘를
+        // 계속 쓰므로 추출 결과에도 그 표기가 다시 나오는데, 그대로 add하면
+        // DUPLICATE_CANDIDATE_FORM으로 추출 작업 전체가 실패한다 — 후보어를 판정 없이 전부 발행하게
+        // 된 뒤로는(D-88) 사전집에 이전 회차의 후보어가 모두 들어 있어 이게 정상 경로가 됐다.
+        // 이미 승계로 들어온 표기는 건너뛴다. 재추출은 「그 용어를 계속 쓴다」는 사실만 더할 뿐이고,
+        // 정의 수정은 별도 변경 종류가 아니다(D-89).
+        Set<String> knownForms = new HashSet<>(candidateTermReader.readAll(draftDictionary.getId()).stream()
+                .map(CandidateTerm::getForm)
+                .toList());
         for (ExtractedTerm term : extractedTerms) {
+            if (!knownForms.add(term.form())) {
+                log.info(
+                        "[DraftDictionaryExtractionExecutionService.complete] Extracted term already carried over. draftDictionaryId={}, form={}",
+                        draftDictionary.getId(),
+                        term.form());
+                continue;
+            }
             candidateTermWriter.add(new AddCandidateTermCommand(
                     draftDictionary.getId(),
                     term.form(),

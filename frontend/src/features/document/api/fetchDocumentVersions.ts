@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/httpClient'
+import { fetchAllPages } from '../../../shared/api/fetchAllPages'
 import { fetchMemberNames } from '../../../shared/api/memberNames'
 import type { DocumentVersion } from '../model/types'
 import type { DocumentId, WorkspaceId } from '../../../shared/types/ids'
@@ -25,19 +26,22 @@ interface PageResponse<T> {
 // `DocumentHistoryPage` 호출부도 함께 수정.
 //
 // **목록 응답엔 본문(`body`)이 없다** — 단건 조회에만 있어서 버전 비교는
-// `fetchDocumentVersionBody`로 따로 읽는다(아래). 최대 50개까지만 조회한다(페이징 UI 없음).
+// `fetchDocumentVersionBody`로 따로 읽는다(아래). 버전 이력은 끝까지 페이징한다 —
+// `size=50`으로 한 페이지만 읽던 동안은 51번째 이후 버전이 이력에서 빠졌다.
 // 발행자 이름은 `GET /api/members?ids=`(T-INT-18) 배치 조회로 한 번에 해석한다.
 export async function fetchDocumentVersions(
   workspaceId: WorkspaceId,
   documentId: DocumentId,
 ): Promise<DocumentVersion[]> {
-  const response = await httpClient.get<PageResponse<VersionApiItem>>(
-    `/api/workspaces/${workspaceId}/documents/${documentId}/versions?page=0&size=50`,
+  const versions = await fetchAllPages<VersionApiItem>((page, size) =>
+    httpClient.get<PageResponse<VersionApiItem>>(
+      `/api/workspaces/${workspaceId}/documents/${documentId}/versions?page=${page}&size=${size}`,
+    ),
   )
-  if (response.content.length === 0) return []
+  if (versions.length === 0) return []
 
-  const nameByMemberId = await fetchMemberNames(response.content.map((v) => v.publishedBy))
-  return response.content.map((version) => ({
+  const nameByMemberId = await fetchMemberNames(versions.map((v) => v.publishedBy))
+  return versions.map((version) => ({
     id: `${documentId}-v${version.versionNo}`,
     documentId,
     versionNo: version.versionNo,

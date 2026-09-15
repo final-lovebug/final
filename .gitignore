@@ -2,6 +2,11 @@
 compose.override.yaml
 compose.override.yml
 
+# 시크릿 (루트 compose.yaml이 GOOGLE_CLIENT_ID/SECRET 보간에 쓴다 — 커밋 금지)
+.env
+.env.*
+!.env.example
+
 # 개인 작업 추적용 (커밋 안 함)
 /task/
 /backend/task/
@@ -16,3 +21,5 @@ compose.override.yml
 # 배포 번들 생성 산출물
 deploy/IMAGE_TAG
 /.aws/
+/AGENTS.md
+/backend/.env

@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
+  Avatar,
+  Banner,
   Button,
   Card,
-  Checkbox,
   ColFlex,
+  CommentCard,
   DataTable,
   DetailPanel,
   FieldLabel,
@@ -12,6 +14,7 @@ import {
   Pill,
   QuoteBlock,
   RadioDot,
+  ScreenSubtitle,
   ScreenTitle,
   Td,
   TextArea,
@@ -24,19 +27,18 @@ import {
 } from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
 import { cx } from '../../shared/lib/cx'
+import { toRelativeTime } from '../../shared/lib/relativeTime'
 import { ApiError } from '../../shared/api/httpClient'
 import { useAuthStore } from '../../shared/stores/authStore'
-import { useCandidates } from '../../features/dictionary/hooks/useCandidates'
+import { useDictionaryDraft } from '../../features/dictionary/hooks/useDictionaryDraft'
 import { useCreateCandidateTerm } from '../../features/dictionary/hooks/useCreateCandidateTerm'
 import { useUpdateCandidateTerm } from '../../features/dictionary/hooks/useUpdateCandidateTerm'
-import { useDecideCandidateTerm } from '../../features/dictionary/hooks/useDecideCandidateTerm'
-import { useBulkDecideCandidateTerms } from '../../features/dictionary/hooks/useBulkDecideCandidateTerms'
-import {
-  useCandidateExamineProgress,
-  useSubmitDictionaryRevision,
-} from '../../features/dictionary/hooks/useSubmitDictionaryRevision'
+import { useSubmitDictionaryRevision } from '../../features/dictionary/hooks/useSubmitDictionaryRevision'
 import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
+import { useDictionaryRevision } from '../../features/review/hooks/useDictionaryRevision'
+import { usePerformReexamine } from '../../features/review/hooks/useReviewLifecycle'
 import type { CandidateTermType } from '../../features/dictionary/model/types'
+import type { CandidateTermListItem } from '../../features/dictionary/model/fixtures'
 
 const TYPE_LABELS: Record<CandidateTermType, string> = {
   SYNONYM: '동의어',
@@ -45,52 +47,58 @@ const TYPE_LABELS: Record<CandidateTermType, string> = {
 }
 const CANDIDATE_TYPES = Object.keys(TYPE_LABELS) as CandidateTermType[]
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: '대기',
-  REGISTRATION_APPROVED: '등재 승인',
-  MERGED_AS_SYNONYM: '동의어 편입',
-  REJECTED: '거절',
-  ON_HOLD: '보류',
-  KEPT: '승계 유지',
-}
+/** 로딩 중에도 참조가 안 바뀌게 고정한다 — 매 렌더마다 새 배열을 만들면 useMemo가 헛돈다. */
+const NO_CANDIDATES: CandidateTermListItem[] = []
 
-// ui/main.js renderDraftScreen() 이식 — 후보 표(넓게) + 상세 패널(420px) master-detail.
-//
-// **분류(type)는 사람이 등록할 때만 붙는다** — 추출이 만든 후보어에는 없어서 "미분류"로
-// 표시한다(T-INT-11 결정 1). **근거 문장에 출처·분리 표시가 없다** — 백엔드가 주는 건
-// contextSnippets 문자열뿐이라 어느 문서 몇 문단인지 복원할 수 없다(결정 3).
-//
-// **(2026-09-14 디자인 정합)** 프로토타입에만 있던 셋을 살렸다 — 헤더의 「개정안 제출」
-// (실 API: 교정완료 → 리뷰 요청), 툴바의 유형·검색 필터, 표 발치의 일괄 판정.
-// 「직접 입력」 표준어 옵션도 프로토타입대로 되살렸다(수정 API가 form을 받는다).
+/**
+ * 사전집 초안 — 단일 페이지(`docs/plan/DRAFT_PLAN.md`).
+ *
+ * 후보어 묶음의 **대표어와 정의만** 정리하고, 전부 채워지면 곧바로 리뷰를 요청한다. 예전에
+ * 있던 후보어별 작성자·담당자·판정 상태·체크박스·일괄 처리는 전부 걷어냈다 — 준비 여부를
+ * 판정 건수로 세지 않고 「모든 후보어가 대표어와 정의를 가졌는가」로만 본다.
+ *
+ * **작성자는 화면 상단 한 곳에만 있다.** 초안 하나에 작성자는 한 명이고, 이름은 프런트가
+ * 공용 회원 조회로 해석한다(`D-62`).
+ *
+ * **재교정으로도 들어온다.** 개정안 화면의 「재교정」이 `?reviewRequest={id}`를 붙여 보내면
+ * 리뷰어 코멘트를 함께 보여주고, 주 버튼이 「리뷰 요청」에서 「재교정 완료」로 바뀐다 —
+ * 고칠 대상은 개정안 표가 아니라 이 초안의 후보어이기 때문이다.
+ */
 export function DictionaryDraftPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
+  const [searchParams] = useSearchParams()
+  const reexamineRequestId = searchParams.get('reviewRequest')
+  const isReexamining = reexamineRequestId !== null
+
   const navigate = useNavigate()
-  const { data: candidates, isLoading } = useCandidates(workspaceId)
-  const { data: progress } = useCandidateExamineProgress(workspaceId)
+  const { data, isLoading } = useDictionaryDraft(workspaceId)
   const { data: members } = useWorkspaceMembers(workspaceId)
+  const currentMember = useAuthStore((state) => state.currentMember)
   const createCandidate = useCreateCandidateTerm(workspaceId)
   const updateCandidate = useUpdateCandidateTerm(workspaceId)
-  const decideCandidate = useDecideCandidateTerm(workspaceId)
-  const bulkDecide = useBulkDecideCandidateTerms(workspaceId)
   const submitRevision = useSubmitDictionaryRevision(workspaceId)
-  const currentMember = useAuthStore((state) => state.currentMember)
+
+  // 재교정 문맥에서만 개정안을 읽는다 — 리뷰어 코멘트를 후보어별로 붙이기 위해서다.
+  const { data: revision } = useDictionaryRevision(
+    workspaceId,
+    isReexamining ? reexamineRequestId : '',
+  )
+  const reexamine = usePerformReexamine(reexamineRequestId ?? '')
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [checkedIds, setCheckedIds] = useState<string[]>([])
-  // 정의 입력은 "어느 후보의 편집인지"를 함께 들고 있다 — 후보를 옮기면 그 값이 버려지고
-  // 서버 값이 다시 보인다. effect로 state를 되채우지 않기 위한 방식이다.
   const [definitionEdit, setDefinitionEdit] = useState<{ id: string; value: string } | null>(null)
   const [directForm, setDirectForm] = useState('')
   const [newWord, setNewWord] = useState('')
   const [newType, setNewType] = useState<CandidateTermType>('SYNONYM')
   const [typeFilter, setTypeFilter] = useState('')
   const [keyword, setKeyword] = useState('')
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  const candidates = data?.candidates ?? NO_CANDIDATES
 
   const visibleCandidates = useMemo(() => {
     const needle = keyword.trim().toLowerCase()
-    return (candidates ?? []).filter((candidate) => {
+    return candidates.filter((candidate) => {
       const matchesType =
         typeFilter === '' ||
         (typeFilter === 'NONE' ? candidate.type === undefined : candidate.type === typeFilter)
@@ -101,22 +109,38 @@ export function DictionaryDraftPage() {
   }, [candidates, typeFilter, keyword])
 
   const selected =
-    candidates?.find((candidate) => candidate.id === selectedId) ?? visibleCandidates[0] ?? null
+    candidates.find((candidate) => candidate.id === selectedId) ?? visibleCandidates[0] ?? null
 
   const definitionDraft =
     definitionEdit !== null && definitionEdit.id === selected?.id
       ? definitionEdit.value
       : (selected?.proposedDefinition ?? '')
 
+  // 후보어별 리뷰어 코멘트. 개정안 코멘트의 targetItemId가 후보어 id다(`D-63`).
+  const commentsByCandidateId = useMemo(() => {
+    type RevisionComment = NonNullable<typeof revision>['comments'][number]
+    const map = new Map<string, RevisionComment[]>()
+    if (!revision) return map
+    for (const comment of revision.comments) {
+      if (comment.targetItemId === undefined) continue
+      const bucket = map.get(comment.targetItemId) ?? []
+      bucket.push(comment)
+      map.set(comment.targetItemId, bucket)
+    }
+    return map
+  }, [revision])
+
+  const nameByMemberId = new Map((members ?? []).map((member) => [member.id, member.name]))
+
   if (isLoading) return <p className="text-sm text-text-tertiary">불러오는 중…</p>
 
-  if (!candidates || candidates.length === 0) {
+  if (!data) {
     return (
       <div>
-        <ScreenTitle>사전집 초안 — 후보 작성</ScreenTitle>
-        <p className="mb-5 text-[12.5px] text-text-tertiary">
-          교정 중인 사전 초안이 없습니다. 용어 추출을 실행하면 후보어가 담긴 초안이 만들어집니다.
-        </p>
+        <ScreenTitle>사전집 초안</ScreenTitle>
+        <ScreenSubtitle>
+          진행 중인 사전 초안이 없습니다. 용어 추출을 실행하면 후보어가 담긴 초안이 만들어집니다.
+        </ScreenSubtitle>
         <Button variant="primary" onClick={() => navigate(routes.termExtraction(workspaceId))}>
           용어 추출 실행
         </Button>
@@ -125,48 +149,33 @@ export function DictionaryDraftPage() {
   }
 
   function handleAddCandidate() {
-    if (!newWord.trim() || !currentMember) return
+    if (!newWord.trim()) return
+    setActionError(null)
     createCandidate.mutate(
+      { workspaceId, form: newWord.trim(), type: newType },
       {
-        workspaceId,
-        form: newWord.trim(),
-        type: newType,
-        ownerName: currentMember.displayName,
+        onSuccess: (created) => setSelectedId(created.id),
+        onError: (error) => setActionError(errorMessageOf(error, '후보어를 추가하지 못했습니다.')),
       },
-      { onSuccess: (created) => setSelectedId(created.id) },
     )
     setNewWord('')
   }
 
   function handleSelectWord(word: string) {
     if (!selected) return
-    updateCandidate.mutate({
-      candidateId: selected.id,
-      selectedWord: word,
-      ownerName: selected.ownerName,
-    })
+    updateCandidate.mutate({ candidateId: selected.id, selectedWord: word })
   }
 
   function handleSaveDefinition() {
     if (!selected || definitionDraft === (selected.proposedDefinition ?? '')) return
     updateCandidate.mutate(
-      {
-        candidateId: selected.id,
-        proposedDefinition: definitionDraft,
-        ownerName: selected.ownerName,
-      },
+      { candidateId: selected.id, proposedDefinition: definitionDraft },
       { onSuccess: () => setDefinitionEdit(null) },
     )
   }
 
-  function toggleChecked(id: string) {
-    setCheckedIds((current) =>
-      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
-    )
-  }
-
-  function handleSubmitRevision() {
-    setSubmitError(null)
+  function handleRequestReview() {
+    setActionError(null)
     const reviewerMemberIds = (members ?? [])
       .filter((member) => member.id !== currentMember?.id)
       .map((member) => member.id)
@@ -174,41 +183,126 @@ export function DictionaryDraftPage() {
     submitRevision.mutate(
       {
         workspaceId,
-        title: `사전집 개정안 — 후보어 ${candidates?.length ?? 0}건`,
+        title: `사전집 개정안 — 용어 ${candidates.length}건`,
         reviewerMemberIds,
       },
       {
-        onSuccess: () => navigate(routes.dictionaryRevision(workspaceId, 'current')),
-        onError: (error) =>
-          setSubmitError(
-            error instanceof ApiError ? error.message : (error as Error).message,
-          ),
+        // 중간 탭 없이 생성된 리뷰 요청의 개정안 상세로 바로 간다.
+        onSuccess: (created) =>
+          navigate(routes.dictionaryRevision(workspaceId, created.reviewRequestId)),
+        onError: (error) => setActionError(errorMessageOf(error, '리뷰를 요청하지 못했습니다.')),
       },
     )
   }
 
-  const pendingCount = progress?.pending ?? 0
+  function handleCompleteReexamine() {
+    if (!revision) return
+    setActionError(null)
+    reexamine.mutate(
+      { addressedCommentIds: revision.comments.map((comment) => comment.id) },
+      {
+        onSuccess: () =>
+          navigate(routes.dictionaryRevision(workspaceId, reexamineRequestId ?? 'current')),
+        onError: (error) => setActionError(errorMessageOf(error, '재교정을 마치지 못했습니다.')),
+      },
+    )
+  }
+
+  const selectedComments = selected ? (commentsByCandidateId.get(selected.id) ?? []) : []
 
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <ScreenTitle className="mb-0">사전집 초안 — 후보 작성</ScreenTitle>
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={pendingCount > 0 || submitRevision.isPending}
-          title={pendingCount > 0 ? `미판정 후보어 ${pendingCount}건이 남아 있습니다` : undefined}
-          onClick={handleSubmitRevision}
-        >
-          {submitRevision.isPending ? '제출 중…' : '개정안 제출'}
-        </Button>
-      </div>
-      <p className="mb-[18px] text-xs text-text-quaternary">
-        담당자를 지정해 표준어와 정의를 채우면, 개정안 제출 후 다른 멤버가 사전집 개정안에서
-        승인합니다.
-      </p>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-[10px]">
+          <ScreenTitle className="mb-0">사전집 초안</ScreenTitle>
+          {isReexamining && <Pill tone="warn">재교정 {(revision?.reexamineRound ?? 0) + 1}회차</Pill>}
+          <span className="inline-flex items-center gap-[6px] text-xs text-text-tertiary">
+            <Avatar initial={data.creatorName.charAt(0)} tone="accent" size={22} />
+            작성자 <b className="font-bold text-text">{data.creatorName}</b>
+          </span>
+        </div>
 
-      {submitError && <p className="mb-3 text-xs text-danger">{submitError}</p>}
+        {isReexamining ? (
+          <div className="flex gap-[10px]">
+            <Button
+              variant="outline"
+              onClick={() =>
+                navigate(routes.dictionaryRevision(workspaceId, reexamineRequestId ?? 'current'))
+              }
+            >
+              개정안으로 돌아가기
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!data.reviewReady || reexamine.isPending}
+              title={data.reviewReady ? undefined : '정의가 빈 후보어가 남아 있습니다'}
+              onClick={handleCompleteReexamine}
+            >
+              {reexamine.isPending ? '제출 중…' : '재교정 완료'}
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="primary"
+            disabled={!data.reviewReady || submitRevision.isPending}
+            title={
+              data.reviewReady
+                ? undefined
+                : `정의가 빈 후보어가 ${data.missingDefinition.length}건 남아 있습니다`
+            }
+            onClick={handleRequestReview}
+          >
+            {submitRevision.isPending ? '요청 중…' : '리뷰 요청'}
+          </Button>
+        )}
+      </div>
+
+      <ScreenSubtitle className="mb-[18px]">
+        {isReexamining
+          ? '리뷰어가 요청한 부분을 고칩니다. 재교정 완료를 누르면 회차가 올라가고 기존 승인은 무효가 되어 리뷰어가 다시 봅니다.'
+          : '후보어 묶음마다 대표어를 고르고 정의를 채웁니다. 전부 채우면 리뷰를 요청할 수 있고, 요청과 동시에 사전 개정안이 만들어집니다.'}
+      </ScreenSubtitle>
+
+      {actionError && <p className="mb-3 text-xs text-danger">{actionError}</p>}
+
+      {isReexamining && revision && revision.comments.length > 0 && (
+        <Banner className="mb-4 border-warn-border bg-warn-bg">
+          <div className="mb-[6px] font-bold">
+            변경 요청 — 코멘트 달린 후보어 {commentsByCandidateId.size}건
+          </div>
+          <div className="flex flex-col gap-[6px]">
+            {revision.comments
+              .filter((comment) => comment.targetItemId !== undefined)
+              .map((comment) => {
+                const term = candidates.find(
+                  (candidate) => candidate.id === comment.targetItemId,
+                )
+                return (
+                  <div key={comment.id} className="flex items-start gap-2">
+                    <Pill tone="warn" className="shrink-0">
+                      {term?.form ?? '삭제된 후보어'}
+                    </Pill>
+                    <span className="leading-[1.6]">
+                      <b>{nameByMemberId.get(comment.authorId) ?? '—'}</b> · {comment.content}
+                    </span>
+                  </div>
+                )
+              })}
+          </div>
+        </Banner>
+      )}
+
+      {!isReexamining && !data.reviewReady && (
+        <Banner className="mb-4">
+          정의가 비어 있는 후보어가 <b>{data.missingDefinition.length}건</b> 남아 있어 리뷰를
+          요청할 수 없습니다 —{' '}
+          {data.missingDefinition
+            .slice(0, 5)
+            .map((candidate) => candidate.form)
+            .join(', ')}
+          {data.missingDefinition.length > 5 && ` 외 ${data.missingDefinition.length - 5}건`}.
+        </Banner>
+      )}
 
       <Toolbar>
         <FilterChip className="p-0">
@@ -235,7 +329,15 @@ export function DictionaryDraftPage() {
         />
         <ToolbarSpacer />
         <span className="text-[11px] text-text-quaternary">
-          후보 {candidates.length}건 · 미판정 {pendingCount}건
+          후보 {candidates.length}건 ·{' '}
+          <span
+            className={cx(
+              'font-bold',
+              data.missingDefinition.length === 0 ? 'text-success' : 'text-warn',
+            )}
+          >
+            정의 누락 {data.missingDefinition.length}건
+          </span>
         </span>
       </Toolbar>
 
@@ -245,52 +347,62 @@ export function DictionaryDraftPage() {
             <DataTable>
               <thead>
                 <tr>
-                  <Th className="w-[14px]" />
                   <Th>후보 단어</Th>
                   <Th>유형</Th>
                   <Th>출현/문서</Th>
-                  <Th>판정</Th>
-                  <Th>작성자</Th>
                 </tr>
               </thead>
               <tbody>
-                {visibleCandidates.map((candidate) => (
-                  <Tr
-                    key={candidate.id}
-                    clickable
-                    onClick={() => {
-                      setSelectedId(candidate.id)
-                      setDirectForm('')
-                    }}
-                    className={cx(
-                      candidate.id === selected?.id &&
-                        'bg-accent-bg-strong shadow-[inset_3px_0_0_var(--color-accent)]',
-                    )}
-                  >
-                    <Td onClick={(event) => event.stopPropagation()}>
-                      <Checkbox
-                        checked={checkedIds.includes(candidate.id)}
-                        onChange={() => toggleChecked(candidate.id)}
-                        label={`${candidate.form} 선택`}
-                      />
+                {visibleCandidates.length === 0 && (
+                  <Tr>
+                    <Td colSpan={3} className="py-6 text-center text-text-tertiary">
+                      조건에 맞는 후보어가 없습니다.
                     </Td>
-                    <Td className="font-semibold text-text">{candidate.words.join(', ')}</Td>
-                    <Td>{candidate.type ? TYPE_LABELS[candidate.type] : '미분류'}</Td>
-                    <Td>
-                      {candidate.occurrenceCount} / {candidate.occurredDocumentIds.length}
-                    </Td>
-                    <Td>
-                      {candidate.status === 'PENDING' ? (
-                        <span className="text-text-quaternary">대기</span>
-                      ) : (
-                        <Pill tone={candidate.status === 'REJECTED' ? 'danger' : 'success'}>
-                          {STATUS_LABELS[candidate.status] ?? candidate.status}
-                        </Pill>
-                      )}
-                    </Td>
-                    <Td>{candidate.ownerName}</Td>
                   </Tr>
-                ))}
+                )}
+                {visibleCandidates.map((candidate) => {
+                  const needsDefinition =
+                    candidate.proposedDefinition === undefined ||
+                    candidate.proposedDefinition.trim() === ''
+                  const commentCount = commentsByCandidateId.get(candidate.id)?.length ?? 0
+                  const variants = candidate.words.filter((word) => word !== candidate.form)
+
+                  return (
+                    <Tr
+                      key={candidate.id}
+                      clickable
+                      onClick={() => {
+                        setSelectedId(candidate.id)
+                        setDirectForm('')
+                      }}
+                      className={cx(
+                        candidate.id === selected?.id &&
+                          'bg-accent-bg-strong shadow-[inset_3px_0_0_var(--color-accent)]',
+                      )}
+                    >
+                      <Td>
+                        <span className="font-bold text-text">{candidate.form}</span>
+                        {variants.length > 0 && (
+                          <span className="text-text-quaternary">, {variants.join(', ')}</span>
+                        )}
+                        {needsDefinition && (
+                          <Pill tone="warn" className="ml-[6px]">
+                            정의 필요
+                          </Pill>
+                        )}
+                        {commentCount > 0 && (
+                          <Pill tone="warn" className="ml-[6px]">
+                            💬 {commentCount}
+                          </Pill>
+                        )}
+                      </Td>
+                      <Td>{candidate.type ? TYPE_LABELS[candidate.type] : '미분류'}</Td>
+                      <Td>
+                        {candidate.occurrenceCount} / {candidate.occurredDocumentIds.length}
+                      </Td>
+                    </Tr>
+                  )
+                })}
               </tbody>
             </DataTable>
 
@@ -323,53 +435,6 @@ export function DictionaryDraftPage() {
                 + 추가
               </Button>
             </div>
-
-            {checkedIds.length > 0 && (
-              <div className="flex items-center justify-between gap-3 border-t border-border-soft bg-surface-muted px-4 py-3">
-                <span className="text-[11.5px] text-text-secondary">
-                  {checkedIds.length}건 선택됨
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={bulkDecide.isPending}
-                    onClick={() =>
-                      bulkDecide.mutate(
-                        { workspaceId, candidateIds: checkedIds, decision: 'ON_HOLD' },
-                        { onSuccess: () => setCheckedIds([]) },
-                      )
-                    }
-                  >
-                    일괄 보류
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    disabled={bulkDecide.isPending}
-                    onClick={() =>
-                      bulkDecide.mutate(
-                        {
-                          workspaceId,
-                          candidateIds: checkedIds,
-                          decision: 'REGISTRATION_APPROVED',
-                        },
-                        { onSuccess: () => setCheckedIds([]) },
-                      )
-                    }
-                  >
-                    일괄 등재 승인
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {bulkDecide.data && bulkDecide.data.failed.length > 0 && (
-              <p className="border-t border-border-soft px-4 py-3 text-[11.5px] text-danger">
-                {bulkDecide.data.failed.length}건은 판정하지 못했습니다 —{' '}
-                {bulkDecide.data.failed[0].message}
-              </p>
-            )}
           </Card>
         </ColFlex>
 
@@ -388,10 +453,10 @@ export function DictionaryDraftPage() {
             </div>
 
             <div>
-              <FieldLabel>표준어</FieldLabel>
+              <FieldLabel required>대표어</FieldLabel>
               <div className="flex flex-col gap-[7px]">
                 {selected.words.map((word) => {
-                  const isSelected = (selected.selectedWord ?? selected.words[0]) === word
+                  const isSelected = selected.form === word
                   return (
                     <button
                       key={word}
@@ -424,24 +489,61 @@ export function DictionaryDraftPage() {
                   />
                 </div>
               </div>
+              <p className="mt-[5px] text-[10.5px] text-text-quaternary">
+                고른 표기만 개정안 행으로 올라갑니다 · 나머지 표기는 묶음으로 남습니다
+              </p>
             </div>
 
             <div>
-              <FieldLabel>정의</FieldLabel>
+              <FieldLabel required>정의</FieldLabel>
               <TextArea
                 value={definitionDraft}
                 onChange={(event) =>
-                  selected &&
-                  setDefinitionEdit({ id: selected.id, value: event.target.value })
+                  selected && setDefinitionEdit({ id: selected.id, value: event.target.value })
                 }
                 onBlur={handleSaveDefinition}
                 rows={3}
-                className="min-h-16 bg-surface-muted text-[12.5px] text-text-secondary"
+                placeholder="정의를 입력하세요"
+                className={cx(
+                  'min-h-16 text-[12.5px]',
+                  definitionDraft.trim() === ''
+                    ? 'border-[1.5px] border-warn-border bg-warn-bg'
+                    : 'bg-surface-muted text-text-secondary',
+                )}
               />
-              <p className="mt-[5px] text-[10.5px] text-text-quaternary">
-                AI 초안 · 입력창 밖을 클릭하면 저장됩니다
+              <p
+                className={cx(
+                  'mt-[5px] text-[10.5px]',
+                  definitionDraft.trim() === ''
+                    ? 'font-semibold text-warn'
+                    : 'text-text-quaternary',
+                )}
+              >
+                {definitionDraft.trim() === ''
+                  ? '정의가 비어 있어 리뷰 요청이 막혀 있습니다'
+                  : 'AI 초안 · 입력창 밖을 클릭하면 저장됩니다'}
               </p>
             </div>
+
+            {selectedComments.length > 0 && (
+              <div>
+                <FieldLabel>이 후보어에 달린 리뷰어 코멘트</FieldLabel>
+                <div className="flex flex-col gap-2">
+                  {selectedComments.map((comment) => {
+                    const name = nameByMemberId.get(comment.authorId) ?? '—'
+                    return (
+                      <CommentCard
+                        key={comment.id}
+                        name={name}
+                        initial={name.charAt(0)}
+                        time={toRelativeTime(comment.createdAt)}
+                        text={comment.content}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div>
               <FieldLabel>근거 문장</FieldLabel>
@@ -460,53 +562,15 @@ export function DictionaryDraftPage() {
                 ))}
               </div>
             </div>
-
-            <div className="flex flex-col gap-[9px] border-t border-border-soft pt-[14px]">
-              <div className="flex items-center gap-[10px]">
-                <FieldLabel className="mb-0">작성 담당자</FieldLabel>
-                <span className="rounded-sm border border-border-strong bg-surface px-[10px] py-[6px] text-xs">
-                  {selected.ownerName}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="primary"
-                  disabled={decideCandidate.isPending || !selected.proposedDefinition}
-                  title={
-                    selected.proposedDefinition
-                      ? undefined
-                      : '정의를 먼저 채워야 승인할 수 있습니다'
-                  }
-                  onClick={() =>
-                    decideCandidate.mutate({
-                      kind: 'approve',
-                      candidateId: selected.id,
-                      ownerName: selected.ownerName,
-                    })
-                  }
-                >
-                  등재 승인
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={decideCandidate.isPending}
-                  onClick={() =>
-                    decideCandidate.mutate({
-                      kind: 'hold',
-                      candidateId: selected.id,
-                      ownerName: selected.ownerName,
-                    })
-                  }
-                >
-                  보류
-                </Button>
-              </div>
-            </div>
           </DetailPanel>
         )}
       </TwoCol>
     </div>
   )
+}
+
+function errorMessageOf(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) return error.message
+  if (error instanceof Error) return error.message
+  return fallback
 }

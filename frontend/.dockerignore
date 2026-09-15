@@ -1,0 +1,24 @@
+# 빌드 산출물·의존성 (이미지 안에서 npm ci 로 다시 받는다)
+node_modules
+dist
+dist-ssr
+
+# 호스트 전용 설정 — .env.local 은 커밋 금지이자 이미지에도 들어가면 안 된다.
+# VITE_API_BASE_URL 은 Dockerfile 의 ARG 로 넘긴다.
+.env
+.env.*
+*.local
+
+# IDE
+.idea
+.vscode
+
+# 이미지에 들어갈 필요 없는 것
+.git
+.gitignore
+.dockerignore
+Dockerfile
+README.md
+CLAUDE.md
+docs
+task

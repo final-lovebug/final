@@ -26,6 +26,8 @@ spring:
             scope:
               - openid
               - email
+  profiles:
+    active: dev
 
 app:
   messaging:
@@ -65,7 +67,7 @@ app:
       # 추출·대조는 이 값만 따른다. in-process 는 워커가 없는 환경(로컬·테스트)의 대역으로,
       # 큐 대신 같은 JVM 안에서 빈 결과를 돌려준다.
       mode: ${AI_DISPATCH_MODE:in-process}
-    # stub | real. 요청 메시지에 실려 나가 **워커가** 실제 모델을 부를지 정한다(D-71).
+    # stub | mock | real. 요청 메시지에 실려 나가 **워커가** 실제 모델을 부를지 정한다(D-71).
     # 백엔드는 이 값으로 분기하지 않는다.
     mode: ${AI_MODE:stub}
     timeout:

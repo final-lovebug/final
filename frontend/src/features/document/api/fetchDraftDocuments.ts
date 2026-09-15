@@ -1,4 +1,5 @@
 import { httpClient } from '../../../shared/api/httpClient'
+import { fetchAllPages } from '../../../shared/api/fetchAllPages'
 import type { Page } from '../../../shared/types/common'
 import {
   toDraftDocument,
@@ -38,15 +39,17 @@ interface ExamineProgressApiResponse {
 export async function fetchDraftDocuments(
   workspaceId: WorkspaceId,
 ): Promise<DraftDocumentListItem[]> {
-  const [draftPage, documents] = await Promise.all([
-    httpClient.get<Page<DraftDocumentApiResponse>>(
-      '/api/draft-documents?status=EXAMINING&page=0&size=100&sort=updatedAt,desc',
+  const [draftResponses, documents] = await Promise.all([
+    fetchAllPages<DraftDocumentApiResponse>((page, size) =>
+      httpClient.get<Page<DraftDocumentApiResponse>>(
+        `/api/draft-documents?status=EXAMINING&page=${page}&size=${size}&sort=updatedAt,desc`,
+      ),
     ),
     fetchDocuments(workspaceId),
   ])
 
   const titleByDocumentId = new Map(documents.map((doc) => [doc.id, doc.title]))
-  const drafts = draftPage.content
+  const drafts = draftResponses
     .map(toDraftDocument)
     .filter((draft) => titleByDocumentId.has(draft.documentId))
 

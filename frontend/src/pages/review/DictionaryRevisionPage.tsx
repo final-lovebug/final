@@ -21,12 +21,11 @@ import { cx } from '../../shared/lib/cx'
 import { toRelativeTime } from '../../shared/lib/relativeTime'
 import { useDictionaryRevision } from '../../features/review/hooks/useDictionaryRevision'
 import { useSubmitReview, useReviewProgress } from '../../features/review/hooks/useSubmitReview'
-import {
-  usePerformReexamine,
-  usePerformRevise,
-} from '../../features/review/hooks/useReviewLifecycle'
+import { usePerformRevise } from '../../features/review/hooks/useReviewLifecycle'
 import { ReviewerPanel } from '../../features/review/components/ReviewerPanel'
+import { ReviewSubmitPopover } from '../../features/review/components/ReviewSubmitPopover'
 import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
+import { useWorkspace } from '../../features/workspace/hooks/useWorkspace'
 import { useAuthStore } from '../../shared/stores/authStore'
 import type { DraftComment } from '../../features/review/api/submitReview'
 import type { AvatarTone } from '../../shared/ui'
@@ -57,14 +56,19 @@ export function DictionaryRevisionPage() {
   const reviewRequestId = data?.reviewRequestId ?? ''
   const { data: progress } = useReviewProgress(reviewRequestId)
   const { data: members } = useWorkspaceMembers(workspaceId)
+  const { data: workspace } = useWorkspace(workspaceId)
   const submit = useSubmitReview(reviewRequestId)
-  const reexamine = usePerformReexamine(reviewRequestId)
   const revise = usePerformRevise(reviewRequestId)
   const currentMember = useAuthStore((state) => state.currentMember)
 
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null)
   const [commentDraft, setCommentDraft] = useState('')
   const [pending, setPending] = useState<DraftComment[]>([])
+
+  // 리뷰어를 넣고 뺄 수 있는 사람 — 리뷰를 요청한 본인이면서 ADMIN 이상이다.
+  // 최종 판정은 서버가 한다(403이 올라오면 그대로 보여준다).
+  const isAdminOrAbove =
+    workspace?.myPermission === 'OWNER' || workspace?.myPermission === 'ADMIN'
 
   if (isLoading) return <p className="text-sm text-text-tertiary">불러오는 중…</p>
   if (error || !data) {
@@ -76,6 +80,7 @@ export function DictionaryRevisionPage() {
   }
 
   const revision = data
+  const canManageReviewers = isAdminOrAbove && currentMember?.id === revision.requesterId
   const selected =
     revision.rows.find((row) => row.candidateTermId === selectedTermId) ?? revision.rows[0]
   const nameByMemberId = new Map((members ?? []).map((member) => [member.id, member.name]))
@@ -95,9 +100,17 @@ export function DictionaryRevisionPage() {
     setCommentDraft('')
   }
 
-  function submitVerdict(verdict: 'APPROVED' | 'CHANGES_REQUESTED') {
+  /**
+   * 판정과 코멘트를 한 번에 제출한다(`D-63`).
+   *
+   * `summaryComment`는 「리뷰 마무리」의 전체 코멘트다 — 특정 후보어에 달리지 않으므로
+   * `targetItemId` 없이 함께 보낸다.
+   */
+  function submitVerdict(verdict: 'APPROVED' | 'CHANGES_REQUESTED', summaryComment: string) {
+    const comments =
+      summaryComment === '' ? pending : [...pending, { content: summaryComment }]
     submit.mutate(
-      { reviewRequestId, targetRound: revision.reexamineRound, verdict, comments: pending },
+      { reviewRequestId, targetRound: revision.reexamineRound, verdict, comments },
       { onSuccess: () => setPending([]) },
     )
   }
@@ -116,34 +129,27 @@ export function DictionaryRevisionPage() {
         )}
         <ToolbarSpacer />
         <div className="flex gap-[10px]">
+          {/* 「재교정」은 제출이 아니라 이동이다 — 고칠 대상은 이 표가 아니라 개정안이 물고
+              있는 사전집 초안의 후보어다(`docs/plan/DRAFT_PLAN.md`). 초안 화면에서 고친 뒤
+              거기서 「재교정 완료」를 누르면 회차가 올라가며 이 화면으로 돌아온다. */}
           {revision.status === 'CHANGES_REQUESTED' && (
             <Button
               variant="outline"
-              disabled={reexamine.isPending}
+              title="개정하려는 단어를 고치러 초안으로 갑니다"
               onClick={() =>
-                reexamine.mutate({
-                  addressedCommentIds: revision.comments.map((comment) => comment.id),
-                })
+                navigate(`${routes.dictionaryDraft(workspaceId)}?reviewRequest=${reviewRequestId}`)
               }
             >
-              재교정 완료
+              재교정
             </Button>
           )}
-          <Button
-            variant="outline"
-            disabled={submit.isPending}
-            onClick={() => submitVerdict('CHANGES_REQUESTED')}
-          >
-            Change request
-            {pending.length > 0 ? ' (' + pending.length + ')' : ''}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={submit.isPending}
-            onClick={() => submitVerdict('APPROVED')}
-          >
-            Approve
-          </Button>
+
+          <ReviewSubmitPopover
+            pendingCommentCount={pending.length}
+            isSubmitting={submit.isPending}
+            onSubmit={(verdict, summaryComment) => submitVerdict(verdict, summaryComment)}
+          />
+
           <Button
             variant="primary"
             disabled={!progress?.reviseEligible || revise.isPending}
@@ -229,6 +235,8 @@ export function DictionaryRevisionPage() {
               name: member.name,
             }))}
             excludeMemberId={revision.requesterId}
+            currentRound={revision.reexamineRound}
+            canEdit={canManageReviewers}
           />
 
           {selected && (
