@@ -17,6 +17,7 @@ import com.ubidict.backend.draftdocument.infra.port.DictionaryTermQueryPort;
 import com.ubidict.backend.draftdocument.infra.port.DocumentSnapshot;
 import com.ubidict.backend.draftdocument.service.model.CheckJobResult;
 import com.ubidict.backend.draftdocument.service.model.CreateCheckJobCommand;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -48,14 +49,14 @@ class DraftDocumentCheckServiceTest {
         CheckJob checkJob = CheckJob.create(10L, 30L);
         ReflectionTestUtils.setField(checkJob, "id", 40L);
         given(accessValidator.validateCreation(10L, 30L)).willReturn(document);
-        given(dictionaryTermQueryPort.hasActiveDictionary(20L)).willReturn(true);
+        given(dictionaryTermQueryPort.activeVersionNo(20L)).willReturn(OptionalInt.of(3));
         given(checkJobWriter.append(10L, 30L)).willReturn(checkJob);
 
         CheckJobResult result = service.request(new CreateCheckJobCommand(10L, 30L));
 
         assertThat(result.checkJobId()).isEqualTo(40L);
         assertThat(result.status()).isEqualTo(CheckJobStatus.PENDING);
-        verify(draftCreationPolicyValidator).validate(10L, 20L);
+        verify(draftCreationPolicyValidator).validate(10L);
         verify(checkJobCreationPolicyValidator).validate(10L);
         verify(checkJobEventPublisher).publishRequested(checkJob);
     }

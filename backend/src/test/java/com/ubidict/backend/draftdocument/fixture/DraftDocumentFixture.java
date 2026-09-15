@@ -15,6 +15,7 @@ public class DraftDocumentFixture {
         private Long id;
         private Long documentId = 1L;
         private int baseVersionNo = 1;
+        private int dictionaryVersionNo = 1;
         private String draftBody = "회원은 결제할 수 있다.";
         private Long requestedBy = 1L;
         private Long createdBy = 1L;
@@ -35,6 +36,11 @@ public class DraftDocumentFixture {
             return this;
         }
 
+        public DraftDocumentBuilder dictionaryVersionNo(int dictionaryVersionNo) {
+            this.dictionaryVersionNo = dictionaryVersionNo;
+            return this;
+        }
+
         public DraftDocumentBuilder draftBody(String draftBody) {
             this.draftBody = draftBody;
             return this;
@@ -51,8 +57,8 @@ public class DraftDocumentFixture {
         }
 
         public DraftDocument build() {
-            DraftDocument draftDocument =
-                    DraftDocument.create(documentId, baseVersionNo, draftBody, requestedBy, createdBy);
+            DraftDocument draftDocument = DraftDocument.create(
+                    documentId, baseVersionNo, dictionaryVersionNo, draftBody, requestedBy, createdBy);
             if (id != null) {
                 ReflectionTestUtils.setField(draftDocument, "id", id);
             }

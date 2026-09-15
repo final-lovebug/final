@@ -34,9 +34,9 @@ public class DraftDocumentCheckService {
     @Transactional
     public CheckJobResult request(CreateCheckJobCommand command) {
         DocumentSnapshot document = accessValidator.validateCreation(command.documentId(), command.memberId());
-        draftCreationPolicyValidator.validate(command.documentId(), document.workspaceId());
+        draftCreationPolicyValidator.validate(command.documentId());
         checkJobCreationPolicyValidator.validate(command.documentId());
-        if (!dictionaryTermQueryPort.hasActiveDictionary(document.workspaceId())) {
+        if (dictionaryTermQueryPort.activeVersionNo(document.workspaceId()).isEmpty()) {
             throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_DICTIONARY_NOT_FOUND);
         }
 

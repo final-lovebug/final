@@ -8,6 +8,7 @@ import com.ubidict.backend.dictionary.infra.TermRepository;
 import com.ubidict.backend.draftdocument.infra.port.DictionaryTermQueryPort;
 import com.ubidict.backend.draftdocument.infra.port.TermSnapshot;
 import java.util.List;
+import java.util.OptionalInt;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -33,10 +34,12 @@ public class DictionaryTermQueryAdapter implements DictionaryTermQueryPort {
     }
 
     @Override
-    public boolean hasActiveDictionary(Long workspaceId) {
+    public OptionalInt activeVersionNo(Long workspaceId) {
         return dictionaryRepository
                 .findByWorkspaceIdAndStatus(workspaceId, DictionaryStatus.ACTIVE)
-                .isPresent();
+                .map(Dictionary::versionNo)
+                .map(OptionalInt::of)
+                .orElseGet(OptionalInt::empty);
     }
 
     private TermSnapshot toSnapshot(Term term) {
