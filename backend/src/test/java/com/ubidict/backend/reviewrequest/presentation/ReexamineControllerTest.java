@@ -26,18 +26,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(2L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(ReexamineController.class)
-class ReexamineControllerTest {
+class ReexamineControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private ReexamineService reexamineService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

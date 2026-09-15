@@ -28,9 +28,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(2L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(DraftDictionaryController.class)
-class DraftDictionaryControllerTest {
+class DraftDictionaryControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 2L;
     private static final Long DRAFT_DICTIONARY_ID = 100L;
@@ -38,11 +36,7 @@ class DraftDictionaryControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private DraftDictionaryService draftDictionaryService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

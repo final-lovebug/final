@@ -45,23 +45,15 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>필터가 우회되므로 {@code /me} 엔드포인트가 쓰는 {@code @AuthenticationPrincipal}을 위해
  * SecurityContext에 인증 정보(회원 id=1L)를 직접 채운다.
  */
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(MemberController.class)
-class MemberControllerTest {
+class MemberControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MY_MEMBER_ID = 1L;
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private MemberService memberService;
 
-    @MockitoBean
-    private MemberDirectory memberDirectory;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

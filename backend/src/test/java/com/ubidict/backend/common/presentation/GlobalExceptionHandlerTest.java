@@ -43,15 +43,11 @@ import org.springframework.web.bind.annotation.RestController;
  * 로드되므로 JwtAuthenticationFilter가 요구하는 JwtProvider는 mock으로 채워 컨텍스트를 띄운다.
  */
 @Import(GlobalExceptionHandlerTest.TestController.class)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(GlobalExceptionHandlerTest.TestController.class)
-class GlobalExceptionHandlerTest {
+class GlobalExceptionHandlerTest extends com.ubidict.backend.support.ControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {
