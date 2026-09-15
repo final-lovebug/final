@@ -41,7 +41,7 @@ export function DocumentDetailPage() {
     })
   }
 
-  // 삭제 버튼은 목록이 아니라 이 툴바에만 둔다(`CONFLICTS.md` D-86) — 목록은 행·카드 전체가
+  // 삭제 버튼은 목록이 아니라 이 툴바에만 둔다(`CONFLICTS.md` D-92) — 목록은 행·카드 전체가
   // 상세로 가는 클릭 영역이고, 되돌리기 어려운 동작은 내용을 확인한 자리에서 누르는 편이 안전하다.
   // 권한으로 감추지 않는다 — 참여자면 누구나 지울 수 있고, 최종 판정은 서버가 한다.
   const title = document.title

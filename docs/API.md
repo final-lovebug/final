@@ -643,7 +643,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 | GET | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `200` |
 | PATCH | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `204` |
 | PATCH | `/api/workspaces/{workspaceId}/documents/{documentId}/content` | 참여자 | `200` |
-| DELETE | `/api/workspaces/{workspaceId}/documents/{documentId}` | **ADMIN 이상** | `204` |
+| DELETE | `/api/workspaces/{workspaceId}/documents/{documentId}` | 참여자 | `204` |
 | GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions` | 참여자 | `200` |
 | GET | `/api/workspaces/{workspaceId}/documents/{documentId}/versions/{versionNo}` | 참여자 | `200` |
 | GET | `/api/workspaces/{workspaceId}/labels` | 참여자 | `200` |
@@ -773,7 +773,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 `DELETE /api/workspaces/{workspaceId}/documents/{documentId}` → `204 No Content`
 
-**ADMIN 이상만** 삭제할 수 있다. **소프트 삭제**이며 이후 모든 조회에서 빠진다. 확정된 버전 행과 라벨 연결 행은 함께 지우지 않는다 — 조회가 문서에서 먼저 막히기 때문이다.
+**참여자면 누구나** 삭제할 수 있다(`D-92`). **소프트 삭제**이며 이후 모든 조회에서 빠진다. 확정된 버전 행과 라벨 연결 행은 함께 지우지 않는다 — 조회가 문서에서 먼저 막히기 때문이다.
 
 ## **버전 이력 조회**
 
