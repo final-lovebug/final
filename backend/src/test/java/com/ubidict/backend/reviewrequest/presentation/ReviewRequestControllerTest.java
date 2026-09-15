@@ -22,9 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(ReviewRequestController.class)
-class ReviewRequestControllerTest {
+class ReviewRequestControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long REVIEW_REQUEST_ID = 100L;
@@ -32,11 +30,7 @@ class ReviewRequestControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private ReviewRequestService reviewRequestService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

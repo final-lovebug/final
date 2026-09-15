@@ -38,9 +38,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(1L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(DocumentController.class)
-class DocumentControllerTest {
+class DocumentControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long WORKSPACE_ID = 10L;
@@ -49,15 +47,11 @@ class DocumentControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private DocumentService documentService;
 
     /**
      * addFilters=false로 Security 필터 체인은 우회하지만 SecurityConfig가 이 슬라이스에 함께
      * 로드되므로, JwtAuthenticationFilter가 요구하는 JwtProvider를 mock으로 채워 컨텍스트를 띄운다.
      */
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

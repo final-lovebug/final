@@ -86,7 +86,7 @@ class CandidateTermRepositoryTest extends RepositoryTestSupport {
         assertThat(statistics.getPrepareStatementCount()).isLessThanOrEqualTo(4);
     }
 
-    @DisplayName("기존 용어 후보는 nullable 출현 횟수와 출처 정보를 유지한다.")
+    @DisplayName("기존 용어 후보는 0 출현 횟수와 출처 정보를 유지한다.")
     @Test
     void save_existingTerm() {
         Long draftDictionaryId = saveDraftDictionary();
@@ -99,7 +99,7 @@ class CandidateTermRepositoryTest extends RepositoryTestSupport {
                 .findByIdAndDeletedAtIsNull(saved.getId())
                 .orElseThrow();
 
-        assertThat(found.getOccurrenceCount()).isNull();
+        assertThat(found.getOccurrenceCount()).isZero();
         assertThat(found.getSourceTermId()).isEqualTo(100L);
     }
 

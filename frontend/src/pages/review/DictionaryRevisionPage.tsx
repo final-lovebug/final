@@ -20,24 +20,17 @@ import { routes } from '../../shared/config/routes'
 import { cx } from '../../shared/lib/cx'
 import { toRelativeTime } from '../../shared/lib/relativeTime'
 import { useDictionaryRevision } from '../../features/review/hooks/useDictionaryRevision'
-import { useSubmitReview, useReviewProgress } from '../../features/review/hooks/useSubmitReview'
+import { useSubmitReview, useReviewProgress, useReviews } from '../../features/review/hooks/useSubmitReview'
 import { usePerformRevise } from '../../features/review/hooks/useReviewLifecycle'
 import { ReviewerPanel } from '../../features/review/components/ReviewerPanel'
+import { ReviewList } from '../../features/review/components/ReviewList'
 import { ReviewSubmitPopover } from '../../features/review/components/ReviewSubmitPopover'
+import { commentsForTerm } from '../../features/review/model/reviewTimeline'
+import { useReviewers } from '../../features/review/hooks/useReviewers'
 import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
 import { useWorkspace } from '../../features/workspace/hooks/useWorkspace'
 import { useAuthStore } from '../../shared/stores/authStore'
 import type { DraftComment } from '../../features/review/api/submitReview'
-import type { AvatarTone } from '../../shared/ui'
-
-const AVATAR_TONES: AvatarTone[] = ['accent', 'warn', 'success']
-
-/** 작성자마다 일관된 색을 준다 — 백엔드에 tone 개념이 없어 id로 정한다(T-INT-12 결정 6). */
-function toneFor(memberId: string): AvatarTone {
-  let hash = 0
-  for (const char of memberId) hash = (hash + char.charCodeAt(0)) % AVATAR_TONES.length
-  return AVATAR_TONES[hash]
-}
 
 /**
  * 사전집 개정안 검토 화면.
@@ -55,6 +48,8 @@ export function DictionaryRevisionPage() {
   const { data, isLoading, error } = useDictionaryRevision(workspaceId, revisionId)
   const reviewRequestId = data?.reviewRequestId ?? ''
   const { data: progress } = useReviewProgress(reviewRequestId)
+  const { data: reviews } = useReviews(reviewRequestId)
+  const { data: reviewers } = useReviewers(reviewRequestId)
   const { data: members } = useWorkspaceMembers(workspaceId)
   const { data: workspace } = useWorkspace(workspaceId)
   const submit = useSubmitReview(reviewRequestId)
@@ -84,9 +79,9 @@ export function DictionaryRevisionPage() {
   const selected =
     revision.rows.find((row) => row.candidateTermId === selectedTermId) ?? revision.rows[0]
   const nameByMemberId = new Map((members ?? []).map((member) => [member.id, member.name]))
-  const threadComments = revision.comments.filter(
-    (comment) => comment.targetItemId === selected?.candidateTermId,
-  )
+  const threadComments = selected
+    ? commentsForTerm(reviews ?? [], revision.comments, selected.candidateTermId)
+    : []
   const pendingForSelected = pending.filter(
     (comment) => comment.targetItemId === selected?.candidateTermId,
   )
@@ -122,11 +117,6 @@ export function DictionaryRevisionPage() {
           사전집 개정안 — r{revision.baseVersionNo} → r{revision.baseVersionNo + 1}
         </h1>
         <Pill tone="neutral">{revision.status}</Pill>
-        {revision.reexamineRound > 0 && (
-          <span className="text-[11px] text-text-quaternary">
-            재교정 {revision.reexamineRound}회차
-          </span>
-        )}
         <ToolbarSpacer />
         <div className="flex gap-[10px]">
           {/* 「재교정」은 제출이 아니라 이동이다 — 고칠 대상은 이 표가 아니라 개정안이 물고
@@ -147,6 +137,8 @@ export function DictionaryRevisionPage() {
           <ReviewSubmitPopover
             pendingCommentCount={pending.length}
             isSubmitting={submit.isPending}
+            disabled={currentMember?.id === revision.requesterId}
+            disabledReason="본인이 올린 요청은 본인이 검토할 수 없습니다"
             onSubmit={(verdict, summaryComment) => submitVerdict(verdict, summaryComment)}
           />
 
@@ -173,7 +165,7 @@ export function DictionaryRevisionPage() {
       )}
 
       <TwoCol>
-        <ColFlex>
+        <ColFlex className="flex flex-col gap-4">
           <Card className="overflow-hidden">
             <DataTable>
               <thead>
@@ -225,6 +217,14 @@ export function DictionaryRevisionPage() {
               </tbody>
             </DataTable>
           </Card>
+          <ReviewList
+            reviews={reviews ?? []}
+            comments={revision.comments}
+            reviewers={reviewers ?? []}
+            members={(members ?? []).map((member) => ({ memberId: member.id, name: member.name }))}
+            termNameById={new Map(revision.rows.map((row) => [row.candidateTermId, row.term]))}
+            onSelectTerm={setSelectedTermId}
+          />
         </ColFlex>
 
         <PrThread>
@@ -235,28 +235,34 @@ export function DictionaryRevisionPage() {
               name: member.name,
             }))}
             excludeMemberId={revision.requesterId}
-            currentRound={revision.reexamineRound}
             canEdit={canManageReviewers}
           />
 
           {selected && (
             <>
-              <p className="text-[12.5px] font-bold">{selected.term} · 코멘트</p>
+              <p className="text-[12.5px] font-bold">
+                {selected.term} · 코멘트 {threadComments.length + pendingForSelected.length}
+              </p>
               {threadComments.length === 0 && pendingForSelected.length === 0 && (
                 <p className="text-[11px] text-text-quaternary">아직 코멘트가 없습니다.</p>
               )}
-              {threadComments.map((comment) => {
+              {threadComments.map(({ comment, verdict }) => {
                 const name = nameByMemberId.get(comment.authorId) ?? '—'
                 return (
-                  <CommentCard
-                    key={comment.id}
-                    name={name}
-                    initial={name.charAt(0)}
-                    tone={toneFor(comment.authorId)}
-                    time={toRelativeTime(comment.createdAt)}
-                    text={comment.content}
-                    mine={comment.authorId === currentMember?.id}
-                  />
+                  <Card key={comment.id} className="p-[14px]">
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="text-[12.5px] font-bold">{name}</span>
+                      <Pill tone={verdict === 'APPROVED' ? 'success' : 'warn'}>
+                        {verdict === 'APPROVED' ? '✓ 승인' : '↻ 변경 요청'}
+                      </Pill>
+                      <span className="text-[10.5px] text-text-quaternary">
+                        {toRelativeTime(comment.createdAt)}
+                      </span>
+                    </div>
+                    <p className="whitespace-pre-wrap text-[12.5px] leading-[1.6] text-text-secondary">
+                      {comment.content}
+                    </p>
+                  </Card>
                 )
               })}
               {pendingForSelected.map((comment, index) => (

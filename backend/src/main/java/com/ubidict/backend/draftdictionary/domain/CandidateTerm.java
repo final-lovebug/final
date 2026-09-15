@@ -14,6 +14,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
@@ -23,6 +25,7 @@ import org.hibernate.annotations.BatchSize;
 
 @Entity
 @Getter
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"draft_dictionary_id", "form"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CandidateTerm extends BaseEntity {
     @Id
@@ -55,7 +58,7 @@ public class CandidateTerm extends BaseEntity {
     private String proposedDefinition;
     private String proposedEnglishName;
 
-    @Column(nullable = false)
+    @Column
     private Integer occurrenceCount;
 
     @Enumerated(EnumType.STRING)
@@ -183,7 +186,9 @@ public class CandidateTerm extends BaseEntity {
                 draftDictionaryId, form, definition, english, List.of(), 1, List.of(), List.of(), createdBy);
         candidate.origin = CandidateTermOrigin.EXISTING;
         candidate.sourceTermId = sourceTermId;
-        candidate.occurrenceCount = null;
+        // 기존 사전 용어는 추출 출현 횟수가 없지만 DB 컬럼은 NOT NULL이다.
+        // 0은 "이번 추출에서 발견되지 않음"을 표현하며 최소 출현 횟수 필터에서도 제외된다.
+        candidate.occurrenceCount = 0;
         candidate.status = CandidateTermStatus.KEPT;
         return candidate;
     }

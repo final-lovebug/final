@@ -31,9 +31,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(2L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(NotificationController.class)
-class NotificationControllerTest {
+class NotificationControllerTest extends com.ubidict.backend.support.ControllerTest {
 
     private static final Long WORKSPACE_ID = 1L;
     private static final Long MEMBER_ID = 2L;
@@ -42,11 +40,7 @@ class NotificationControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private NotificationService notificationService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {

@@ -23,18 +23,15 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WithLoginMember(2L)
-@AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(DraftDictionaryExtractionController.class)
-class DraftDictionaryExtractionControllerTest {
+class DraftDictionaryExtractionControllerTest extends com.ubidict.backend.support.ControllerTest {
+
+    @Autowired
+    private DraftDictionaryExtractionService extractionService;
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private DraftDictionaryExtractionService extractionService;
 
-    @MockitoBean
-    private JwtProvider jwtProvider;
 
     @BeforeEach
     void setUp() {
