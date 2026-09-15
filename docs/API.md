@@ -1102,6 +1102,8 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 작업을 `PENDING`으로 저장하고 대조 요청 이벤트를 발행한 뒤 `202 Accepted`와 작업 상태를 즉시 반환한다. 같은 문서에 `PENDING` 또는 `RUNNING` 작업이 있으면 중복 접수를 거절한다.
 
+**같은 워크스페이스에 사전집 초안이 진행 중이어도 접수한다**(`D-93`). 대조에 쓴 사전집 버전을 초안에 고정해 두므로, 교정하는 동안 사전집이 다음 버전으로 올라가도 발행본은 대조한 버전을 기준으로 기록된다. 막히는 것은 **같은 문서에 진행 중인 초안·리뷰**뿐이다.
+
 `GET /api/draft-documents/checks/{checkJobId}`는 폴링용 상태 조회 API다. 응답 형식은 다음과 같다.
 
 ```json
@@ -1159,6 +1161,7 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 | 없거나 삭제된 문서 초안 | 404 | `DRAFT_DOCUMENT_NOT_FOUND` |
 | 초안 본문이 비어 있음 | 400 | `DRAFT_DOCUMENT_INVALID_BODY` |
 | 기준 문서 버전이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_INVALID_BASE_VERSION` |
+| 기준 사전집 버전이 올바르지 않음 | 400 | `DRAFT_DOCUMENT_INVALID_DICTIONARY_VERSION` |
 | 없거나 삭제된 제안어 | 404 | `DRAFT_DOCUMENT_SUGGESTION_TERM_NOT_FOUND` |
 | `anchor`가 올바르지 않음(역전·음수) | 400 | `DRAFT_DOCUMENT_INVALID_ANCHOR` |
 | `anchor`가 초안 본문 범위를 벗어남 | 400 | `DRAFT_DOCUMENT_ANCHOR_OUT_OF_BODY` |
@@ -1169,7 +1172,7 @@ POST /api/internal/llm/checks/{checkJobId}/failure
 | 처리하지 않은 제안어가 남아 있음 | 409 | `DRAFT_DOCUMENT_SUGGESTION_TERM_UNHANDLED_EXISTS` |
 | 교정완료 뒤 판정·본문 수정·완료를 다시 시도 | 409 | `DRAFT_DOCUMENT_ALREADY_EXAMINED` |
 | 문서 초안 상태 전이가 올바르지 않음 | 409 | `DRAFT_DOCUMENT_INVALID_STATUS_TRANSITION` |
-| 같은 문서 또는 워크스페이스에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
+| 같은 문서에 진행 중인 초안이 있음 | 409 | `DRAFT_DOCUMENT_ALREADY_EXISTS` |
 | 대상 문서의 리뷰가 진행 중임 | 409 | `DRAFT_DOCUMENT_UNDER_REVIEW` |
 | 초안 생성 대상 문서가 없거나 접근할 수 없음 | 404 | `DRAFT_DOCUMENT_DOCUMENT_NOT_FOUND` |
 | 활성 사전집이 없어 대조할 수 없음 | 404 | `DRAFT_DOCUMENT_DICTIONARY_NOT_FOUND` |
