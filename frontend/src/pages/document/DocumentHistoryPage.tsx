@@ -4,15 +4,11 @@ import {
   Button,
   Card,
   ColFlex,
-  DataTable,
   Markdown,
   Pill,
-  Td,
-  Th,
   TimelineItem,
   Toolbar,
   ToolbarSpacer,
-  Tr,
   TwoCol,
 } from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
@@ -22,6 +18,7 @@ import { useDocumentVersions } from '../../features/document/hooks/useDocumentVe
 import { useDocumentVersionDiff } from '../../features/document/hooks/useDocumentVersionBodies'
 import { toDiffSource } from '../../features/document/model/textDiff'
 import { useSuggestionHistory } from '../../features/document/hooks/useSuggestionHistory'
+import { SuggestionHistoryTable } from '../../features/document/components/SuggestionHistoryTable'
 
 // ui/main.js renderDocHistoryScreen() 이식 — 타임라인(360px) + 비교·처리 내역 2단.
 //
@@ -205,46 +202,7 @@ export function DocumentHistoryPage() {
                 <p className="mb-[10px] text-[11.5px] text-text-quaternary">
                   리뷰어는 이 기록으로 무엇이 왜 바뀌었는지 확인합니다
                 </p>
-                {(!history || history.length === 0) && (
-                  <p className="text-xs text-text-tertiary">아직 처리한 제안이 없습니다.</p>
-                )}
-                {history && history.length > 0 && (
-                  <DataTable className="text-xs">
-                    <thead>
-                      <tr>
-                        <Th className="text-[10.5px]">원래</Th>
-                        <Th className="text-[10.5px]">결과</Th>
-                        <Th className="text-[10.5px]">처리</Th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map((item) => (
-                        <Tr key={`${item.original}-${item.result}`}>
-                          <Td>
-                            {item.action === 'ignored' && (
-                              <span className="mr-1 inline-block h-[5px] w-[5px] rounded-full bg-danger" />
-                            )}
-                            {item.original}
-                          </Td>
-                          <Td>{item.result}</Td>
-                          <Td
-                            className={cx(
-                              item.action === 'applied' && 'font-semibold text-success',
-                              item.action === 'manual' && 'font-semibold text-accent-strong',
-                              item.action === 'ignored' && 'text-text-tertiary',
-                            )}
-                          >
-                            {item.action === 'applied'
-                              ? '적용'
-                              : item.action === 'manual'
-                                ? `직접 입력 → "${item.manualValue}"`
-                                : `무시 — "${item.reason}"`}
-                          </Td>
-                        </Tr>
-                      ))}
-                    </tbody>
-                  </DataTable>
-                )}
+                <SuggestionHistoryTable items={history ?? []} />
               </div>
 
               <div className="flex items-center gap-3 border-t border-border-soft pt-4">

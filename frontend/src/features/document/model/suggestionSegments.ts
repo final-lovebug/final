@@ -56,3 +56,47 @@ export function placeSuggestions(
 
   return placed
 }
+
+/**
+ * 같은 제안어를 **교정이 끝난 본문**(개정안의 `proposedBody`) 위에 배치한다.
+ *
+ * anchor는 교정 **전** 본문 오프셋이라 그대로 쓰면 자리가 밀린다(`D-61`이 개정안 화면에서
+ * 하이라이트를 포기한 이유). 치환은 결정적이므로 — 서버가 `DraftBodyComposer`에서 수용분만
+ * 뒤에서부터 바꾼다 — 앞선 수용분의 길이 변화를 누적해 새 오프셋을 계산할 수 있다.
+ *
+ * **계산한 자리에 그 글자가 실제로 있는지 확인하고, 아니면 그 제안어만 뺀다.** 초안 본문을
+ * 직접 고쳤거나(`PATCH /api/draft-documents/{id}`) 재교정 회차에서 본문이 달라졌으면 계산이
+ * 어긋나는데, 그때 엉뚱한 자리를 강조하느니 강조하지 않는 편이 정직하다 — 표에는 그대로 남는다.
+ */
+export function placeSuggestionsInProposedBody(
+  proposedBody: string,
+  suggestions: SuggestionTerm[],
+): PlacedSuggestion[] {
+  const ordered = suggestions
+    .filter((suggestion) => suggestion.anchor.start >= 0 && suggestion.anchor.start < suggestion.anchor.end)
+    .sort((a, b) => a.anchor.start - b.anchor.start)
+
+  const placed: PlacedSuggestion[] = []
+  let shift = 0
+  let cursor = -1
+
+  for (const suggestion of ordered) {
+    // 겹치는 anchor는 서버가 수용 시점에 거절하므로(`DraftBodyComposer.validateAnchors`)
+    // 여기 들어오면 데이터가 어긋난 것이다 — 앞선 것만 남긴다.
+    if (suggestion.anchor.start < cursor) continue
+    cursor = suggestion.anchor.end
+
+    const applied = suggestion.status === 'APPLY_SUGGESTION'
+    const text = applied ? suggestion.suggestionTerm : suggestion.originTerm
+    const start = suggestion.anchor.start + shift
+    const end = start + text.length
+    if (applied) {
+      shift += suggestion.suggestionTerm.length - (suggestion.anchor.end - suggestion.anchor.start)
+    }
+
+    if (proposedBody.slice(start, end) !== text) continue
+    placed.push({ start, end, suggestion })
+  }
+
+  return placed
+}
