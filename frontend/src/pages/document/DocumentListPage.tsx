@@ -27,6 +27,12 @@ type ViewMode = 'list' | 'card'
 // 장식이었지만(README "Notes / judgment calls"), 실제 데이터가 붙은 화면에서 죽은 컨트롤은
 // 오히려 혼란스러워 전부 동작하게 만들었다 — 셋 다 이미 받아 온 목록 위에서 거르므로
 // 추가 요청이 없다.
+//
+// **(2026-09-16)** 툴바의 「용어 추출 실행」을 걷어냈다. 사전집이 없는 워크스페이스에서는
+// 같은 버튼이 이 화면과 사전집 화면 양쪽에 떠 어느 쪽이 정본인지 알 수 없었다. 추출은
+// **사전집을 만들어 내는 행위**이므로 진입점을 사전집 그룹에 하나로 모은다 — 사전집이
+// 없으면 `DictionaryPage`의 빈 상태가, 있으면 `DictionaryDraftPage`의 빈 상태가 안내한다.
+// 이 화면은 추출의 입력(문서)을 관리하는 곳으로 남긴다.
 export function DocumentListPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
   const navigate = useNavigate()
@@ -84,11 +90,8 @@ export function DocumentListPage() {
 
         <ToolbarSpacer />
 
-        <Button variant="outline" onClick={() => navigate(routes.documentUpload(workspaceId))}>
+        <Button variant="primary" onClick={() => navigate(routes.documentUpload(workspaceId))}>
           문서 업로드
-        </Button>
-        <Button variant="primary" onClick={() => navigate(routes.termExtraction(workspaceId))}>
-          용어 추출 실행
         </Button>
       </Toolbar>
 
