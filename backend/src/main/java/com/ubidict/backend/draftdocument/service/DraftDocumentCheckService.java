@@ -1,10 +1,12 @@
 package com.ubidict.backend.draftdocument.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxService;
+import com.ubidict.backend.common.infra.ai.LlmJobRequest;
+import com.ubidict.backend.common.infra.ai.LlmProperties;
 import com.ubidict.backend.draftdocument.domain.CheckJob;
 import com.ubidict.backend.draftdocument.exception.DraftDocumentErrorCode;
 import com.ubidict.backend.draftdocument.implement.CheckJobCreationPolicyValidator;
-import com.ubidict.backend.draftdocument.implement.CheckJobEventPublisher;
 import com.ubidict.backend.draftdocument.implement.CheckJobReader;
 import com.ubidict.backend.draftdocument.implement.CheckJobWriter;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentAccessValidator;
@@ -29,7 +31,8 @@ public class DraftDocumentCheckService {
     private final DraftDocumentAccessValidator accessValidator;
     private final DraftDocumentCreationPolicyValidator draftCreationPolicyValidator;
     private final DictionaryTermQueryPort dictionaryTermQueryPort;
-    private final CheckJobEventPublisher checkJobEventPublisher;
+    private final LlmJobOutboxService outboxService;
+    private final LlmProperties llmProperties;
 
     @Transactional
     public CheckJobResult request(CreateCheckJobCommand command) {
@@ -41,7 +44,15 @@ public class DraftDocumentCheckService {
         }
 
         CheckJob checkJob = checkJobWriter.append(command.documentId(), command.memberId());
-        checkJobEventPublisher.publishRequested(checkJob);
+        String requestId = LlmJobRequest.newRequestId();
+        checkJob.assignRequestId(requestId);
+        outboxService.enqueue(LlmJobRequest.documentCheck(
+                requestId,
+                checkJob.getId(),
+                document.workspaceId(),
+                checkJob.getDocumentId(),
+                document.currentVersionNo(),
+                llmProperties.mode()));
         log.info(
                 "[DraftDocumentCheckService.request] Draft document check requested. checkJobId={}, documentId={}, memberId={}",
                 checkJob.getId(),

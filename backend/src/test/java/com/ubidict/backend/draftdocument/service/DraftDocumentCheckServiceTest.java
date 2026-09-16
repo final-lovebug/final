@@ -5,10 +5,12 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxService;
+import com.ubidict.backend.common.infra.ai.LlmMode;
+import com.ubidict.backend.common.infra.ai.LlmProperties;
 import com.ubidict.backend.draftdocument.domain.CheckJob;
 import com.ubidict.backend.draftdocument.domain.CheckJobStatus;
 import com.ubidict.backend.draftdocument.implement.CheckJobCreationPolicyValidator;
-import com.ubidict.backend.draftdocument.implement.CheckJobEventPublisher;
 import com.ubidict.backend.draftdocument.implement.CheckJobReader;
 import com.ubidict.backend.draftdocument.implement.CheckJobWriter;
 import com.ubidict.backend.draftdocument.implement.DraftDocumentAccessValidator;
@@ -32,7 +34,8 @@ class DraftDocumentCheckServiceTest {
     private final DraftDocumentCreationPolicyValidator draftCreationPolicyValidator =
             mock(DraftDocumentCreationPolicyValidator.class);
     private final DictionaryTermQueryPort dictionaryTermQueryPort = mock(DictionaryTermQueryPort.class);
-    private final CheckJobEventPublisher checkJobEventPublisher = mock(CheckJobEventPublisher.class);
+    private final LlmJobOutboxService outboxService = mock(LlmJobOutboxService.class);
+    private final LlmProperties llmProperties = mock(LlmProperties.class);
     private final DraftDocumentCheckService service = new DraftDocumentCheckService(
             checkJobReader,
             checkJobWriter,
@@ -40,7 +43,8 @@ class DraftDocumentCheckServiceTest {
             accessValidator,
             draftCreationPolicyValidator,
             dictionaryTermQueryPort,
-            checkJobEventPublisher);
+            outboxService,
+            llmProperties);
 
     @DisplayName("문서 대조를 요청하면 대기 작업을 저장하고 요청 이벤트를 발행한다.")
     @Test
@@ -51,6 +55,7 @@ class DraftDocumentCheckServiceTest {
         given(accessValidator.validateCreation(10L, 30L)).willReturn(document);
         given(dictionaryTermQueryPort.activeVersionNo(20L)).willReturn(OptionalInt.of(3));
         given(checkJobWriter.append(10L, 30L)).willReturn(checkJob);
+        given(llmProperties.mode()).willReturn(LlmMode.STUB);
 
         CheckJobResult result = service.request(new CreateCheckJobCommand(10L, 30L));
 
@@ -58,6 +63,6 @@ class DraftDocumentCheckServiceTest {
         assertThat(result.status()).isEqualTo(CheckJobStatus.PENDING);
         verify(draftCreationPolicyValidator).validate(10L);
         verify(checkJobCreationPolicyValidator).validate(10L);
-        verify(checkJobEventPublisher).publishRequested(checkJob);
+        verify(outboxService).enqueue(org.mockito.ArgumentMatchers.any());
     }
 }

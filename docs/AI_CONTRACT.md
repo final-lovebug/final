@@ -28,9 +28,8 @@
 ```
 POST /api/draft-dictionaries/extractions   → 202, 작업 PENDING
   │  같은 workspace 에 PENDING/RUNNING 작업이 있으면 → 409 (AI 요청을 발행하지 않음)
-  │  (요청 트랜잭션 커밋)
-  ├─ requestId(UUIDv4) 생성 → 작업 행에 저장, 상태 RUNNING
-  └─ SQS 요청 큐로 발행 ──────────────────────────────┐
+  │  (요청 트랜잭션: Job PENDING + requestId + outbox 행을 함께 커밋)
+  ├─ outbox 디스패처: Job RUNNING 전이 → SQS 요청 큐로 발행 ──┐
                                                       ▼
                                     워커: documentId 로 DB 조회 → 모델 호출
                                                       │
@@ -45,6 +44,18 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 문서 대조(`/api/draft-documents/checks`)도 같은 모양이다.
 
 **사용자에게 완료를 알리는 수단은 여전히 폴링이다**(`D-34`). 콜백은 백엔드가 결과를 받는 경로일 뿐 사용자 알림 경로가 아니다.
+
+### 2-1. Transactional outbox와 DLQ
+
+백엔드는 SQS 전송을 요청 트랜잭션 안에서 직접 하지 않는다. Job, `requestId`, 직렬화된 요청 payload를
+`llm_job_outbox`에 같은 트랜잭션으로 저장하고, 디스패처가 발행한다. 발행 실패는 지수 백오프로 재시도하며,
+SQS가 성공을 응답한 뒤 상태 저장 전에 죽어 같은 메시지가 다시 나갈 수 있다. 따라서 워커의 `requestId`
+호출 멱등은 그대로 필수다.
+
+워커가 메시지를 ack하지 못해 redrive 정책을 소진하면 요청은 DLQ로 이동한다. Spring의 DLQ 리스너는
+payload의 `jobType`·`jobId`·`requestId`를 대조해 Job을 `FAILED`로 끝낸다. prod의 현재 정책은
+visibility 15분 × 3회이므로 Job 타임아웃은 `PT50M`으로, DLQ 도착보다 늦어야 한다. 타임아웃 스위퍼는
+DLQ에도 닿지 못한 무응답의 마지막 회수 수단이다.
 
 ---
 
@@ -81,7 +92,7 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 **at-least-once 는 모델 호출까지 두 번 일어난다는 뜻이다.** 백엔드의 콜백 멱등(7-2-1)은 초안을 하나로 접을 뿐
 이미 나간 호출을 되돌리지 못한다. 재배달로 모델을 두 번 부르지 않는 것은 **워커의 책임이다** — 7-2-2 를 따른다.
 
-**DLQ와 redrive policy는 인프라에서 건다**(`NFR-MSG-004`). `maxReceiveCount`와 가시성 타임아웃은 백엔드의 `app.ai.timeout.job`(기본 `PT15M`)보다 **작아야 한다** — 재배달 중인 작업을 백엔드 스위퍼가 먼저 실패시키면 워커의 응답이 버려진다(`D-77`).
+**DLQ와 redrive policy는 인프라에서 건다**(`NFR-MSG-004`). `maxReceiveCount`와 가시성 타임아웃은 백엔드의 `app.ai.timeout.job`(prod 기본 `PT50M`)보다 **작아야 한다** — 재배달 중인 작업을 백엔드 스위퍼가 먼저 실패시키면 워커의 응답이 버려진다(`D-77`).
 
 ### 4-2. 콜백 (워커 → 백엔드)
 
@@ -320,12 +331,12 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 
 - 선점 성공 → 평소대로 처리한다
 - 선점 실패 → **이미 다른 배달분이 처리 중이거나 처리했다.** 모델을 부르지 않고 메시지를 **지운다(ack).** 결과는 먼저 선점한 쪽의 콜백이 전달하고, 그마저 실패하면 백엔드의 타임아웃 스위퍼가 회수한다(7-3)
-- 키의 수명은 **`app.ai.timeout.job`(기본 `PT15M`) 이상**이어야 한다. 그보다 짧으면 스위퍼가 작업을 회수하기 전에 키가 풀려 중복 호출이 다시 열린다
+- 키의 수명은 **`app.ai.timeout.job`(prod 기본 `PT50M`) 이상**이어야 한다. 그보다 짧으면 스위퍼가 작업을 회수하기 전에 키가 풀려 중복 호출이 다시 열린다
 
 **선점 저장소는 Redis 다**(`D-113`). 워커 인스턴스 사이에서 공유돼야 하므로 프로세스 메모리는 쓰지 않는다 — 워커를 두 개 이상 띄우는 순간 무의미해진다.
 
 ```
-SET llm:request:{requestId} <worker-id> NX EX 900
+SET llm:request:{requestId} <worker-id> NX EX 3000
 ```
 
 | 항목 | 값 |
@@ -333,7 +344,7 @@ SET llm:request:{requestId} <worker-id> NX EX 900
 | 키 | `llm:request:{requestId}` |
 | 값 | 워커 식별자. 선점한 쪽을 로그에서 가려내는 용도이며 판정에는 쓰지 않는다 |
 | 조건 | `NX` — 이미 있으면 실패한다. 이 실패가 「다른 배달분이 잡았다」는 뜻이다 |
-| TTL | `EX 900`(15분). `app.ai.timeout.job` 과 맞춘다 |
+| TTL | `EX 3000`(50분). `app.ai.timeout.job` 과 맞춘다 |
 | 접속 정보 | 워커의 `REDIS_URL` |
 | 적용 범위 | **`mode=REAL`만.** `STUB`·`MOCK`은 모델을 부르지 않으므로 선점하지 않는다 — 그래야 목 대역만 쓰는 로컬 개발이 Redis 없이 돈다 |
 
@@ -345,11 +356,15 @@ SET llm:request:{requestId} <worker-id> NX EX 900
 
 **백엔드가 대신해 줄 수 없다.** 메시지를 받는 쪽이 워커이고 「모델을 부르기 직전」이라는 시점은 워커 안에만 있다. 백엔드의 `PENDING → RUNNING` 전이는 **발행 측 중복만** 막고 큐의 재배달에는 닿지 않는다.
 
-> **FIFO 큐의 `MessageDeduplicationId`로 대신하지 않는다.** 중복 제거 창이 5분이라 `app.ai.timeout.job`(15분)보다 짧아 긴 작업을 덮지 못하고, 큐 종류를 바꾸는 것은 `D-53`을 뒤집는 일이다.
+> **FIFO 큐의 `MessageDeduplicationId`로 대신하지 않는다.** 중복 제거 창이 5분이라 `app.ai.timeout.job`(prod 기본 50분)보다 짧아 긴 작업을 덮지 못하고, 큐 종류를 바꾸는 것은 `D-53`을 뒤집는 일이다.
 
 ### 7-3. 콜백을 보내지 못한 경우
 
 백엔드가 응답하지 않아 결과를 끝내 전달하지 못하면, 백엔드의 타임아웃 스위퍼가 그 작업을 **실패로 회수한다**(`D-77`). 사용자는 폴링에서 실패 사유를 보고 다시 요청할 수 있다.
+
+워커가 같은 메시지를 재시도하다 DLQ로 보낸 경우에는 Spring DLQ 리스너가 더 먼저 작업을 실패로
+회수한다. 워커는 `REAL` 모델 호출 직전에 Job이 아직 `RUNNING`이고 `requestId`가 같은지 읽기 전용으로
+확인한다. 이미 종결된 작업이면 모델 호출 없이 ack한다.
 
 ---
 

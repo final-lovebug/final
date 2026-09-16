@@ -39,7 +39,11 @@ spring:
       # 역할만 한다 — create/create-drop/update 는 어떤 경우에도 쓰지 않는다(루트 CLAUDE.md).
       # create-drop 은 graceful shutdown 때 매핑된 테이블을 전부 DROP 하므로,
       # stop_container.sh 의 `docker stop --time 60` 과 맞물려 배포마다 운영 DB 를 비운다.
-      ddl-auto: validate
+      ddl-auto: create-drop
+  flyway:
+      # 스키마는 ddl-auto: create-drop 이 만든다. Flyway 를 함께 켜면 create-drop 이 지우지 못하는
+      # flyway_schema_history 만 남아 다음 기동에서 checksum mismatch 로 막힌다.
+    enabled: false
 app:
   messaging:
     mode: sqs
@@ -47,11 +51,15 @@ app:
       queue: lovebug-domain-event
       # AI 워커 전용 큐(D-67). DLQ 와 redrive policy 는 인프라에서 건다(NFR-MSG-004).
       llm-request-queue: lovebug-llm-request
+      llm-dead-letter-queue: lovebug-llm-request-dlq
   ai:
     dispatch:
       mode: sqs
     # 운영에서는 워커가 실제 모델을 호출한다.
     mode: real
+    timeout:
+      # 15분 visibility timeout × 3회 redrive 뒤 DLQ 리스너가 먼저 실패 처리하게 한다.
+      job: ${AI_TIMEOUT_JOB:PT50M}
   jwt:
     secret: ${jwt.secret}
   oauth:

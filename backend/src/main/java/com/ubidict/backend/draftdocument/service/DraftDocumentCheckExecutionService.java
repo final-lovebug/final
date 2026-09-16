@@ -1,6 +1,7 @@
 package com.ubidict.backend.draftdocument.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxService;
 import com.ubidict.backend.draftdocument.domain.CheckJob;
 import com.ubidict.backend.draftdocument.domain.CheckJobStatus;
 import com.ubidict.backend.draftdocument.domain.DraftDocument;
@@ -39,23 +40,22 @@ public class DraftDocumentCheckExecutionService {
     private final CheckSuggestionValidator checkSuggestionValidator;
     private final DraftDocumentEventPublisher draftDocumentEventPublisher;
     private final CheckJobCompletionEventPublisher completionEventPublisher;
+    private final LlmJobOutboxService outboxService;
 
-    /**
-     * 워커에게 넘기기 직전에 작업을 {@code RUNNING}으로 옮기고 상관 식별자를 기록한다.
-     *
-     * <p>{@code PENDING}이 아니면 {@code Optional.empty()}다 — 발행 신호가 중복으로 도착해도 두 번 보내지 않는다.
-     */
+    @Transactional
+    public boolean prepareDispatch(Long checkJobId, String requestId) {
+        CheckJob checkJob = checkJobReader.read(checkJobId);
+        return checkJob.prepareDispatch(requestId);
+    }
+
+    /** @deprecated 아웃박스 전환 전 리스너 호환용. 새 흐름은 {@link #prepareDispatch(Long, String)}을 쓴다. */
+    @Deprecated
     @Transactional
     public Optional<CheckJobResult> markDispatching(Long checkJobId, String requestId) {
         CheckJob checkJob = checkJobReader.read(checkJobId);
-        if (checkJob.getStatus() != CheckJobStatus.PENDING) {
-            return Optional.empty();
-        }
-        checkJob.markDispatching(requestId);
-        log.info(
-                "[DraftDocumentCheckExecutionService.markDispatching] Draft document check dispatched. checkJobId={}, requestId={}",
-                checkJobId,
-                requestId);
+        if (checkJob.getStatus() != CheckJobStatus.PENDING) return Optional.empty();
+        checkJob.assignRequestId(requestId);
+        checkJob.prepareDispatch(requestId);
         return Optional.of(CheckJobResult.from(checkJob));
     }
 
@@ -156,6 +156,7 @@ public class DraftDocumentCheckExecutionService {
             return;
         }
         checkJob.fail(failureReason);
+        outboxService.cancel(checkJob.getRequestId());
         log.warn(
                 "[DraftDocumentCheckExecutionService.expire] Draft document check failed. checkJobId={}, reason={}",
                 checkJob.getId(),

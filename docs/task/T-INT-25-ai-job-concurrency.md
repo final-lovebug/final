@@ -101,7 +101,7 @@ MySQL 은 UNIQUE 에서 NULL 을 서로 다른 값으로 보므로 **끝난 작�
 `ubidicExtractor/ubidict-py`. `app/claim.py` 신설 + `queue_consumer._handle_message` 배선.
 
 ```
-SET llm:request:{requestId} <worker-id> NX EX 900
+SET llm:request:{requestId} <worker-id> NX EX 3000
 ```
 
 | 상황 | 동작 |
@@ -113,7 +113,7 @@ SET llm:request:{requestId} <worker-id> NX EX 900
 
 - **키를 지우지 않는다.** TTL 만료에 맡긴다 — 지우면 그 뒤 재배달분이 다시 선점에 성공한다.
   `requestId`는 작업당 1회용이라(`D-70`) 남아도 다음 작업을 막지 않는다
-- **TTL 900초는 `app.ai.timeout.job`(기본 `PT15M`)과 맞춘 것이다.** 짧으면 백엔드 스위퍼가
+- **TTL 3000초는 `app.ai.timeout.job`(prod 기본 `PT50M`)과 맞춘 것이다.** 짧으면 백엔드 스위퍼가
   작업을 회수하기 전에 키가 풀려 중복 호출이 다시 열린다
 - **선점 여부를 모르면 부르지 않는다.** 조용히 건너뛰면 이 장치가 있으나 마나다
 
@@ -141,9 +141,10 @@ SET llm:request:{requestId} <worker-id> NX EX 900
 - `ExtractionJobRepositoryTest`·`CheckJobRepositoryTest` 각 4개 — 중복 거절, RUNNING 이 새 요청을
   막음, **끝난 작업은 쌓임**, 워크스페이스/문서가 다르면 공존
 - `ExtractionJobWriterTest`·`CheckJobWriterTest` 각 2개 — 제약 위반의 409 변환
-- `tests/test_claim.py` 6개 — NX/TTL 900, 중복 시 `False`, 접속 불가 시 예외, 클라이언트 재사용
-- `tests/test_queue_consumer.py` 4개 — 선점 호출, 중복 배달 드롭(**콜백 없음**), 저장소 장애,
-  MOCK 은 선점 안 함. 기존 REAL 테스트 5개는 autouse fixture 로 「선점 성공」 상태에서 돈다
+- `tests/test_claim.py` 6개 — NX/TTL 3000, 중복 시 `False`, 접속 불가 시 예외, 클라이언트 재사용
+- `tests/test_queue_consumer.py` 6개 — 선점 호출, 중복 배달 드롭(**콜백 없음**), 저장소 장애,
+  MOCK 은 선점 안 함, 종결 작업 ack, 상태 조회 실패 시 재시도. 기존 REAL 테스트는 autouse fixture 로
+  「실행 중 Job·선점 성공」 상태에서 돈다
 
 > `SchemaValidationTest`가 실제로 한 번 잡았다 — `@JdbcTypeCode(TINYINT)`를 빠뜨렸을 때
 > `found [tinyint], but expecting [integer]`로 막았다(`D-108`이 의도한 그대로).
