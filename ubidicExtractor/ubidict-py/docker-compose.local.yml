@@ -22,12 +22,5 @@ services:
     volumes:
       - localstack_data:/var/lib/localstack
 
-  # 모델 호출 선점용(app/claim.py). REAL 대역을 로컬에서 돌릴 때 필요하다 —
-  # STUB·MOCK 만 쓴다면 띄우지 않아도 된다.
-  redis:
-    image: redis:8.2-alpine
-    ports:
-      - "6379:6379"
-
 volumes:
   localstack_data:

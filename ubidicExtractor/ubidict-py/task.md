@@ -9,7 +9,7 @@
 
 `test/`는 CLI로 검증한 R&D 프로토타입(SPEC.md §10 D-1~D-40). 여기(`ubidict-py/`)는
 그 로직을 실제 서비스로 옮긴 것이다. 현재 워커는 SQS 요청을 받고 Spring에 HTTP 콜백으로
-결과를 돌려주며, 모델 호출 직전에 Redis로 멱등 선점을 한다.
+결과를 돌려준다. **모델 호출 중복 방지(Redis 선점)는 두지 않는다**(`R-35`).
 
 **`test/`의 기존 문서(AGENTS.md·SPEC.md §2/§11)와 다른 점**: 거기엔 "Kafka는
 Spring이 담당, 이 서비스는 HTTP만"·"DB 붙이지 마라"고 돼 있는데, 이건 R&D
@@ -26,12 +26,10 @@ AI 작업의 멱등은 하나의 장치가 아니라 아래 세 층으로 나뉜
 | --- | --- | --- |
 | 접수 배타 | Spring DB | 추출은 워크스페이스당, 대조는 문서당 `PENDING`/`RUNNING` 작업을 1개로 제한한다. 동시 접수의 나머지는 409이며 AI 요청을 만들지 않는다 |
 | 결과 멱등 | Spring | 같은 작업의 중복 콜백은 초안·작업 상태를 한 벌만 남기고 204로 끝낸다 |
-| 호출 멱등 | 이 워커 | `mode=REAL`에서 모델 호출 직전 `SET llm:request:{requestId} <worker-id> NX EX 3000`으로 선점한다 |
+| ~~호출 멱등~~ | — | **두지 않는다**(`R-35`, 2026-09-16 제거). 중복 배달마다 모델이 한 번 더 불린다 |
 
-- 선점 실패는 다른 배달분이 이미 처리 중이거나 처리했다는 뜻이다. **모델과 콜백을 호출하지 않고** SQS 메시지만 삭제한다.
-- `REDIS_URL`이 없거나 Redis에 닿지 못하면 선점을 건너뛰지 않는다. 모델을 호출하지 않고 `CLAIM_UNAVAILABLE` 실패 콜백을 보낸다.
-- 키는 끝나도 지우지 않는다. 3000초 TTL은 Spring 작업 제한 시간(`app.ai.timeout.job`, prod 기본 50분)과 같으며, 그 전에 지우거나 만료하면 늦은 재배달이 다시 모델을 호출할 수 있다.
-- `STUB`·`MOCK`은 모델을 부르지 않으므로 Redis 선점을 하지 않는다.
+- `mode=REAL`은 모델 호출 전에 Spring DB에서 Job 상태를 다시 본다. **종결된** 작업이면 모델을 부르지 않고 메시지를 지운다 — 타임아웃·DLQ가 이미 회수한 지연 메시지를 버리는 장치다.
+- ⚠️ **아직 `RUNNING`인 작업의 재배달은 걸러내지 못한다.** 상태가 정상이라 그대로 처리하고, 모델을 한 번 더 부른다. 결과 멱등이 초안만 하나로 접으므로 **DB는 깨끗하고 요금만 두 배**가 되며 실패로 남지 않는다. 규격은 `final/docs/AI_CONTRACT.md` 7-2-2.
 
 > 아래의 `processed_jobs`·응답 큐 서술은 2026-09-14 이전 구조의 이력이다. 현재 런타임은 이를 사용하지 않는다. `app/idempotency.py`·`db/schema.sql`·해당 테스트는 별도 정리 작업에서 제거 대상이다.
 
@@ -42,7 +40,7 @@ AI 작업의 멱등은 하나의 장치가 아니라 아래 세 층으로 나뉜
 | 메시지큐 | SQS |
 | 결과 회신 | Spring 내부 콜백(`POST /api/internal/llm/**`). 2xx·4xx면 SQS 메시지를 삭제하고, 5xx·네트워크 오류만 재시도한다 |
 | DB | `final/backend`의 MySQL을 **읽기 전용**으로 공유해 문서 본문·사전집 용어를 읽는다. 작업 멱등 기록을 MySQL에 쓰지 않는다 |
-| 모델 호출 멱등 | Redis `requestId` 선점(`SET ... NX EX 3000`). `mode=REAL`에서만 적용한다 |
+| 모델 호출 멱등 | **없다**(`R-35`). `mode=REAL`의 Job 상태 재확인이 *종결된* 작업만 걸러낸다 |
 | 문서·사전집 전달 방식 | **2026-09-14부터 ID 기반** — 요청은 `documentIds`/`dictionaryId`만 받고, 본문·용어는 `app/backend_db.py`가 DB에서 직접 읽는다(인라인 전송 안 함) |
 | 인증 | JWT(`accessToken`)는 **검증하지 않는다** — 그대로 받아서 응답에 그대로 에코 |
 | stub/real 모드 | 요청(`ExtractJobRequest`/`ContrastJobRequest.mode`)에 포함. `stub`(기본값)이면 DB·Gemini 둘 다 안 부르고 2.5초 뒤 빈 결과, `real`이면 실제 처리. 백엔드의 `app.ai.extractor.mode`/`checker.mode`와 같은 개념 |
@@ -58,8 +56,8 @@ AI 작업의 멱등은 하나의 장치가 아니라 아래 세 층으로 나뉜
       `pipeline/normalize.py`는 fixture 로더 빼고 포팅, `prompts/*.md` 8개 복사)
 - [x] 2. `app/service.py` — `run_extract`/`run_contrast` 단일 진입점(HTTP·큐 공용)
 - [x] 3. `app/main.py` — `/health`·`/extract`·`/contrast`를 mock에서 `service.py` 호출로 교체
-- [x] ~~4. `db/schema.sql` + `app/idempotency.py` — MySQL 처리 완료 기록~~ — **폐기 예정.** 현재 호출 멱등은 Redis 선점이 담당한다
-- [x] 5. `app/queue_schema.py` + `app/queue_consumer.py` — SQS 롱폴링, `REAL` 작업 Redis 선점 → 처리 → **HTTP 콜백** → 메시지 삭제
+- [x] ~~4. `db/schema.sql` + `app/idempotency.py` — MySQL 처리 완료 기록~~ — **폐기 예정.** 호출 멱등은 지금 어디에도 없다(`R-35`)
+- [x] 5. `app/queue_schema.py` + `app/queue_consumer.py` — SQS 롱폴링, `REAL` 작업 Job 상태 재확인 → 처리 → **HTTP 콜백** → 메시지 삭제
 - [x] 6. `usage_log.py`/`contrast_usage_log.py`에 표준출력 구조화 JSON 로그 추가(로컬 JSONL은 유지)
 - [x] 7. `reference/backend/README.md` 자리 마련 — 백엔드 코드 도착 시 `queue_schema.py` 재검토 필요
 - [x] 8. `Dockerfile` + `deploy/{appspec.yaml,taskdef.json,buildspec.yml}` 작성 — **2026-09-15, ECS 전용이라 폐기하고 EC2용으로 전면 교체함. 아래 "AWS 배포(EC2+CodeDeploy)" 절 참고**
@@ -84,17 +82,13 @@ AI 작업의 멱등은 하나의 장치가 아니라 아래 세 층으로 나뉜
 
 ## 다음에 할 것 / 미결 사항
 
-- [x] ~~**모델 호출 멱등(중복 LLM 호출 방지)**~~ — 2026-09-16 완료. `app/claim.py` 신규 + `queue_consumer._handle_message` 배선.
-  - **왜**: 요청 큐가 표준 큐(at-least-once)라 같은 메시지가 두 번 배달되면 **모델을 두 번 부른다.** 백엔드의 콜백 멱등(`D-72`)은 초안만 하나로 접으므로 **DB는 깨끗하고 요금만 두 배**로 나간다 — 실패로 남지 않아 눈에 띄지 않던 낭비다. 계약은 `final/docs/AI_CONTRACT.md` 7-2-2(`D-111`·`D-113`)에 확정돼 있다
-  - **무엇**: `mode=REAL`만, 모델 호출 직전에 `SET llm:request:{requestId} <worker-id> NX EX 3000`. 선점 실패 = 다른 배달분이 이미 잡았다 → **콜백도 보내지 않고** 메시지만 지운다. `REDIS_URL`이 없거나 Redis 에 닿지 못하면 `CLAIM_UNAVAILABLE` 실패 콜백으로 끝낸다(선점 여부를 모르는 채 부르지 않는다). **키는 지우지 않는다** — TTL 만료에 맡겨야 그 뒤 재배달분이 다시 선점에 성공하지 않는다
-  - **왜 REAL만**: `STUB`·`MOCK`은 모델을 부르지 않는다. 목 대역만 쓰는 로컬 개발이 Redis 없이 그대로 돌아야 해서다
-  - 의존성 `redis` 추가(`pyproject.toml`·`uv.lock`), `.env.example`에 `REDIS_URL`, `docker-compose.local.yml`에 `redis:8.2-alpine`(REAL 을 로컬에서 돌릴 때만 필요)
-  - 테스트 10개 추가 — `tests/test_claim.py`(6), `tests/test_queue_consumer.py`(4: 선점 호출·중복 배달 드롭·저장소 장애·MOCK 은 선점 안 함). 전체 81개 통과, ruff 통과
-- [x] ~~**`deploy/scripts/start_container.sh`에 `REDIS_URL` 주입**~~ — **2026-09-16 반영.** 예고대로 운영에서 터졌다(`extractionJobId=1`이 `CLAIM_UNAVAILABLE`로 실패). **백엔드 ElastiCache 공유로 결정**했고, `/lovebug/redis/host`·`/lovebug/redis/port`를 RDS 블록과 같은 방식으로 읽어 `rediss://host:port/0`으로 넘긴다. 스킴이 `rediss`인 것은 백엔드가 같은 클러스터를 `spring.data.redis.ssl.enabled: true`로 쓰기 때문이다. **아래 셋은 AWS 콘솔 작업이라 스크립트가 해결하지 못한다.**
-  - [ ] **보안그룹** — 워커 EC2(`lovebug-ec2-fastapi`) → ElastiCache 6379 인바운드. 없으면 `REDIS_URL`이 있어도 접속 타임아웃으로 같은 실패가 난다
-  - [ ] **IAM** — `lovebug-ec2-fastapi` 역할에 `/lovebug/redis/*` 읽기 권한. 없으면 `start_container.sh`가 `aws ssm get-parameter`에서 죽어 **배포 자체가 실패한다**(`set -euo pipefail`)
-  - [ ] ElastiCache에 AUTH 토큰이 걸려 있다면 URL이 `rediss://:<token>@host:port/0`이 된다 — 토큰 파라미터를 추가하고 스크립트도 함께 고쳐야 한다
-- [ ] **`app/idempotency.py`·`db/schema.sql`(`processed_jobs`)가 죽은 코드다** — 어디서도 import 하지 않는다. ①응답 큐 시절(`처리 → 응답 큐 발행 → mark_processed`) 설계라 지금의 HTTP 콜백 계약과 맞지 않고 ②「끝난 뒤 기록」이라 **모델 중복 호출을 막지 못한다**(그 자리를 `app/claim.py`가 맡았다) ③`processed_jobs`가 백엔드 MySQL 에 있어 `backend_db.py`가 지키는 「백엔드 소유 DB 에는 쓰지 않는다」와도 어긋난다. 지우는 것을 권함(테스트 `tests/test_idempotency.py`도 함께)
+- [x] ~~**모델 호출 멱등(중복 LLM 호출 방지)**~~ — **2026-09-16 제거했다**(`final/docs/plan/CONFLICTS.md` `R-35`). 넣었다가 같은 날 걷어냈다.
+  - **왜 넣었나**: 요청 큐가 표준 큐(at-least-once)라 같은 메시지가 두 번 배달되면 **모델을 두 번 부른다.** 백엔드의 콜백 멱등(`D-72`)은 초안만 하나로 접으므로 **DB는 깨끗하고 요금만 두 배**로 나간다 — 실패로 남지 않아 눈에 띄지 않는 낭비다
+  - **왜 걷어냈나**: 운영 워커 컨테이너에 `REDIS_URL`이 없어 **모든 `REAL` 작업이 `CLAIM_UNAVAILABLE`로 실패했다**(`extractionJobId=1`). 되살리려면 ElastiCache 공유 + 보안그룹(워커 EC2 → 6379) + IAM(`/lovebug/redis/*`) 셋을 함께 열어야 했고, 그 비용 대신 장치를 없애는 쪽을 택했다
+  - **무엇을 지웠나**: `app/claim.py`·`tests/test_claim.py`, `queue_consumer._handle_message`의 선점 블록, `redis` 의존성(`pyproject.toml`·`uv.lock`), `.env.example`의 `REDIS_URL`·`LLM_IDEMPOTENCY_TTL_SECONDS`, `docker-compose.local.yml`의 redis 서비스, `deploy/scripts/start_container.sh`의 `REDIS_URL` 주입
+  - ⚠️ **위험은 남는다.** 중복 배달마다 모델이 한 번 더 불린다. 남은 완화는 `mode=REAL`의 Job 상태 재확인뿐인데 그것은 **종결된** 작업만 걸러낸다 — 아직 `RUNNING`인 작업의 재배달은 그대로 처리된다. 요금이 문제가 되면 이 항목을 되살리는 것이 첫 후보다
+  - 테스트 73개 통과, ruff 통과
+- [ ] **`app/idempotency.py`·`db/schema.sql`(`processed_jobs`)가 죽은 코드다** — 어디서도 import 하지 않는다. ①응답 큐 시절(`처리 → 응답 큐 발행 → mark_processed`) 설계라 지금의 HTTP 콜백 계약과 맞지 않고 ②「끝난 뒤 기록」이라 **모델 중복 호출을 막지 못한다**(그것을 막던 `app/claim.py`도 `R-35`로 제거됐다) ③`processed_jobs`가 백엔드 MySQL 에 있어 `backend_db.py`가 지키는 「백엔드 소유 DB 에는 쓰지 않는다」와도 어긋난다. 지우는 것을 권함(테스트 `tests/test_idempotency.py`도 함께)
 
 - [x] ~~`idempotency.py`·`queue_consumer.py` 단위 테스트(모킹) 작성~~ — 2026-09-14 완료. `tests/{test_idempotency,test_queue_consumer,test_queue_schema,test_main}.py` — boto3/pymysql/Gemini 전부 모킹, 15개 전부 통과(로컬 + GitHub Actions 둘 다 확인)
 - [x] ~~실제 AWS 자격증명·SQS 큐가 생기면 `queue_consumer.py` 통합 테스트~~ — 2026-09-13 완료(위 참고). 큐 3개는 실제로 존재(표준 큐, DLQ `maxReceiveCount=3` 연결됨, `VisibilityTimeout=900s`) — `final/docs`가 서술한 "FIFO+MessageGroupId" 방향과 다르지만 표준 큐로도 지금 문제없이 동작함

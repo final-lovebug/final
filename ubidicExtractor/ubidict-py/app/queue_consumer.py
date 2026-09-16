@@ -33,7 +33,6 @@ import boto3
 
 from app.anchor import anchor_for
 from app.backend_db import fetch_active_preferred_forms, fetch_document_body, is_running_llm_job
-from app.claim import ClaimUnavailableError, claim_request
 from app.mock_delay import sleep_mock_delay
 from app.queue_schema import LlmJobRequest
 from app.real_job import RealJobError, run_real_check, run_real_extraction
@@ -133,30 +132,8 @@ def _handle_message(client, queue_url: str, message: dict) -> None:
             logger.exception("jobId=%s Job 상태를 읽지 못했다 — 재시도를 위해 메시지를 남긴다", job.jobId)
             return
 
-    # 모델을 부르기 전에 requestId 를 선점한다(docs/AI_CONTRACT.md 7-2-2). 큐가
-    # at-least-once 라 이것이 없으면 재배달분이 같은 작업으로 모델을 한 번 더 부른다
-    # — 백엔드의 콜백 멱등은 초안만 하나로 접을 뿐 이미 나간 호출을 되돌리지 못한다.
-    claim_failure: tuple[str, dict] | None = None
-    if job.mode == "REAL":
-        try:
-            if not claim_request(job.requestId):
-                # 이미 다른 배달분이 잡았다. 결과는 그쪽 콜백이 전달하고, 그마저 실패하면
-                # 백엔드의 타임아웃 스위퍼가 회수한다 — 여기서 콜백을 보내지 않는다.
-                client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
-                logger.info(
-                    "jobId=%s requestId=%s 이미 선점된 요청 — 모델을 부르지 않고 메시지를 지운다",
-                    job.jobId,
-                    job.requestId,
-                )
-                return
-        except ClaimUnavailableError:
-            # 선점 여부를 모르는 채로 부르면 이 장치가 막으려던 일이 그대로 일어난다.
-            # 모델을 부르지 않고 사유를 남겨 작업을 끝낸다(6-3).
-            logger.exception("jobId=%s 선점 저장소에 닿지 못했다 — 모델을 부르지 않고 작업을 실패로 끝낸다", job.jobId)
-            claim_failure = _failure_callback(job, "중복 호출 방지 장치에 연결하지 못했습니다.", "CLAIM_UNAVAILABLE")
-
     try:
-        callback_path, body = claim_failure or _callback_for(job)
+        callback_path, body = _callback_for(job)
         status = _post_callback(callback_path, body)
     except Exception:
         logger.exception("jobId=%s 콜백 전송 실패 — 메시지를 삭제하지 않는다", job.jobId)
