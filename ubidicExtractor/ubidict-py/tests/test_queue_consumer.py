@@ -5,9 +5,24 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from app.claim import ClaimUnavailableError
 from app.queue_consumer import _handle_message
+from app.real_job import RealJobError
 
 _QUEUE_URL = "https://sqs.example/lovebug-llm-request"
+
+
+@pytest.fixture(autouse=True)
+def claim_request_mock():
+    """REAL 배선 테스트는 **선점에 성공한** 경우를 본다.
+
+    선점 자체의 규격은 ``tests/test_claim.py``가, 배선은 아래 「선점」 절의 전용
+    테스트가 본다. 이것이 없으면 REAL 테스트가 실제 Redis 를 찾아 나선다.
+    """
+    with patch("app.queue_consumer.claim_request", return_value=True) as mock:
+        yield mock
 
 
 def _message(body: dict) -> dict:
@@ -54,12 +69,14 @@ def test_malformed_message_is_not_deleted():
     client.delete_message.assert_not_called()
 
 
+@patch("app.queue_consumer.sleep_mock_delay")
 @patch("app.queue_consumer._post_callback", return_value=204)
-def test_mock_extraction_posts_fixed_result_and_deletes_message(mock_post_callback):
+def test_mock_extraction_delays_then_posts_fixed_result_and_deletes_message(mock_post_callback, mock_delay):
     client = MagicMock()
 
     _handle_message(client, _QUEUE_URL, _message(_extraction_job()))
 
+    mock_delay.assert_called_once_with()
     path, body = mock_post_callback.call_args.args
     assert path == "/api/internal/llm/extractions/30/result"
     assert body["requestId"] == "0d5c6f6e-0000-4000-8000-000000000001"
@@ -82,10 +99,11 @@ def test_stub_extraction_posts_empty_terms_and_deletes_message(mock_post_callbac
     client.delete_message.assert_called_once_with(QueueUrl=_QUEUE_URL, ReceiptHandle="rh-1")
 
 
+@patch("app.queue_consumer.sleep_mock_delay")
 @patch("app.queue_consumer.fetch_active_preferred_forms", return_value=["이용자", "결제"])
 @patch("app.queue_consumer.fetch_document_body", return_value="우리 서비스의 유저는 결제할 수 있다.")
 @patch("app.queue_consumer._post_callback", return_value=204)
-def test_mock_check_anchors_suggestions_on_the_real_body(mock_post_callback, mock_fetch_body, _mock_terms):
+def test_mock_check_delays_and_anchors_suggestions_on_the_real_body(mock_post_callback, mock_fetch_body, _mock_terms, mock_delay):
     """MOCK 대조는 본문을 읽어 실제로 있는 자리에만 앵커를 단다.
 
     백엔드의 CheckSuggestionValidator 가 body.substring(anchor) 와 originTerm 이 같은지
@@ -95,6 +113,7 @@ def test_mock_check_anchors_suggestions_on_the_real_body(mock_post_callback, moc
 
     _handle_message(client, _QUEUE_URL, _message(_check_job()))
 
+    mock_delay.assert_called_once_with()
     mock_fetch_body.assert_called_once_with(10, 3)
     path, body = mock_post_callback.call_args.args
     assert path == "/api/internal/llm/checks/40/result"
@@ -246,13 +265,136 @@ def test_client_error_deletes_message_without_retry(_mock_post_callback):
     client.delete_message.assert_called_once_with(QueueUrl=_QUEUE_URL, ReceiptHandle="rh-1")
 
 
+# ── REAL — 대역 자체는 tests/test_real_job.py 가 본다. 여기서는 배선만 본다 ──
+
+
+@patch("app.queue_consumer.run_real_extraction", return_value=[{"form": "결제"}])
 @patch("app.queue_consumer._post_callback", return_value=204)
-def test_real_mode_reports_failure_callback_until_real_worker_is_implemented(mock_post_callback):
+def test_real_extraction_posts_the_pipeline_result(mock_post_callback, mock_run):
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_extraction_job(mode="REAL")))
+
+    assert mock_run.call_args.args[0].jobId == 30
+    path, body = mock_post_callback.call_args.args
+    assert path == "/api/internal/llm/extractions/30/result"
+    assert body["requestId"] == "0d5c6f6e-0000-4000-8000-000000000001"
+    # 실제로 읽은 문서가 더 적어도 요청받은 집합을 그대로 싣는다(6-1).
+    assert body["sourceDocumentIds"] == [10, 20]
+    assert body["terms"] == [{"form": "결제"}]
+    client.delete_message.assert_called_once_with(QueueUrl=_QUEUE_URL, ReceiptHandle="rh-1")
+
+
+@patch("app.queue_consumer.run_real_check", return_value=[])
+@patch("app.queue_consumer._post_callback", return_value=204)
+def test_real_check_posts_the_pipeline_result_with_the_version_it_read(mock_post_callback, mock_run):
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_check_job(mode="REAL")))
+
+    assert mock_run.call_args.args[0].jobId == 40
+    path, body = mock_post_callback.call_args.args
+    assert path == "/api/internal/llm/checks/40/result"
+    assert body["documentVersionNo"] == 3
+    assert body["suggestions"] == []
+
+
+@patch("app.queue_consumer.run_real_extraction")
+@patch("app.queue_consumer._post_callback", return_value=204)
+def test_real_failure_becomes_a_failure_callback_and_deletes_the_message(mock_post_callback, mock_run):
+    """작업을 큐에 매달아 두지 않는다 — 사유를 사용자에게 보여주고 끝낸다(6-3)."""
+    mock_run.side_effect = RealJobError("추출할 문서 본문을 찾지 못했습니다.", "DOCUMENT_NOT_FOUND")
     client = MagicMock()
 
     _handle_message(client, _QUEUE_URL, _message(_extraction_job(mode="REAL")))
 
     path, body = mock_post_callback.call_args.args
     assert path == "/api/internal/llm/extractions/30/failure"
-    assert body["code"] == "REAL_MODE_NOT_IMPLEMENTED"
-    client.delete_message.assert_called_once()
+    assert body["code"] == "DOCUMENT_NOT_FOUND"
+    assert body["reason"] == "추출할 문서 본문을 찾지 못했습니다."
+    client.delete_message.assert_called_once_with(QueueUrl=_QUEUE_URL, ReceiptHandle="rh-1")
+
+
+@patch("app.queue_consumer.run_real_check", side_effect=RuntimeError("어디서 터졌는지 모르는 예외"))
+@patch("app.queue_consumer._post_callback", return_value=204)
+def test_real_unclassified_error_does_not_leak_its_message_to_the_user(mock_post_callback, _mock_run):
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_check_job(mode="REAL")))
+
+    path, body = mock_post_callback.call_args.args
+    assert path == "/api/internal/llm/checks/40/failure"
+    assert body["code"] == "UNEXPECTED_ERROR"
+    assert "어디서 터졌는지" not in body["reason"]
+
+
+@patch("app.queue_consumer.run_real_extraction")
+@patch("app.queue_consumer._post_callback", return_value=204)
+def test_real_extraction_without_source_documents_is_rejected_before_the_pipeline(mock_post_callback, mock_run):
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_extraction_job(mode="REAL") | {"sourceDocumentIds": None}))
+
+    mock_run.assert_not_called()
+    path, body = mock_post_callback.call_args.args
+    assert path == "/api/internal/llm/extractions/30/failure"
+    assert body["code"] == "INVALID_REQUEST"
+
+
+# ── 선점 — 같은 메시지가 두 번 배달돼도 모델은 한 번만 부른다(D-111·D-113) ──
+
+
+@patch("app.queue_consumer.run_real_extraction", return_value=[])
+@patch("app.queue_consumer._post_callback", return_value=204)
+def test_real_job_claims_the_request_before_calling_the_model(_mock_post_callback, mock_run, claim_request_mock):
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_extraction_job(mode="REAL")))
+
+    claim_request_mock.assert_called_once_with("0d5c6f6e-0000-4000-8000-000000000001")
+    mock_run.assert_called_once()
+
+
+@patch("app.queue_consumer.run_real_extraction")
+@patch("app.queue_consumer._post_callback")
+def test_duplicate_delivery_is_dropped_without_calling_the_model(mock_post_callback, mock_run, claim_request_mock):
+    """선점에 실패했다 = 다른 배달분이 이미 잡았다.
+
+    모델을 부르지 않고 메시지만 지운다. **콜백도 보내지 않는다** — 결과는 먼저
+    선점한 쪽이 전달하고, 그마저 실패하면 백엔드 타임아웃 스위퍼가 회수한다(7-3).
+    """
+    claim_request_mock.return_value = False
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_extraction_job(mode="REAL")))
+
+    mock_run.assert_not_called()
+    mock_post_callback.assert_not_called()
+    client.delete_message.assert_called_once_with(QueueUrl=_QUEUE_URL, ReceiptHandle="rh-1")
+
+
+@patch("app.queue_consumer.run_real_extraction")
+@patch("app.queue_consumer._post_callback", return_value=204)
+def test_unreachable_claim_store_ends_the_job_without_calling_the_model(mock_post_callback, mock_run, claim_request_mock):
+    """선점 여부를 모르면 부르지 않는다 — 조용히 통과시키면 이 장치가 있으나 마나다."""
+    claim_request_mock.side_effect = ClaimUnavailableError("REDIS_URL 이 없다")
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_extraction_job(mode="REAL")))
+
+    mock_run.assert_not_called()
+    path, body = mock_post_callback.call_args.args
+    assert path == "/api/internal/llm/extractions/30/failure"
+    assert body["code"] == "CLAIM_UNAVAILABLE"
+    client.delete_message.assert_called_once_with(QueueUrl=_QUEUE_URL, ReceiptHandle="rh-1")
+
+
+@patch("app.queue_consumer.sleep_mock_delay")
+@patch("app.queue_consumer._post_callback", return_value=204)
+def test_mock_job_is_not_claimed(_mock_post_callback, _mock_delay, claim_request_mock):
+    """STUB·MOCK 은 모델을 부르지 않는다 — 선점할 것이 없고, 그래야 Redis 없이 로컬 개발이 돈다."""
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_extraction_job(mode="MOCK")))
+
+    claim_request_mock.assert_not_called()

@@ -247,9 +247,18 @@ create table check_job (
     created_at        datetime(6)   not null,
     updated_at        datetime(6)   not null,
     deleted_at        datetime(6),
+    -- "문서당 진행 중 대조 작업은 1개"를 DB로 보장하기 위한 컬럼이다. 진행 중이면 1, 끝났으면 NULL 이다.
+    -- 애플리케이션의 사전 검사(CheckJobCreationPolicyValidator)는 락 없는 스냅샷 읽기라 동시 요청 둘을
+    -- 모두 통과시키고, 그러면 작업이 둘 생겨 AI 워커가 LLM 을 두 번 호출한다. 그 마지막 방어선이 아래 유니크다.
+    -- MySQL 은 UNIQUE 에서 NULL 을 서로 다른 값으로 보므로 끝난 작업은 몇 개든 쌓인다.
+    --
+    -- dictionary.active_flag 와 달리 생성 컬럼이 아니다 — 같은 식을 생성 컬럼으로 두면 H2 위에서 도는
+    -- 테스트가 삽입 시점에 깨진다. 값은 CheckJob.changeStatus 가 상태와 함께 채운다.
+    in_progress_flag  tinyint,
     primary key (id),
     constraint fk_check_job_draft_document
-        foreign key (draft_document_id) references draft_document (id)
+        foreign key (draft_document_id) references draft_document (id),
+    constraint uk_check_job_document_in_progress unique (document_id, in_progress_flag)
 );
 
 create index idx_check_job_document_status
@@ -346,9 +355,13 @@ create table extraction_job (
     created_at          datetime(6)   not null,
     updated_at          datetime(6)   not null,
     deleted_at          datetime(6),
+    -- "워크스페이스당 진행 중 추출 작업은 1개"를 DB로 보장하기 위한 컬럼이다. check_job.in_progress_flag 와 같다.
+    -- 값은 ExtractionJob.changeStatus 가 상태와 함께 채운다.
+    in_progress_flag    tinyint,
     primary key (id),
     constraint fk_extraction_job_draft_dictionary
-        foreign key (draft_dictionary_id) references draft_dictionary (id)
+        foreign key (draft_dictionary_id) references draft_dictionary (id),
+    constraint uk_extraction_job_workspace_in_progress unique (workspace_id, in_progress_flag)
 );
 
 create table extraction_job_source_document (
