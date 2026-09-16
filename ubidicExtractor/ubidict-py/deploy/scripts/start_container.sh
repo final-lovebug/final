@@ -86,7 +86,18 @@ docker rm -f ubidict-py 2>/dev/null || true
 # ── 작업 완료 콜백 주소 ───────────────────────────────────────────────────
 # app/queue_consumer.py의 _post_callback()이 이 값+/api/internal/llm/**로
 # POST한다. 스프링이 블루/그린 2대라 프라이빗 IP를 고정할 수 없어 ALB를
-# 경유한다(2026-09-15 확정). **보안 노출이 남아 있다** — /api/internal/**는
+# 경유한다(2026-09-15 확정).
+#
+# **ALB의 AWS 기본 호스트명을 쓰지 않는다**(2026-09-16). https://lovebug-alb-....
+# elb.amazonaws.com 으로 치면 ALB 인증서가 api.ubidic.site 용이라 호스트명이 맞지
+# 않아 콜백이 전부 SSLCertVerificationError 로 죽는다(실제로 jobId=7 에서 발생).
+# *.elb.amazonaws.com 인증서는 발급받을 수 없으므로 도메인 쪽을 쓴다 — 프론트가 쓰는
+# 운영 API 주소와 같다(.github/workflows/front-cd.yml).
+#
+# 평문 HTTP 로 내리는 선택지도 있었지만 쓰지 않는다. /api/internal/** 은 인증 필터를
+# 통과하고 방어가 requestId 대조뿐이라(D-70) 전송 구간까지 평문이면 남는 보호가 없다.
+#
+# **보안 노출이 남아 있다** — /api/internal/**는
 # 원래 워커 출발지로만 제한돼야 하는데(docs/AI_CONTRACT.md, NFR-AI-002)
 # 지금은 이 ALB 경로가 공개돼 있고, 스프링 EC2의 8080 인바운드도 아직
 # 0.0.0.0/0으로 열려 있다 — 보안그룹 제한은 후속 과제로 남겨 둠(사용자 확인).
@@ -100,7 +111,7 @@ docker run -d --name ubidict-py \
   -e AWS_REGION="$REGION" \
   -e SQS_REQUEST_QUEUE_URL="https://sqs.$REGION.amazonaws.com/416121583617/lovebug-llm-request" \
   -e SQS_REPLY_QUEUE_URL="https://sqs.$REGION.amazonaws.com/416121583617/lovebug-llm-reply" \
-  -e BACKEND_CALLBACK_BASE_URL="https://lovebug-alb-1930145637.ap-northeast-2.elb.amazonaws.com" \
+  -e BACKEND_CALLBACK_BASE_URL="https://api.ubidic.site" \
   -e MYSQL_HOST="$MYSQL_HOST" \
   -e MYSQL_PORT="$MYSQL_PORT" \
   -e MYSQL_DATABASE="$DB_NAME" \

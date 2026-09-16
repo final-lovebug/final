@@ -8,21 +8,41 @@
 ## 배경
 
 `test/`는 CLI로 검증한 R&D 프로토타입(SPEC.md §10 D-1~D-40). 여기(`ubidict-py/`)는
-그 로직을 실제 서비스로 옮긴 것 — SQS로 요청을 받고 결과를 SQS로 돌려주며,
-멱등성 확인용 MySQL을 하나 쓴다.
+그 로직을 실제 서비스로 옮긴 것이다. 현재 워커는 SQS 요청을 받고 Spring에 HTTP 콜백으로
+결과를 돌려주며, 모델 호출 직전에 Redis로 멱등 선점을 한다.
 
 **`test/`의 기존 문서(AGENTS.md·SPEC.md §2/§11)와 다른 점**: 거기엔 "Kafka는
 Spring이 담당, 이 서비스는 HTTP만"·"DB 붙이지 마라"고 돼 있는데, 이건 R&D
-당시 판단이고 지금은 뒤집혔다 — 이 서비스가 직접 SQS를 구독하고 MySQL도
-쓴다. `test/` 문서는 그대로 두고(과거 기록 보존) 새 아키텍처는 여기 적는다.
+당시 판단이고 지금은 뒤집혔다 — 이 서비스가 직접 SQS를 구독하고 백엔드 MySQL을 **읽기만**
+한다. `test/` 문서는 그대로 두고(과거 기록 보존) 새 아키텍처는 여기 적는다.
+
+## 현재 멱등성 계약 (2026-09-16)
+
+AI 작업의 멱등은 하나의 장치가 아니라 아래 세 층으로 나뉜다. 상세 계약의 원본은
+[`docs/AI_CONTRACT.md` 7-2](../../docs/AI_CONTRACT.md)이고, 구현·검증 이력은
+[`docs/task/T-INT-25-ai-job-concurrency.md`](../../docs/task/T-INT-25-ai-job-concurrency.md)다.
+
+| 층 | 책임 주체 | 보장 |
+| --- | --- | --- |
+| 접수 배타 | Spring DB | 추출은 워크스페이스당, 대조는 문서당 `PENDING`/`RUNNING` 작업을 1개로 제한한다. 동시 접수의 나머지는 409이며 AI 요청을 만들지 않는다 |
+| 결과 멱등 | Spring | 같은 작업의 중복 콜백은 초안·작업 상태를 한 벌만 남기고 204로 끝낸다 |
+| 호출 멱등 | 이 워커 | `mode=REAL`에서 모델 호출 직전 `SET llm:request:{requestId} <worker-id> NX EX 900`으로 선점한다 |
+
+- 선점 실패는 다른 배달분이 이미 처리 중이거나 처리했다는 뜻이다. **모델과 콜백을 호출하지 않고** SQS 메시지만 삭제한다.
+- `REDIS_URL`이 없거나 Redis에 닿지 못하면 선점을 건너뛰지 않는다. 모델을 호출하지 않고 `CLAIM_UNAVAILABLE` 실패 콜백을 보낸다.
+- 키는 끝나도 지우지 않는다. 900초 TTL은 Spring 작업 제한 시간(`app.ai.timeout.job`, 기본 15분)과 같으며, 그 전에 지우거나 만료하면 늦은 재배달이 다시 모델을 호출할 수 있다.
+- `STUB`·`MOCK`은 모델을 부르지 않으므로 Redis 선점을 하지 않는다.
+
+> 아래의 `processed_jobs`·응답 큐 서술은 2026-09-14 이전 구조의 이력이다. 현재 런타임은 이를 사용하지 않는다. `app/idempotency.py`·`db/schema.sql`·해당 테스트는 별도 정리 작업에서 제거 대상이다.
 
 ## 확정된 결정
 
 | 항목 | 결정 |
 |---|---|
 | 메시지큐 | SQS |
-| 결과 회신 | 응답용 큐(reply queue)로 발행 |
-| DB | **2026-09-14부터 `final/backend`의 MySQL을 그대로 공유** — 멱등성 테이블(`processed_jobs`) 하나만 우리 것이고, `document`/`document_version`/`term`은 읽기 전용으로 직접 조회. 별도 DB 인스턴스 안 둠 |
+| 결과 회신 | Spring 내부 콜백(`POST /api/internal/llm/**`). 2xx·4xx면 SQS 메시지를 삭제하고, 5xx·네트워크 오류만 재시도한다 |
+| DB | `final/backend`의 MySQL을 **읽기 전용**으로 공유해 문서 본문·사전집 용어를 읽는다. 작업 멱등 기록을 MySQL에 쓰지 않는다 |
+| 모델 호출 멱등 | Redis `requestId` 선점(`SET ... NX EX 900`). `mode=REAL`에서만 적용한다 |
 | 문서·사전집 전달 방식 | **2026-09-14부터 ID 기반** — 요청은 `documentIds`/`dictionaryId`만 받고, 본문·용어는 `app/backend_db.py`가 DB에서 직접 읽는다(인라인 전송 안 함) |
 | 인증 | JWT(`accessToken`)는 **검증하지 않는다** — 그대로 받아서 응답에 그대로 에코 |
 | stub/real 모드 | 요청(`ExtractJobRequest`/`ContrastJobRequest.mode`)에 포함. `stub`(기본값)이면 DB·Gemini 둘 다 안 부르고 2.5초 뒤 빈 결과, `real`이면 실제 처리. 백엔드의 `app.ai.extractor.mode`/`checker.mode`와 같은 개념 |
@@ -38,8 +58,8 @@ Spring이 담당, 이 서비스는 HTTP만"·"DB 붙이지 마라"고 돼 있는
       `pipeline/normalize.py`는 fixture 로더 빼고 포팅, `prompts/*.md` 8개 복사)
 - [x] 2. `app/service.py` — `run_extract`/`run_contrast` 단일 진입점(HTTP·큐 공용)
 - [x] 3. `app/main.py` — `/health`·`/extract`·`/contrast`를 mock에서 `service.py` 호출로 교체
-- [x] 4. `db/schema.sql` + `app/idempotency.py` — 멱등성 체크·기록
-- [x] 5. `app/queue_schema.py`(초안) + `app/queue_consumer.py` — SQS 롱폴링, 멱등성 확인 → 처리 → 응답 큐 발행 → 기록 → 삭제
+- [x] ~~4. `db/schema.sql` + `app/idempotency.py` — MySQL 처리 완료 기록~~ — **폐기 예정.** 현재 호출 멱등은 Redis 선점이 담당한다
+- [x] 5. `app/queue_schema.py` + `app/queue_consumer.py` — SQS 롱폴링, `REAL` 작업 Redis 선점 → 처리 → **HTTP 콜백** → 메시지 삭제
 - [x] 6. `usage_log.py`/`contrast_usage_log.py`에 표준출력 구조화 JSON 로그 추가(로컬 JSONL은 유지)
 - [x] 7. `reference/backend/README.md` 자리 마련 — 백엔드 코드 도착 시 `queue_schema.py` 재검토 필요
 - [x] 8. `Dockerfile` + `deploy/{appspec.yaml,taskdef.json,buildspec.yml}` 작성 — **2026-09-15, ECS 전용이라 폐기하고 EC2용으로 전면 교체함. 아래 "AWS 배포(EC2+CodeDeploy)" 절 참고**
@@ -63,6 +83,15 @@ Spring이 담당, 이 서비스는 HTTP만"·"DB 붙이지 마라"고 돼 있는
 - [ ] 11. 미결 사항(아래 "다음에 할 것" 참고)
 
 ## 다음에 할 것 / 미결 사항
+
+- [x] ~~**모델 호출 멱등(중복 LLM 호출 방지)**~~ — 2026-09-16 완료. `app/claim.py` 신규 + `queue_consumer._handle_message` 배선.
+  - **왜**: 요청 큐가 표준 큐(at-least-once)라 같은 메시지가 두 번 배달되면 **모델을 두 번 부른다.** 백엔드의 콜백 멱등(`D-72`)은 초안만 하나로 접으므로 **DB는 깨끗하고 요금만 두 배**로 나간다 — 실패로 남지 않아 눈에 띄지 않던 낭비다. 계약은 `final/docs/AI_CONTRACT.md` 7-2-2(`D-111`·`D-113`)에 확정돼 있다
+  - **무엇**: `mode=REAL`만, 모델 호출 직전에 `SET llm:request:{requestId} <worker-id> NX EX 900`. 선점 실패 = 다른 배달분이 이미 잡았다 → **콜백도 보내지 않고** 메시지만 지운다. `REDIS_URL`이 없거나 Redis 에 닿지 못하면 `CLAIM_UNAVAILABLE` 실패 콜백으로 끝낸다(선점 여부를 모르는 채 부르지 않는다). **키는 지우지 않는다** — TTL 만료에 맡겨야 그 뒤 재배달분이 다시 선점에 성공하지 않는다
+  - **왜 REAL만**: `STUB`·`MOCK`은 모델을 부르지 않는다. 목 대역만 쓰는 로컬 개발이 Redis 없이 그대로 돌아야 해서다
+  - 의존성 `redis` 추가(`pyproject.toml`·`uv.lock`), `.env.example`에 `REDIS_URL`, `docker-compose.local.yml`에 `redis:8.2-alpine`(REAL 을 로컬에서 돌릴 때만 필요)
+  - 테스트 10개 추가 — `tests/test_claim.py`(6), `tests/test_queue_consumer.py`(4: 선점 호출·중복 배달 드롭·저장소 장애·MOCK 은 선점 안 함). 전체 81개 통과, ruff 통과
+- [ ] **`deploy/scripts/start_container.sh`에 `REDIS_URL` 주입** — 이것 없이 배포하면 **운영의 모든 REAL 작업이 `CLAIM_UNAVAILABLE`로 실패한다.** 정해야 할 것은 「백엔드가 쓰는 ElastiCache를 공유할지, 워커용을 따로 둘지」다. 공유한다면 `/lovebug/redis/host`·`/lovebug/redis/port`를 RDS 블록과 같은 방식으로 읽어 `rediss://host:port`로 넘기면 되지만, **보안그룹(워커 EC2 → Redis 6379)과 TLS·인증 설정 확인이 먼저다**
+- [ ] **`app/idempotency.py`·`db/schema.sql`(`processed_jobs`)가 죽은 코드다** — 어디서도 import 하지 않는다. ①응답 큐 시절(`처리 → 응답 큐 발행 → mark_processed`) 설계라 지금의 HTTP 콜백 계약과 맞지 않고 ②「끝난 뒤 기록」이라 **모델 중복 호출을 막지 못한다**(그 자리를 `app/claim.py`가 맡았다) ③`processed_jobs`가 백엔드 MySQL 에 있어 `backend_db.py`가 지키는 「백엔드 소유 DB 에는 쓰지 않는다」와도 어긋난다. 지우는 것을 권함(테스트 `tests/test_idempotency.py`도 함께)
 
 - [x] ~~`idempotency.py`·`queue_consumer.py` 단위 테스트(모킹) 작성~~ — 2026-09-14 완료. `tests/{test_idempotency,test_queue_consumer,test_queue_schema,test_main}.py` — boto3/pymysql/Gemini 전부 모킹, 15개 전부 통과(로컬 + GitHub Actions 둘 다 확인)
 - [x] ~~실제 AWS 자격증명·SQS 큐가 생기면 `queue_consumer.py` 통합 테스트~~ — 2026-09-13 완료(위 참고). 큐 3개는 실제로 존재(표준 큐, DLQ `maxReceiveCount=3` 연결됨, `VisibilityTimeout=900s`) — `final/docs`가 서술한 "FIFO+MessageGroupId" 방향과 다르지만 표준 큐로도 지금 문제없이 동작함
@@ -114,7 +143,7 @@ CodeDeploy 훅(EC2 위에서 인스턴스 자신의 IAM 역할로 실행): `Appl
 | 9 | `deploy/appspec.yaml`+`taskdef.json`이 ECS 전용 스키마 | EC2 포맷(`appspec.yml`+`hooks`+쉘 스크립트)으로 전면 교체, 스프링 것 그대로 이식 | ✅ 완료 |
 | 10 | 인스턴스가 ARM64인데 빌드 워크플로는 아키텍처 명시 없음(기본 x86_64) | `ubuntu-24.04-arm` 러너 + `platforms: linux/arm64`로 네이티브 빌드(스프링과 동일) | ✅ 완료 |
 | 11 | `lovebug/fastapi` 리포가 IMMUTABLE인데 워크플로가 `latest` 태그도 push — 두 번째 배포부터 실패 | `latest` 제거, `$GITHUB_SHA` 단일 태그만 | ✅ 완료 |
-| 12 | **(2026-09-15 새로 발견)** `app/queue_consumer.py`의 `_post_callback()`이 작업 완료를 `BACKEND_CALLBACK_BASE_URL`+`/api/internal/llm/**`로 동기 HTTP 콜백하는데, `start_container.sh`가 이 변수를 설정하지 않아 코드 기본값(`http://localhost:8080`)으로 떨어진다 — prod 컨테이너 안에선 그 주소에 아무것도 없어(스프링은 별도 EC2) IAM/SSM을 다 고쳐도 작업 완료 통보가 전부 실패했을 것 | `start_container.sh`에 `BACKEND_CALLBACK_BASE_URL=https://lovebug-alb-1930145637.ap-northeast-2.elb.amazonaws.com` 추가(사용자 확인 — 스프링이 블루/그린 2대라 프라이빗 IP를 고정할 수 없어 ALB 경유로 결정) | ✅ 완료(코드) — ⚠️ **보안 노출 후속 과제 남음, 아래 참고** |
+| 12 | **(2026-09-15 새로 발견)** `app/queue_consumer.py`의 `_post_callback()`이 작업 완료를 `BACKEND_CALLBACK_BASE_URL`+`/api/internal/llm/**`로 동기 HTTP 콜백하는데, `start_container.sh`가 이 변수를 설정하지 않아 코드 기본값(`http://localhost:8080`)으로 떨어진다 — prod 컨테이너 안에선 그 주소에 아무것도 없어(스프링은 별도 EC2) IAM/SSM을 다 고쳐도 작업 완료 통보가 전부 실패했을 것 | `start_container.sh`에 `BACKEND_CALLBACK_BASE_URL` 추가(사용자 확인 — 스프링이 블루/그린 2대라 프라이빗 IP를 고정할 수 없어 ALB 경유로 결정). **2026-09-16 주소 정정** — ALB의 AWS 기본 호스트명(`https://lovebug-alb-....elb.amazonaws.com`)으로 두었더니 인증서가 `api.ubidic.site` 용이라 호스트명 불일치로 콜백이 전부 `SSLCertVerificationError`로 죽었다(`jobId=7`에서 실제 발생). `*.elb.amazonaws.com` 인증서는 발급받을 수 없으므로 `https://api.ubidic.site`로 바꿨다 | ✅ 완료(코드) — ⚠️ **보안 노출 후속 과제 남음, 아래 참고** |
 
 **참고로 확인된 것(손댈 필요 없었음)**: SQS 큐 이름은 이미 일치한다 — 스프링의 `application-prod.yml`도 `app.messaging.sqs.llm-request-queue: lovebug-llm-request`로 우리와 같은 큐를 본다.
 
@@ -531,3 +560,150 @@ uvicorn을 감싸기만 하면 FastAPI HTTP 요청(`/health`·`/extract`·`/cont
 3. `/lovebug/otel/*` 파라미터를 못 읽는 상황(IAM 조치 전)에서도 컨테이너가
    `OTEL_SDK_DISABLED=true`로 정상 기동하는지 확인 — 관측 때문에 서비스가 죽으면 안
    된다(백엔드의 `D-98`과 같은 원칙)
+
+---
+
+## REAL 모드 구현 (2026-09-16)
+
+SQS 경로가 `mode=REAL` 메시지를 받으면 `REAL_MODE_NOT_IMPLEMENTED` 실패 콜백으로
+끝내던 것을 실제 처리로 바꿨다. **판정 로직은 한 줄도 새로 안 썼다** — `app/service.py`의
+`run_extract`/`run_contrast`를 그대로 부른다(HTTP든 SQS든 같은 함수를 쓴다는 기존 원칙).
+새로 쓴 것은 그 **앞뒤** 두 가지다.
+
+### 앞 — 입력 조립 (메시지엔 식별자만 있다, `D-69`)
+
+- 추출: `sourceDocumentIds`의 현재 발행 버전을 `fetch_documents`로 읽는다.
+  `dictionaryId`가 `null`이면(첫 회차 추출, 5-3) 사전집 조회를 건너뛴다.
+- 대조: `documentVersionNo`가 지정한 버전을 읽어야 한다(5-4). 기존 `fetch_document_body`는
+  본문만 돌려줘 제목이 없어서(프롬프트에 제목이 들어간다) `fetch_document_version`을
+  새로 만들고 `fetch_document_body`는 그걸 감싸게 바꿨다.
+- **대조의 기준 사전집은 메시지에 없다.** `LlmJobRequest.documentCheck`가 `dictionaryId`를
+  항상 `null`로 보내는 것을 백엔드 코드에서 확인했다 — 그래서 `workspaceId`의 활성
+  사전집(`status='ACTIVE'`)을 직접 찾는 `fetch_active_dictionary_entries`를 추가했다.
+- 메시지엔 `dictionaryVersionNo`가 없다. 판정에 안 쓰이고 콜백 본문(6-1·6-2)에도 없는
+  필드라 지어내지 않고 `0`을 넣는다.
+
+### 뒤 — 출력 검증 (백엔드는 한 건이 틀리면 **결과 전체**를 거절한다)
+
+`ExtractionResultValidator`·`CheckSuggestionValidator`를 실제로 읽고 맞췄다. 한 건 때문에
+스물아홉 건을 잃지 않도록, 규격을 못 채우는 항목은 워커가 **버리고** 나머지를 보낸다.
+
+- `occurrenceCount < 1`인 후보어를 버린다 — 출현 횟수는 문서를 리터럴로 훑어 세므로
+  (`normalize.count_all`) 0은 모델이 문서에 없는 표기를 지어냈다는 뜻이다.
+- 표기가 겹치는 후보어를 버린다 — 검증기가 배열 안의 중복을 거절하고,
+  `candidate_term`의 `(draft_dictionary_id, form)`이 유니크다.
+- `occurredDocumentIds`를 요청 집합으로 필터링한다. 반대로 콜백의 `sourceDocumentIds`는
+  **요청받은 것을 그대로** 싣는다(실제로 읽은 문서가 더 적어도) — 백엔드가 집합이 같은지
+  본다(`DraftDictionaryExtractionExecutionService.complete`).
+- **갈래형(HOMOGRAPH)은 뜻이 여럿인데 후보어엔 정의가 한 칸뿐이다.** 같은 표기로 여러 건
+  보내면 중복으로 전체가 거절되므로, 갈래를 정의 한 칸에 `라벨: 정의 / 라벨: 정의`로 나열해
+  **한 건**으로 보낸다. 어느 뜻으로 등재할지는 사람이 교정 화면에서 정한다.
+- 컬럼 상한을 넘는 값을 미리 걸러낸다(`V1__init_schema.sql` 확인) — `form`·`variant_form`
+  varchar(200), `proposed_english_name` varchar(200), `snippet` varchar(1000),
+  `origin_term`·`suggestion_term` varchar(255). 검증기를 통과하고 **저장 단계에서** 500으로
+  죽는 자리라 검증기만 봐선 안 걸린다. 표기는 자르면 딴 말이 되므로 버리고, 영문명·스니펫은
+  버리거나 자른다.
+- 대조는 백엔드와 **같은 판정**을 미리 한 번 한다 — `body[start:end] != originTerm`이면 버린다.
+  같은 구간에 두 번 제안하는 것도 막는다(한 자리에 제안어가 둘 생기면 하나를 적용해도 남는다).
+- **앵커 오프셋 단위 변환을 `app/anchor.py`로 분리했다** — 6-2는 UTF-16 code unit이고 파이썬
+  인덱스는 코드포인트다. MOCK 경로에 있던 `_utf16_length`를 여기로 옮겨 REAL과 공유한다.
+
+### 실패 처리
+
+`RealJobError(reason, code)`로 올리고 `_real_callback_for`가 실패 콜백(6-3)으로 바꾼다.
+**메시지는 지운다** — 모델 호출은 이미 자체 재시도(키·모델 폴백, 5xx 2회)를 다 소진한 뒤에야
+예외를 올리므로, 재배달에 맡기면 같은 실패를 비싸게 반복하다 백엔드 타임아웃 스위퍼에 회수될
+뿐이다(7-3). `reason`은 사용자 화면에 그대로 보이므로 분류되지 않은 예외도 내부 메시지를
+흘리지 않고 일반 문장으로 끝낸다.
+
+| code | 뜻 |
+| --- | --- |
+| `INVALID_REQUEST` | 작업 종류에 필요한 식별자가 없다 |
+| `BACKEND_DB_READ_FAILED` | 문서·사전집 조회 실패 |
+| `DOCUMENT_NOT_FOUND` | 대상 문서 본문이 없거나 삭제됨 |
+| `DICTIONARY_NOT_FOUND` | 워크스페이스에 활성 사전집이 없다(대조 전용) |
+| `LLM_CALL_FAILED` | 판정 파이프라인이 끝내 실패 |
+| `UNEXPECTED_ERROR` | 위로 분류되지 않은 예외 |
+
+### 바뀐 파일
+
+- `app/anchor.py` 신규 — UTF-16 앵커 변환
+- `app/real_job.py` 신규 — REAL 대역(입력 조립 + 출력 검증)
+- `app/backend_db.py` — `fetch_document_version`·`fetch_active_dictionary_entries` 추가,
+  `fetch_document_body`는 앞의 것을 감싸는 형태로 정리
+- `app/queue_consumer.py` — `mode=REAL`을 `_real_callback_for`로 분기, `_suggestion`이
+  `app/anchor.py`를 쓰게 정리
+- `tests/test_real_job.py` 신규(23개), `tests/test_queue_consumer.py`의 REAL 테스트 교체(5개)
+- `.env.example` — REAL 환경에는 Gemini 키와 MySQL이 **둘 다** 필요하다는 주의 추가
+
+### 계약 일치 확인 (실제 Spring 코드와 대조, 추측 아님)
+
+`final/backend`의 record 컴포넌트 이름을 파싱해 워커가 만드는 콜백 본문의 키와 기계적으로
+비교했다 — `ExtractionResultCallbackRequest`·`CheckResultCallbackRequest`·
+`JobFailureCallbackRequest`(추출·대조 둘 다)·`ExtractedTermRequest`·`CheckSuggestionRequest`·
+`TextRangeRequest` **전부 일치**. 경로도 컨트롤러의 `@RequestMapping`과 일치
+(`/api/internal/llm/{extractions|checks}/{jobId}/{result|failure}`).
+
+### E2E 검증 (2026-09-16, 실제 Spring·MySQL·LocalStack)
+
+**실제 백엔드까지 끝까지 돌렸다.** 구성은 이렇다 — LocalStack SQS(`lovebug-llm-request`),
+로컬 `ubidic` MySQL, 호스트에서 `dev` 프로파일로 뜬 실제 Spring(`:8080`), 호스트에서 뜬 워커
+(`uvicorn`, `:8000`).
+
+**Spring 이 발행하게 하지 않았다.** 떠 있는 백엔드에 `AI_MODE` 가 없어 dev 기본값 `mock` 으로
+발행하고 그 프로세스의 환경변수는 밖에서 못 바꾼다. 그래서 **작업 행만 실제 테이블에
+넣고**(Spring 이 접수한 직후와 같은 상태: `RUNNING` + `request_id`) 요청 메시지는 `mode=REAL` 로
+직접 발행했다. 콜백을 받는 쪽은 실제 Spring 이라 `requestId` 대조·결과 검증·초안 생성이 전부
+실제 코드로 실행된다.
+
+**모델 호출만 파이프라인 자체의 캐시로 대체했다.** 저장소·셸 어디에도 `GEMINI_API_KEY` 가
+없다. `pipeline/llm.py` 는 호출 전에 `sha256(model+prompt)` 캐시를 먼저 보고 히트하면 API 키를
+아예 읽지 않으므로, 그 프롬프트에 대한 응답을 미리 넣어 **API 호출 0회**로 나머지 전 구간을
+실제로 돌렸다. 캐시 키를 맞추려고 `real_job` 과 **같은 방식으로** 요청 객체를 만들어 같은
+`_build_prompt` 를 호출했다.
+
+결과:
+
+| 작업 | 콜백 | Spring 이 기록한 것 |
+| --- | --- | --- |
+| `TERM_EXTRACTION` (문서 2건, 첫 회차라 `dictionaryId=null`) | **204** | `extraction_job` → `SUCCEEDED`, `draft_dictionary` 생성, 후보어 3건 등재 |
+| `DOCUMENT_CHECK` (문서 1건, `documentVersionNo=1`) | **204** | `check_job` → `SUCCEEDED`, `draft_document` 생성, 제안어 `유저`→`이용자` |
+| `DOCUMENT_CHECK` (없는 `documentId`) | **204** | `check_job` → `FAILED`, `failure_reason="대조할 문서 본문을 찾지 못했습니다."` |
+
+확인된 것:
+
+- **앵커가 실제로 맞았다.** 제안어가 `start_offset=18, end_offset=20` 으로 저장됐고 본문
+  `"# 결제 정책\n\n**로그인**한 유저는…"` 의 그 구간이 정확히 `유저`다 —
+  `CheckSuggestionValidator` 를 통과했다는 뜻이다(어긋나면 결과 전체가 409 로 거절된다).
+- **갈래형 나열이 실제로 나갔다.** 워커가 보낸 `결제` 후보어의 정의가
+  `"결제 행위: 대금을 실제로 지급하는 행위 / 결제 완료 상태: 대금 지급이 끝난 주문의 상태"` 였다.
+  다만 **DB 에는 안 들어갔다** — 활성 사전집의 `결제` 가 이미 승계(EXISTING) 후보어로 실려 있어
+  백엔드가 표기 중복으로 건너뛴다(`DraftDictionaryExtractionExecutionService` 의 `knownForms`).
+  의도된 백엔드 동작이고 워커 쪽 결함이 아니다.
+- **환각 제안 필터가 돌았다.** 캐시에 일부러 넣은 4건 중 3건(사전집에 없는 `termId`, 문서에 없는
+  `matchedText`, 이미 표준어인 표기)이 버려지고 1건만 콜백에 실렸다.
+- **404 도 계약대로 처리했다.** 처음엔 작업 행이 없는 `jobId` 로 보내 404 를 받았고, 워커는
+  재시도하지 않고 메시지를 지웠다(7-1).
+- 큐 잔량 0 — 모든 메시지가 정상 ack 됐다.
+
+**테스트 데이터는 전부 원상복구했다.** 9000번대 id 로만 넣고, 파생된 `draft_dictionary`·
+`candidate_term`·`draft_document`·`suggestion_term` 까지 찾아 지웠다. 삭제 후 원래 데이터
+(workspace 1·document 1·member 1·draft_dictionary 1)는 그대로다. `.cache`·`logs` 도 지웠다.
+
+### 아직 안 한 것
+
+- [ ] **실제 Gemini 호출은 여전히 미검증이다.** 위 E2E 는 모델 응답만 캐시로 대체했다 —
+      프롬프트 조립·모델 폴백 체인·토큰 집계는 이 저장소에서 이전에 확인했지만(9번 항목),
+      `mode=REAL` 경로로 실제 키를 써서 부른 적은 없다. 키가 생기면 같은 구성에서
+      `.cache` 만 비우고 다시 돌리면 된다
+- [ ] **Spring 이 스스로 `mode=REAL` 을 발행하는 경로는 미검증이다.** `AI_MODE=real` 로 백엔드를
+      띄우고 실제 접수 API(`POST /api/draft-dictionaries/extractions`)부터 시작하는 흐름은
+      아직 안 돌렸다. 위 E2E 는 작업 행을 직접 넣어 그 앞단을 건너뛰었다
+- [ ] `requestedAt`의 직렬화 형태를 양쪽 테스트가 아무도 고정하지 않는다. Spring Boot
+      기본값(`WRITE_DATES_AS_TIMESTAMPS` 비활성)이면 ISO-8601 문자열이라 지금 스키마
+      (`requestedAt: str`)로 파싱되지만, 누가 그 설정을 켜면 **메시지 파싱부터** 실패한다
+      (워커는 이 값을 쓰지 않는다). `SqsLlmJobRequestSenderTest`에 문자열 단정을 한 줄
+      넣어 두는 게 싸다
+- [ ] 갈래형을 정의 한 칸에 나열하는 방식이 교정 화면에서 읽을 만한지는 실제로 봐야 한다.
+      백엔드에 갈래 개념이 없어(`CandidateTerm`은 표기 하나에 정의 하나) 워커 쪽에서
+      고를 수 있는 선택지가 이것뿐이었다
