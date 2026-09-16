@@ -120,8 +120,12 @@ export function DocumentDraftPage() {
               : `유지됨 — ${suggestion.rejectReason ?? '사유 없음'}`
           }
           className={cx(
-            'cursor-default border-b-[1.5px] border-dashed',
-            applied ? 'border-success text-success' : 'border-text-faint',
+            'cursor-default border-b-[1.5px]',
+            // 적용된 자리는 개정안 화면과 같은 GitHub diff 빨강 — 초록 글자만으로는 본문에서
+            // 눈에 띄지 않았다.
+            applied
+              ? 'rounded-xs border-diff-removed-border bg-diff-removed-bg px-[2px] font-semibold text-diff-removed'
+              : 'border-dashed border-text-faint',
           )}
         >
           {text}
