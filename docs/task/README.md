@@ -58,6 +58,7 @@
 | [T-INT-22](T-INT-22-dictionary-draft-single-page.md) | 사전집 초안 단일 페이지 전환(백엔드+프런트) | A | T-INT-21 | **코드 작성 완료**(컨테이너 테스트 미검증 — Docker 디스크 부족, 2026-09-15) | |
 | [T-INT-23](T-INT-23-observability.md) | OpenTelemetry 관측성 도입(Grafana Cloud) | B | 없음 | **진행중**(2026-09-15) | WLSH-173 |
 | [T-INT-24](T-INT-24-flyway-schema-alignment.md) | Flyway 재도입과 스키마 ↔ 엔티티 정합 | B | 없음 | **진행중**(2026-09-16) — 1~3단계. `prod` 재개는 분리 | |
+| [T-INT-25](T-INT-25-ai-job-concurrency.md) | AI 작업 동시성과 LLM 중복 호출 차단 | B | 없음 | **완료**(2026-09-16) — 배포 전 `REDIS_URL` 주입만 남음 | |
 
 **트랙 A**(프론트 목업 제거, T-INT-9~16)는 서로 완전히 독립이라 몇 명이 동시에 붙어도
 된다. **트랙 B**(SQS↔FastAPI 실연동)는 T-INT-7 → T-INT-8 → T-INT-17 순서로 이어진다.

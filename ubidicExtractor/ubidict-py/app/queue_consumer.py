@@ -4,6 +4,11 @@ Spring 계약은 응답 큐를 쓰지 않는다. 워커는 요청 메시지의 `
 그대로 본문에 넣어 ``/api/internal/llm/**``으로 콜백하고, 2xx·4xx면 메시지를
 삭제하며 5xx·네트워크 오류만 SQS 재시도에 맡긴다.
 
+**메시지의 ``mode``가 세 대역을 가른다**(``docs/AI_CONTRACT.md`` 5-2).
+``STUB``은 빈 결과, ``MOCK``은 규격을 충족하는 고정 결과를 여기서 직접 만든다 —
+둘 다 모델을 부르지 않는다. ``REAL``은 `app/real_job.py`로 넘긴다. 그쪽이 백엔드
+DB를 읽고 판정 파이프라인(``app/service.py``)을 돌려 실제 결과를 만든다.
+
 `SQS_REQUEST_QUEUE_URL`이 `.env`에 없으면 컨슈머를 아예 시작하지 않는다
 — 로컬에서 HTTP 엔드포인트(`/extract`·`/contrast`)만으로 개발·테스트할 때
 AWS 자격증명이 없어도 앱이 뜨게 하기 위해서다.
@@ -26,9 +31,12 @@ from urllib.request import Request, urlopen
 
 import boto3
 
+from app.anchor import anchor_for
 from app.backend_db import fetch_active_preferred_forms, fetch_document_body
+from app.claim import ClaimUnavailableError, claim_request
 from app.mock_delay import sleep_mock_delay
 from app.queue_schema import LlmJobRequest
+from app.real_job import RealJobError, run_real_check, run_real_extraction
 
 logger = logging.getLogger("queue_consumer")
 
@@ -109,8 +117,30 @@ def _handle_message(client, queue_url: str, message: dict) -> None:
         logger.exception("메시지 파싱 실패 — 형식이 잘못됐다. 삭제하지 않고 DLQ 정책에 맡긴다.")
         return
 
+    # 모델을 부르기 전에 requestId 를 선점한다(docs/AI_CONTRACT.md 7-2-2). 큐가
+    # at-least-once 라 이것이 없으면 재배달분이 같은 작업으로 모델을 한 번 더 부른다
+    # — 백엔드의 콜백 멱등은 초안만 하나로 접을 뿐 이미 나간 호출을 되돌리지 못한다.
+    claim_failure: tuple[str, dict] | None = None
+    if job.mode == "REAL":
+        try:
+            if not claim_request(job.requestId):
+                # 이미 다른 배달분이 잡았다. 결과는 그쪽 콜백이 전달하고, 그마저 실패하면
+                # 백엔드의 타임아웃 스위퍼가 회수한다 — 여기서 콜백을 보내지 않는다.
+                client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
+                logger.info(
+                    "jobId=%s requestId=%s 이미 선점된 요청 — 모델을 부르지 않고 메시지를 지운다",
+                    job.jobId,
+                    job.requestId,
+                )
+                return
+        except ClaimUnavailableError:
+            # 선점 여부를 모르는 채로 부르면 이 장치가 막으려던 일이 그대로 일어난다.
+            # 모델을 부르지 않고 사유를 남겨 작업을 끝낸다(6-3).
+            logger.exception("jobId=%s 선점 저장소에 닿지 못했다 — 모델을 부르지 않고 작업을 실패로 끝낸다", job.jobId)
+            claim_failure = _failure_callback(job, "중복 호출 방지 장치에 연결하지 못했습니다.", "CLAIM_UNAVAILABLE")
+
     try:
-        callback_path, body = _callback_for(job)
+        callback_path, body = claim_failure or _callback_for(job)
         status = _post_callback(callback_path, body)
     except Exception:
         logger.exception("jobId=%s 콜백 전송 실패 — 메시지를 삭제하지 않는다", job.jobId)
@@ -126,12 +156,12 @@ def _handle_message(client, queue_url: str, message: dict) -> None:
 def _callback_for(job: LlmJobRequest) -> tuple[str, dict]:
     """요청 모드와 작업 종류에 맞는 Spring 콜백 경로·본문을 만든다."""
     if job.mode == "REAL":
-        return _failure_callback(job, "REAL 모드는 아직 이 워커에 구현되지 않았습니다.", "REAL_MODE_NOT_IMPLEMENTED")
+        return _real_callback_for(job)
 
     if job.jobType == "TERM_EXTRACTION":
         if not job.sourceDocumentIds:
             return _failure_callback(job, "용어 추출 요청에 sourceDocumentIds가 없습니다.", "INVALID_REQUEST")
-        # REAL 은 위에서 실패로 끊었으므로 남은 값은 STUB·MOCK 뿐이다. 그래도 else 로
+        # REAL 은 위에서 갈라졌으므로 남은 값은 STUB·MOCK 뿐이다. 그래도 else 로
         # 뭉치지 않는다 — 모드가 하나 늘면 조용히 mock 데이터를 돌려주게 된다.
         if job.mode == "MOCK":
             sleep_mock_delay()
@@ -206,22 +236,52 @@ def _mock_suggestions(body: str, preferred_forms: list[str]) -> list[dict]:
 
 
 def _suggestion(body: str, index: int, origin: str, replacement: str) -> dict:
-    start = _utf16_length(body[:index])
     return {
-        "anchor": {"startOffset": start, "endOffset": start + _utf16_length(origin)},
+        "anchor": anchor_for(body, index, index + len(origin)),
         "originTerm": origin,
         "suggestionTerm": replacement,
     }
 
 
-def _utf16_length(text: str) -> int:
-    """Java String.substring 이 세는 UTF-16 코드 유닛 길이.
+def _real_callback_for(job: LlmJobRequest) -> tuple[str, dict]:
+    """REAL 대역(`app/real_job.py`)을 돌리고, 실패하면 결과 대신 **실패 콜백**을 만든다.
 
-    파이썬 문자열 인덱스는 코드 포인트라 한글·영문에서는 같은 값이지만, 이모지 같은
-    BMP 밖 문자가 본문에 있으면 한 글자가 2 유닛이라 어긋난다 — 앵커가 한 칸씩 밀려
-    검증에서 떨어지므로 여기서 맞춰 센다.
+    실패를 콜백으로 끝내고 메시지를 지우는 쪽을 고른다. 모델 호출은 이미 자체 재시도(키·
+    모델 폴백, 5xx 2회)를 다 소진한 뒤에야 예외를 올리므로(`pipeline/llm.py`), 여기서
+    메시지를 남겨 SQS 재배달에 맡기면 같은 실패를 비싸게 반복하다 백엔드 타임아웃
+    스위퍼에 회수될 뿐이다(`docs/AI_CONTRACT.md` 7-3). 사용자에게 사유를 보여주고 다시
+    요청할 기회를 주는 게 낫다(6-3).
     """
-    return len(text.encode("utf-16-le")) // 2
+    try:
+        if job.jobType == "TERM_EXTRACTION":
+            if not job.sourceDocumentIds:
+                return _failure_callback(job, "용어 추출 요청에 sourceDocumentIds가 없습니다.", "INVALID_REQUEST")
+            return (
+                f"/api/internal/llm/extractions/{job.jobId}/result",
+                {
+                    "requestId": job.requestId,
+                    # 요청의 집합과 완전히 같아야 한다(6-1) — 실제로 읽은 문서가 더 적어도
+                    # 여기엔 요청받은 것을 그대로 싣는다.
+                    "sourceDocumentIds": job.sourceDocumentIds,
+                    "terms": run_real_extraction(job),
+                },
+            )
+        return (
+            f"/api/internal/llm/checks/{job.jobId}/result",
+            {
+                "requestId": job.requestId,
+                "documentVersionNo": job.documentVersionNo,
+                "suggestions": run_real_check(job),
+            },
+        )
+    except RealJobError as error:
+        logger.warning("jobId=%s REAL 대역 실패. code=%s", job.jobId, error.code)
+        return _failure_callback(job, error.reason, error.code)
+    except Exception:
+        # 분류하지 못한 예외. 사유를 지어내지 않고 일반 문장으로 끝낸다 — `reason`은
+        # 사용자에게 그대로 보이므로 내부 메시지를 흘리지 않는다(6-3).
+        logger.exception("jobId=%s REAL 대역이 분류되지 않은 예외로 실패했다", job.jobId)
+        return _failure_callback(job, "작업을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.", "UNEXPECTED_ERROR")
 
 
 def _mock_term(document_id: int) -> dict:
