@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Banner, Button, Card, Toggle } from '../../shared/ui'
+import { Button, Card } from '../../shared/ui'
 import { ApiError } from '../../shared/api/httpClient'
 import { useRuleSet } from '../../features/workspace/hooks/useRuleSet'
 import { useUpdateRuleSet } from '../../features/workspace/hooks/useUpdateRuleSet'
@@ -59,7 +59,11 @@ export function SettingsRulesetPage() {
   const { workspaceId = '' } = useParams<{ workspaceId: string }>()
   const { data: ruleSet } = useRuleSet(workspaceId)
   const { data: workspace } = useWorkspace(workspaceId)
-  const { data: members } = useWorkspaceMembers(workspaceId)
+  const {
+    data: members,
+    isLoading: isMembersLoading,
+    isError: isMembersError,
+  } = useWorkspaceMembers(workspaceId)
   const updateRuleSet = useUpdateRuleSet(workspaceId)
 
   // 서버 값이 기준이고, 사용자가 만진 것만 덮는다 — effect로 state를 채우지 않는다.
@@ -70,19 +74,16 @@ export function SettingsRulesetPage() {
     dictionaryOverride ?? ruleSet?.requiredDictionaryReviewerCount ?? 0
 
   const memberCount = members?.length ?? 0
-  // 요청자는 자기 요청을 승인할 수 없으므로 최대 정족수는 "참여자 - 1"이다.
+  // 요청자는 자기 요청을 승인할 수 없으므로 최대 정족수는 "참여자 - 1"이다(`D-110`).
+  // 백엔드 `RuleSetValidator`가 같은 상한을 쓴다 — 넘겨 보내면 400이다.
   const maxReviewers = Math.max(0, memberCount - 1)
-  const canEdit = workspace?.myPermission === 'OWNER' || workspace?.myPermission === 'ADMIN'
+  const isAdminOrAbove = workspace?.myPermission === 'OWNER' || workspace?.myPermission === 'ADMIN'
+  // 멤버 수를 모르면 상한도 모른다 — 0명으로 읽어 잘못된 상한으로 저장하지 않도록 잠근다.
+  const canEdit = isAdminOrAbove && !isMembersLoading && !isMembersError
   const isDirty = documentOverride !== null || dictionaryOverride !== null
 
   return (
     <div className="flex max-w-[640px] flex-col gap-[22px]">
-      <Banner className="leading-[1.7]">
-        ADMIN 이상만 변경할 수 있습니다. 현재 멤버는 {memberCount}명이므로 최대{' '}
-        {maxReviewers}명까지 설정할 수 있습니다. 후보 승인은 사전집 개정안 화면에서
-        이뤄집니다.
-      </Banner>
-
       <Card className="flex flex-col gap-4 p-[22px]">
         <p className="text-sm font-bold">용어 승인</p>
         <div className="flex items-center gap-[14px]">
@@ -96,17 +97,8 @@ export function SettingsRulesetPage() {
           />
         </div>
         <p className="text-[11.5px] text-text-tertiary">
-          본인이 올린 요청은 본인이 승인할 수 없습니다 (변경 불가)
+          본인이 올린 요청은 본인이 승인할 수 없습니다.
         </p>
-        <div className="flex items-center justify-between border-t border-border-soft pt-[14px]">
-          <span className="text-[13px] text-text-secondary">
-            승인 후 내용이 바뀌면 기존 승인을 무효화
-            <span className="ml-2 text-[11px] text-text-quaternary">
-              재교정이 돌면 회차가 올라가 기존 승인이 무효화됩니다 · 변경 불가
-            </span>
-          </span>
-          <Toggle on label="승인 무효화(고정)" />
-        </div>
       </Card>
 
       <Card className="flex flex-col gap-4 p-[22px]">
@@ -121,15 +113,9 @@ export function SettingsRulesetPage() {
             disabled={!canEdit}
           />
         </div>
-        <div className="flex items-center justify-between border-t border-border-soft pt-[14px]">
-          <span className="text-[13px] text-text-secondary">
-            작성자 본인도 리뷰어로 셀 수 있음
-            <span className="ml-2 text-[11px] text-text-quaternary">
-              요청자는 리뷰어에서 제외됩니다 · 변경 불가
-            </span>
-          </span>
-          <Toggle on={false} label="작성자 리뷰어 포함(고정)" />
-        </div>
+        <p className="text-[11.5px] text-text-tertiary">
+          요청자는 리뷰어에서 제외됩니다.
+        </p>
       </Card>
 
       {updateRuleSet.isError && (

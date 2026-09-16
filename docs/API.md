@@ -517,7 +517,7 @@ Owner는 내보낼 수 없으며, Admin은 Regular 참여자만 내보낼 수 �
 
 `PATCH /api/workspaces/{workspaceId}/rule-set` → `200 OK`
 
-**ADMIN 이상**만 수정할 수 있다. 각 필수 리뷰어 수는 현재 참여자 수 이하만 허용된다.
+**ADMIN 이상**만 수정할 수 있다. 각 필수 리뷰어 수는 **「현재 참여자 수 - 1」 이하**만 허용된다 — 요청자 본인은 자기 요청을 리뷰할 수 없으므로(`REVIEW_REQUEST_SELF_REVIEW_NOT_ALLOWED`) 참여자 수와 같은 정족수는 영원히 채울 수 없다. 상한을 넘기면 `WORKSPACE_REVIEWER_COUNT_EXCEEDS_PARTICIPANTS`(400)다. 참여자가 요청자 혼자인 워크스페이스에서는 `0`만 설정할 수 있다.
 
 ```json
 {

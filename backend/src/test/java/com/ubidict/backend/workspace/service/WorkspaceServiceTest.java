@@ -195,12 +195,26 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
                 });
     }
 
-    @DisplayName("참여자 수를 넘는 룰셋은 수정할 수 없다.")
+    @DisplayName("요청자를 제외한 참여자 수를 넘는 룰셋은 수정할 수 없다.")
     @Test
-    void changeRuleSet_exceedsParticipantCount() {
+    void changeRuleSet_exceedsReviewerCapacity() {
         WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        joinAs(created.workspaceId(), OTHER_MEMBER_ID, Permission.REGULAR);
+
         assertThatThrownBy(() ->
                         workspaceService.changeRuleSet(new UpdateRuleSetCommand(created.workspaceId(), 2, 0, OWNER_ID)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_REVIEWER_COUNT_EXCEEDS_PARTICIPANTS);
+    }
+
+    @DisplayName("참여자가 요청자 혼자면 0보다 큰 룰셋으로 바꿀 수 없다.")
+    @Test
+    void changeRuleSet_soleParticipant() {
+        WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+
+        assertThatThrownBy(() ->
+                        workspaceService.changeRuleSet(new UpdateRuleSetCommand(created.workspaceId(), 1, 0, OWNER_ID)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_REVIEWER_COUNT_EXCEEDS_PARTICIPANTS);
@@ -210,6 +224,8 @@ class WorkspaceServiceTest extends IntegrationTestSupport {
     @Test
     void changeRuleSet_isReflectedImmediately() {
         WorkspaceResult created = workspaceService.create(new CreateWorkspaceCommand("개발팀", OWNER_ID));
+        joinAs(created.workspaceId(), OTHER_MEMBER_ID, Permission.REGULAR);
+
         workspaceService.changeRuleSet(new UpdateRuleSetCommand(created.workspaceId(), 1, 1, OWNER_ID));
 
         WorkspaceResult result = workspaceService.read(created.workspaceId(), OWNER_ID);
