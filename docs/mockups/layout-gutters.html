@@ -1,0 +1,1211 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>본문 여백 미리보기</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /*
+       * 본문(main)과 탑바의 여백을 바꿔 보는 미리보기.
+       *
+       * 사이드바는 2026-09-16 변경분이 이미 반영된 상태로 고정이다 — 글자선 40px,
+       * 알약(hover·활성) 24px. 화면은 꽉 차는 구조 그대로이고, 바깥 프레임 여백은 없다.
+       * 색·반경 토큰 값은 frontend/src/index.css의 @theme와 같다.
+       */
+      :root {
+        --bg: #f7f7f9;
+        --surface: #ffffff;
+        --border: #e6e7eb;
+        --border-strong: #e1e3e7;
+        --border-soft: #f1f2f4;
+        --border-faint: #f5f6f7;
+        --text: #14161a;
+        --text-2: #4b5058;
+        --text-3: #6b7080;
+        --text-4: #9aa0ac;
+        --accent: #5b57f2;
+        --accent-strong: #4a46e0;
+        --accent-bg: #f0eefe;
+        --danger: #b3261e;
+        --danger-bg: #fdecec;
+        --danger-border: #f6c9c7;
+        --neutral-bg: #f1f2f4;
+        --radius-md: 12px;
+        --radius-sm: 8px;
+        --radius-xs: 6px;
+        --pill: 999px;
+        --font-display: 'Sora', system-ui, sans-serif;
+        --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+
+        /* 미리보기에서 바꿔 보는 값 — 그대로 Tailwind 클래스로 옮긴다. */
+        --pad-x: 32px; /* 본문 좌우 패딩 */
+        --pad-y: 28px; /* 본문 위아래 패딩 */
+        --topbar-pad: 28px; /* 탑바 좌우 패딩 */
+        --content-max: none; /* 본문 열 최대폭 */
+        --content-margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #e6e7ec;
+        font-family: var(--font-body);
+        font-size: 13px;
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ── 조작판 ───────────────────────────────────────────── */
+      .controls {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 24px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .controls h1 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .group > .label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--text-4);
+      }
+      .seg {
+        display: flex;
+        gap: 4px;
+        padding: 3px;
+        background: var(--bg);
+        border-radius: var(--radius-sm);
+      }
+      .seg button {
+        border: 0;
+        background: transparent;
+        border-radius: var(--radius-xs);
+        padding: 6px 11px;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-2);
+        cursor: pointer;
+      }
+      .seg button:hover {
+        background: var(--surface);
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--accent-bg);
+        color: var(--accent-strong);
+      }
+      .seg button em {
+        font-style: normal;
+        font-size: 10px;
+        color: var(--text-4);
+      }
+      .seg button[aria-pressed='true'] em {
+        color: var(--accent-strong);
+      }
+      .toggles {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
+        padding-top: 12px;
+        border-top: 1px dashed var(--border-soft);
+      }
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-2);
+        cursor: pointer;
+      }
+      .reset {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: var(--radius-sm);
+        padding: 6px 11px;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-2);
+        cursor: pointer;
+      }
+      .note {
+        margin-left: auto;
+        font-size: 11.5px;
+        color: var(--text-3);
+      }
+      .note b {
+        color: var(--accent-strong);
+      }
+
+      /* ── 무대(브라우저 창 흉내) ──────────────────────────── */
+      .stage-wrap {
+        padding: 24px;
+      }
+      .stage-caption {
+        margin: 0 0 10px;
+        font-size: 11.5px;
+        color: var(--text-3);
+      }
+      .stage-caption code {
+        font-size: 11px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1px 5px;
+      }
+      .stage-scaler {
+        transform-origin: top left;
+      }
+      .stage {
+        position: relative;
+        width: 1440px;
+        height: 800px;
+        display: flex;
+        background: var(--bg);
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 14px 40px rgba(16, 24, 40, 0.14);
+      }
+
+      /* ── 사이드바 (현재 코드 그대로 — 글자선 40px) ───────── */
+      .sidebar {
+        width: 248px;
+        flex: 0 0 248px;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border-right: 1px solid var(--border-soft);
+      }
+      .sb-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 18px 40px 16px; /* px-10 pb-4 pt-[18px] */
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .logo {
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+        display: grid;
+        place-items: center;
+        border-radius: var(--radius-xs);
+        background: var(--accent);
+        color: #fff;
+        font-family: var(--font-display);
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .sb-head span {
+        font-family: var(--font-display);
+        font-size: 13.5px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .sb-nav {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 14px 24px; /* px-6 py-[14px] */
+      }
+      .sb-group-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 16px 6px; /* px-4 */
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--text-4);
+      }
+      .sb-item {
+        display: block;
+        padding: 8px 16px; /* px-4 py-2 */
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-2);
+        text-decoration: none;
+      }
+      .sb-item.active {
+        background: var(--accent-bg);
+        color: var(--accent-strong);
+      }
+      .sb-foot {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 40px; /* px-10 py-[14px] */
+        border-top: 1px solid var(--border-soft);
+      }
+      .avatar {
+        display: grid;
+        place-items: center;
+        border-radius: var(--pill);
+        background: var(--accent-bg);
+        color: var(--accent-strong);
+        font-weight: 700;
+      }
+      .avatar.a30 {
+        width: 30px;
+        height: 30px;
+        flex: 0 0 30px;
+        font-size: 12px;
+      }
+      .avatar.a26 {
+        width: 26px;
+        height: 26px;
+        font-size: 10px;
+        border: 2px solid var(--surface);
+      }
+      .avatar.warn {
+        background: #fff3dc;
+        color: #92590b;
+      }
+      .avatar.success {
+        background: #e8f6ee;
+        color: #1f7a4d;
+      }
+      .avatar.neutral {
+        background: var(--neutral-bg);
+        color: var(--text-3);
+      }
+      .sb-foot .name {
+        flex: 1;
+        min-width: 0;
+        font-size: 12.5px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .perm {
+        border-radius: 5px;
+        background: var(--accent-bg);
+        padding: 2px 7px;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--accent-strong);
+      }
+
+      /* ── 본문 영역 (여기가 이번 미리보기 대상) ───────────── */
+      .body-col {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 0;
+      }
+      .topbar {
+        position: relative;
+        height: 64px;
+        flex: 0 0 64px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .topbar-inner {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        max-width: var(--content-max);
+        margin-inline: var(--content-margin);
+        padding-inline: var(--topbar-pad);
+      }
+      .topbar-title {
+        font-family: var(--font-display);
+        font-size: 17px;
+        font-weight: 700;
+      }
+      .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .stack {
+        display: flex;
+      }
+      .stack .avatar.a26 + .avatar.a26 {
+        margin-left: -8px;
+      }
+      .bell {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        border-radius: var(--radius-sm);
+      }
+      .bell i {
+        display: block;
+        width: 16px;
+        height: 16px;
+        border: 1.6px solid var(--text-3);
+        border-radius: 50% 50% 50% 4px;
+      }
+
+      main {
+        position: relative;
+        flex: 1;
+        overflow: auto;
+      }
+      .main-inner {
+        max-width: var(--content-max);
+        margin-inline: var(--content-margin);
+        padding: var(--pad-y) var(--pad-x);
+      }
+      .narrow {
+        max-width: 640px;
+      }
+
+      .screen-title {
+        margin: 0 0 6px;
+        font-family: var(--font-display);
+        font-size: 19px;
+        font-weight: 700;
+      }
+      .screen-sub {
+        margin: 0 0 20px;
+        font-size: 12.5px;
+        line-height: 1.7;
+        color: var(--text-3);
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .input {
+        width: 220px;
+        padding: 7px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        font-family: inherit;
+        font-size: 12.5px;
+        color: var(--text-3);
+      }
+      .btn {
+        padding: 7px 13px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        font-family: inherit;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--text-2);
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .spacer {
+        flex: 1;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+      }
+      th {
+        padding: 11px 16px;
+        border-bottom: 1px solid var(--border-soft);
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-4);
+        white-space: nowrap;
+      }
+      td {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-faint);
+        color: var(--text-2);
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td .title {
+        font-weight: 700;
+        color: var(--text);
+      }
+      td .excerpt {
+        margin-top: 2px;
+        font-size: 11.5px;
+        color: var(--text-4);
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: var(--pill);
+        padding: 2px 9px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .pill.outline {
+        border: 1px solid var(--border);
+        color: var(--text-3);
+      }
+      .pill.accent {
+        background: var(--accent-bg);
+        color: var(--accent-strong);
+      }
+      .pill.danger {
+        background: var(--danger-bg);
+        color: var(--danger);
+      }
+      .pill.neutral {
+        background: var(--neutral-bg);
+        color: var(--text-3);
+      }
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        max-width: 240px;
+      }
+      .field {
+        padding: 18px;
+        border-bottom: 1px solid var(--border-faint);
+      }
+      .field:last-child {
+        border-bottom: 0;
+      }
+      .field .k {
+        font-size: 12.5px;
+        font-weight: 700;
+      }
+      .field .d {
+        margin-top: 4px;
+        font-size: 11.5px;
+        line-height: 1.7;
+        color: var(--text-3);
+      }
+      .field .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .stepper {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .stepper .box {
+        width: 54px;
+        padding: 6px 8px;
+        text-align: center;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+
+      /* ── 여백 표시 오버레이 ───────────────────────────────── */
+      .overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        display: none;
+      }
+      body[data-guides='on'] .overlay {
+        display: block;
+      }
+      /* 본문 좌우 여백 */
+      .gutter {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        background: repeating-linear-gradient(
+          -45deg,
+          rgba(91, 87, 242, 0.12) 0 6px,
+          rgba(91, 87, 242, 0.04) 6px 12px
+        );
+        border-inline: 1px dashed rgba(91, 87, 242, 0.5);
+      }
+      .gutter span {
+        position: absolute;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        background: var(--accent);
+        color: #fff;
+        border-radius: var(--pill);
+        padding: 3px 9px;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      /* 본문 위아래 여백 */
+      .pad-y-bar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        background: rgba(91, 87, 242, 0.07);
+        border-bottom: 1px dashed rgba(91, 87, 242, 0.4);
+      }
+      /* 탑바 ↔ 본문 시작점 정렬선 */
+      .align-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 0;
+        border-left: 1px dashed rgba(178, 38, 30, 0.75);
+        display: none;
+      }
+      body[data-guides='on'] .align-line.show {
+        display: block;
+      }
+      .align-line.ok {
+        border-left-color: rgba(31, 122, 77, 0.7);
+      }
+
+      .readout {
+        position: absolute;
+        left: 50%;
+        bottom: 14px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        white-space: nowrap;
+      }
+      .chip {
+        border-radius: var(--pill);
+        padding: 5px 14px;
+        font-size: 11.5px;
+        font-weight: 700;
+      }
+      .chip.same {
+        background: #e8f6ee;
+        color: #1f7a4d;
+        border: 1px solid #c8ecda;
+      }
+      .chip.diff {
+        background: var(--danger-bg);
+        color: var(--danger);
+        border: 1px solid var(--danger-border);
+      }
+
+      .legend {
+        padding: 0 24px 28px;
+        font-size: 12px;
+        line-height: 1.8;
+        color: var(--text-2);
+      }
+      .legend h2 {
+        margin: 18px 0 8px;
+        font-family: var(--font-display);
+        font-size: 13px;
+      }
+      .legend code {
+        font-size: 11.5px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1px 5px;
+      }
+      .legend pre {
+        margin: 6px 0 0;
+        padding: 12px 14px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 11.5px;
+        line-height: 1.7;
+        overflow-x: auto;
+      }
+      .legend ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      .legend table {
+        width: auto;
+        margin-top: 6px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+      }
+      .legend td,
+      .legend th {
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body data-view="list" data-guides="on">
+    <div class="controls">
+      <h1>본문 여백</h1>
+
+      <div class="group">
+        <span class="label">좌우</span>
+        <div class="seg" id="pad-x">
+          <button data-value="24" aria-pressed="false">24</button>
+          <button data-value="32" aria-pressed="true">32 <em>지금</em></button>
+          <button data-value="40" aria-pressed="false">40 <em>사이드바선</em></button>
+          <button data-value="48" aria-pressed="false">48</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">위아래</span>
+        <div class="seg" id="pad-y">
+          <button data-value="20" aria-pressed="false">20</button>
+          <button data-value="28" aria-pressed="true">28 <em>지금</em></button>
+          <button data-value="36" aria-pressed="false">36</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">열 최대폭</span>
+        <div class="seg" id="content-max">
+          <button data-value="0" aria-pressed="true">없음 <em>지금</em></button>
+          <button data-value="1200" aria-pressed="false">1200</button>
+          <button data-value="1400" aria-pressed="false">1400</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">창 폭</span>
+        <div class="seg" id="width">
+          <button data-value="1280" aria-pressed="false">1280</button>
+          <button data-value="1440" aria-pressed="true">1440</button>
+          <button data-value="1728" aria-pressed="false">1728</button>
+          <button data-value="1920" aria-pressed="false">1920</button>
+        </div>
+      </div>
+
+      <div class="toggles">
+        <div class="group">
+          <span class="label">화면</span>
+          <div class="seg" id="view">
+            <button data-value="list" aria-pressed="true">문서 목록</button>
+            <button data-value="form" aria-pressed="false">설정 · 승인 규칙</button>
+          </div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="opt-topbar" />
+          <span>탑바도 본문과 같은 좌우 패딩 (지금은 28px 고정)</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="guides" checked />
+          <span>여백·정렬선 표시</span>
+        </label>
+        <button class="reset" id="reset">지금 값으로 되돌리기</button>
+        <span class="note">사이드바는 <b>어제 정한 40px 기준선</b>으로 고정, 화면은 꽉 참 그대로입니다.</span>
+      </div>
+    </div>
+
+    <div class="stage-wrap">
+      <p class="stage-caption" id="caption"></p>
+      <div class="stage-scaler" id="scaler">
+        <div class="stage" id="stage">
+          <!-- 사이드바 — 현재 코드(글자선 40px / 알약 24px) 그대로 -->
+          <div class="sidebar">
+            <div class="sb-head">
+              <div class="logo">U</div>
+              <span>유비쿼터스 팀</span>
+            </div>
+            <div class="sb-nav">
+              <div>
+                <div class="sb-group-title"><span>문서</span><span>▾</span></div>
+                <a class="sb-item active">문서</a>
+                <a class="sb-item">초안</a>
+                <a class="sb-item">개정안</a>
+              </div>
+              <div>
+                <div class="sb-group-title"><span>사전집</span><span>▾</span></div>
+                <a class="sb-item">사전집</a>
+                <a class="sb-item">초안</a>
+                <a class="sb-item">개정안</a>
+                <a class="sb-item">리비전 이력</a>
+              </div>
+              <div style="margin-top: auto"><a class="sb-item">설정</a></div>
+            </div>
+            <div class="sb-foot">
+              <div class="avatar a30">예</div>
+              <span class="name">예림</span>
+              <span class="perm">OWNER</span>
+            </div>
+          </div>
+
+          <!-- 본문 -->
+          <div class="body-col">
+            <div class="topbar">
+              <div class="topbar-inner">
+                <div class="topbar-title" id="topbar-title">문서</div>
+                <div class="topbar-right">
+                  <span class="pill accent">사전집 r7</span>
+                  <div class="stack">
+                    <div class="avatar a26">예</div>
+                    <div class="avatar a26 warn">민</div>
+                    <div class="avatar a26 success">지</div>
+                    <div class="avatar a26 neutral">+2</div>
+                  </div>
+                  <div class="bell"><i></i></div>
+                </div>
+              </div>
+            </div>
+
+            <main id="main">
+              <div class="main-inner" id="main-inner">
+                <!-- 목록형 화면 -->
+                <section data-screen="list">
+                  <h2 class="screen-title">문서</h2>
+                  <p class="screen-sub">
+                    워크스페이스의 모든 문서입니다. 사전집 버전이 뒤처진 문서는 배지로
+                    표시됩니다.
+                  </p>
+                  <div class="toolbar">
+                    <input class="input" value="문서 검색" readonly />
+                    <button class="btn">라벨 전체</button>
+                    <button class="btn">목록 · 카드</button>
+                    <span class="spacer"></span>
+                    <button class="btn primary">문서 업로드</button>
+                  </div>
+                  <div class="card">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>문서명</th>
+                          <th>사전집 버전</th>
+                          <th>라벨</th>
+                          <th>작성자</th>
+                          <th>최종 수정자</th>
+                          <th>수정일시</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>
+                            <div class="title">결제 도메인 정책</div>
+                            <div class="excerpt">결제 수단 등록과 승인 흐름을 정리한 문서</div>
+                          </td>
+                          <td><span class="pill outline">r7</span></td>
+                          <td>
+                            <div class="pill-row">
+                              <span class="pill outline">결제</span>
+                              <span class="pill outline">정책</span>
+                            </div>
+                          </td>
+                          <td>예림</td>
+                          <td>—</td>
+                          <td style="color: var(--text-4)">2026. 9. 15. 오후 4:12</td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <div class="title">주문 생성 시퀀스</div>
+                            <div class="excerpt">주문 접수부터 재고 차감까지의 단계</div>
+                          </td>
+                          <td>
+                            <span class="pill outline">r5</span>
+                            <span class="pill danger">재검사 필요</span>
+                          </td>
+                          <td>
+                            <div class="pill-row"><span class="pill outline">주문</span></div>
+                          </td>
+                          <td>민뱅</td>
+                          <td>—</td>
+                          <td style="color: var(--text-4)">2026. 9. 14. 오전 11:03</td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <div class="title">용어 추출 워커 계약</div>
+                            <div class="excerpt">FastAPI 워커와 주고받는 메시지 스키마</div>
+                          </td>
+                          <td>
+                            <span class="pill outline">r6</span>
+                            <span class="pill neutral">뒤처짐</span>
+                          </td>
+                          <td>
+                            <div class="pill-row">
+                              <span class="pill outline">AI</span>
+                              <span class="pill outline">계약</span>
+                              <span class="pill outline">인프라</span>
+                            </div>
+                          </td>
+                          <td>지우</td>
+                          <td>—</td>
+                          <td style="color: var(--text-4)">2026. 9. 12. 오후 6:40</td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <div class="title">알림 발송 규칙</div>
+                            <div class="excerpt">인앱 알림 유형과 발송 시점</div>
+                          </td>
+                          <td><span class="pill outline">r7</span></td>
+                          <td>
+                            <div class="pill-row"><span class="pill outline">알림</span></div>
+                          </td>
+                          <td>예림</td>
+                          <td>—</td>
+                          <td style="color: var(--text-4)">2026. 9. 11. 오후 2:27</td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <div class="title">사전집 발행 체크리스트</div>
+                            <div class="excerpt">개정안을 발행하기 전에 확인하는 항목</div>
+                          </td>
+                          <td><span class="pill outline">r7</span></td>
+                          <td>
+                            <div class="pill-row">
+                              <span class="pill outline">사전집</span>
+                              <span class="pill outline">운영</span>
+                            </div>
+                          </td>
+                          <td>지우</td>
+                          <td>—</td>
+                          <td style="color: var(--text-4)">2026. 9. 10. 오전 9:15</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <!-- 폼형 화면 -->
+                <section data-screen="form" hidden>
+                  <h2 class="screen-title">승인 규칙</h2>
+                  <p class="screen-sub">
+                    리뷰 요청이 승인으로 확정되기 위한 정족수를 정합니다. 일부 항목은 백엔드
+                    필드가 없어 잠겨 있습니다.
+                  </p>
+                  <div class="narrow">
+                    <div class="card">
+                      <div class="field">
+                        <div class="row">
+                          <div>
+                            <div class="k">문서 승인 정족수</div>
+                            <div class="d">문서 초안·개정안이 확정되려면 필요한 승인 수입니다.</div>
+                          </div>
+                          <div class="stepper">
+                            <button class="btn">−</button>
+                            <div class="box">2</div>
+                            <button class="btn">+</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <div class="row">
+                          <div>
+                            <div class="k">사전집 승인 정족수</div>
+                            <div class="d">사전집 개정안이 발행되려면 필요한 승인 수입니다.</div>
+                          </div>
+                          <div class="stepper">
+                            <button class="btn">−</button>
+                            <div class="box">3</div>
+                            <button class="btn">+</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <div class="row">
+                          <div>
+                            <div class="k">재제출 시 기존 승인 무효화</div>
+                            <div class="d">대응하는 RuleSet 필드가 없어 변경할 수 없습니다.</div>
+                          </div>
+                          <span class="pill neutral">변경 불가</span>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <div class="row">
+                          <div>
+                            <div class="k">작성자도 리뷰어로 참여</div>
+                            <div class="d">대응하는 RuleSet 필드가 없어 변경할 수 없습니다.</div>
+                          </div>
+                          <span class="pill neutral">변경 불가</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="overlay" id="overlay">
+                <div class="gutter" id="gutter-left"><span id="left-label"></span></div>
+                <div class="gutter" id="gutter-right"><span id="right-label"></span></div>
+                <div class="pad-y-bar" id="pad-y-bar"></div>
+              </div>
+            </main>
+
+            <!-- 탑바 ↔ 본문 시작점 정렬선 (본문 영역 전체를 가로지른다) -->
+            <div class="align-line" id="align-line"></div>
+          </div>
+
+          <div class="readout" id="readout"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <h2>무엇을 보는 미리보기인가</h2>
+      <ul>
+        <li>
+          지금 본문은 <code>p-6 xl:px-8 xl:py-7</code> — 1280px 이상에서 <b>좌우 32px · 위아래
+          28px</b>입니다. 탑바는 따로 <code>px-7</code>(28px)이라 본문과 <b>4px 어긋나</b> 있습니다.
+        </li>
+        <li>
+          사이드바는 어제 <b>글자선 40px</b>로 바꿨습니다. 본문도 40px로 맞추면 좌우 두 패널의
+          글자가 같은 리듬으로 들어오고, 32px로 두면 본문이 사이드바보다 조금 덜 들어옵니다 —
+          「좌우 40」과 「32」를 번갈아 눌러 비교해 보시면 됩니다.
+        </li>
+        <li>
+          빨간 세로선은 <b>탑바 제목과 본문 제목의 시작점</b>입니다. 두 값이 같아지면 초록으로
+          바뀝니다. 「탑바도 본문과 같은 좌우 패딩」을 켜면 맞춰집니다.
+        </li>
+        <li>
+          「열 최대폭」은 넓은 창에서 표가 지나치게 늘어나는 것을 막는 선택지입니다(1200·1400).
+          켜면 남는 폭이 좌우로 똑같이 나뉩니다.
+        </li>
+      </ul>
+
+      <h2>고른 값을 코드로 옮기면</h2>
+      <pre>// src/app/AppLayout.tsx
+&lt;main className="flex-1 overflow-auto p-6 xl:px-10 xl:py-7"&gt;   {/* 좌우 40 */}
+  &lt;Outlet /&gt;
+&lt;/main&gt;
+
+// src/app/Topbar.tsx — 본문과 같은 선에 맞출 때
+&lt;div className="... px-6 xl:px-10"&gt;
+
+// 열 최대폭을 쓰면 main 안쪽에 한 겹 더 두고 Topbar에도 같은 래퍼를 준다
+&lt;div className="mx-auto w-full max-w-[1200px]"&gt;…&lt;/div&gt;</pre>
+
+      <h2>참고 — 지금 값</h2>
+      <table>
+        <tbody>
+          <tr>
+            <td>본문 좌우</td>
+            <td><code>p-6</code> 24px / <code>xl:px-8</code> 32px</td>
+          </tr>
+          <tr>
+            <td>본문 위아래</td>
+            <td><code>p-6</code> 24px / <code>xl:py-7</code> 28px</td>
+          </tr>
+          <tr>
+            <td>탑바 좌우</td>
+            <td><code>px-7</code> 28px</td>
+          </tr>
+          <tr>
+            <td>사이드바 글자선 / 알약</td>
+            <td>40px / 24px</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      const body = document.body
+      const stage = document.getElementById('stage')
+      const scaler = document.getElementById('scaler')
+      const main = document.getElementById('main')
+      const mainInner = document.getElementById('main-inner')
+      const caption = document.getElementById('caption')
+      const root = document.documentElement.style
+
+      const DEFAULTS = { padX: 32, padY: 28, contentMax: 0, topbar: false }
+      const state = { ...DEFAULTS, stageWidth: 1440 }
+
+      const topbarOption = document.getElementById('opt-topbar')
+
+      function applyState() {
+        root.setProperty('--pad-x', state.padX + 'px')
+        root.setProperty('--pad-y', state.padY + 'px')
+        root.setProperty('--topbar-pad', state.topbar ? state.padX + 'px' : '28px')
+        root.setProperty('--content-max', state.contentMax ? state.contentMax + 'px' : 'none')
+        root.setProperty('--content-margin', state.contentMax ? 'auto' : '0')
+
+        const padClass = { 24: 'xl:px-6', 32: 'xl:px-8', 40: 'xl:px-10', 48: 'xl:px-12' }[state.padX]
+        const padYClass = { 20: 'xl:py-5', 28: 'xl:py-7', 36: 'xl:py-9' }[state.padY]
+        caption.textContent =
+          'main: ' +
+          padClass +
+          ' ' +
+          padYClass +
+          ' (좌우 ' +
+          state.padX +
+          'px · 위아래 ' +
+          state.padY +
+          'px)' +
+          (state.topbar ? ' · 탑바 같은 값' : ' · 탑바 28px 고정') +
+          (state.contentMax ? ' · 열 max-w-[' + state.contentMax + 'px] 가운데' : '')
+      }
+
+      function applyView() {
+        const view = body.dataset.view
+        document.querySelector('[data-screen="list"]').hidden = view !== 'list'
+        document.querySelector('[data-screen="form"]').hidden = view !== 'form'
+        document.getElementById('topbar-title').textContent = view === 'list' ? '문서' : '설정'
+      }
+
+      function fit() {
+        stage.style.width = state.stageWidth + 'px'
+        const available = document.querySelector('.stage-wrap').clientWidth
+        const scale = Math.min(1, available / state.stageWidth)
+        scaler.style.transform = 'scale(' + scale + ')'
+        scaler.style.height = stage.offsetHeight * scale + 'px'
+        return scale
+      }
+
+      function measure(scale) {
+        const mainRect = main.getBoundingClientRect()
+        const innerRect = mainInner.getBoundingClientRect()
+
+        // 본문 콘텐츠의 실제 시작·끝 (패딩 안쪽)
+        const left = Math.round((innerRect.left - mainRect.left) / scale) + state.padX
+        const right = Math.round((mainRect.right - innerRect.right) / scale) + state.padX
+
+        const leftBar = document.getElementById('gutter-left')
+        const rightBar = document.getElementById('gutter-right')
+        leftBar.style.width = left + 'px'
+        rightBar.style.width = right + 'px'
+        document.getElementById('left-label').textContent = left + 'px'
+        document.getElementById('right-label').textContent = right + 'px'
+        document.getElementById('pad-y-bar').style.height = state.padY + 'px'
+
+        // 탑바 제목 ↔ 본문 제목 시작점
+        const titleTop = document.getElementById('topbar-title').getBoundingClientRect()
+        const titleMain = document
+          .querySelector('section:not([hidden]) .screen-title')
+          .getBoundingClientRect()
+        const gap = Math.round((titleMain.left - titleTop.left) / scale)
+
+        const line = document.getElementById('align-line')
+        line.classList.add('show')
+        line.classList.toggle('ok', gap === 0)
+        line.style.left = Math.round((titleTop.left - stage.getBoundingClientRect().left) / scale) + 'px'
+
+        const readout = document.getElementById('readout')
+        const sameSides = left === right
+        readout.innerHTML = ''
+        readout.appendChild(
+          chip(
+            sameSides ? 'same' : 'diff',
+            sameSides
+              ? '본문 좌우 여백 ' + left + 'px'
+              : '본문 여백 왼쪽 ' + left + 'px / 오른쪽 ' + right + 'px',
+          ),
+        )
+        readout.appendChild(
+          chip(
+            gap === 0 ? 'same' : 'diff',
+            gap === 0
+              ? '탑바·본문 제목 같은 선'
+              : '탑바·본문 제목 ' + Math.abs(gap) + 'px 어긋남',
+          ),
+        )
+        readout.appendChild(
+          chip(
+            state.padX === 40 ? 'same' : 'diff',
+            state.padX === 40
+              ? '사이드바 글자선(40px)과 같음'
+              : '사이드바 글자선보다 ' + (40 - state.padX) + 'px 덜 들어옴',
+          ),
+        )
+      }
+
+      function chip(kind, text) {
+        const el = document.createElement('span')
+        el.className = 'chip ' + kind
+        el.textContent = text
+        return el
+      }
+
+      function render() {
+        applyState()
+        applyView()
+        const scale = fit()
+        requestAnimationFrame(() => measure(scale))
+      }
+
+      function press(segId, value) {
+        for (const button of document.querySelectorAll('#' + segId + ' button')) {
+          button.setAttribute('aria-pressed', String(button.dataset.value === String(value)))
+        }
+      }
+
+      function wireSeg(id, apply) {
+        const segRoot = document.getElementById(id)
+        segRoot.addEventListener('click', (event) => {
+          const button = event.target.closest('button')
+          if (!button) return
+          press(id, button.dataset.value)
+          apply(Number(button.dataset.value) || button.dataset.value)
+          render()
+        })
+      }
+
+      wireSeg('pad-x', (value) => {
+        state.padX = value
+      })
+      wireSeg('pad-y', (value) => {
+        state.padY = value
+      })
+      wireSeg('content-max', (value) => {
+        state.contentMax = value === 0 || value === '0' ? 0 : value
+      })
+      wireSeg('width', (value) => {
+        state.stageWidth = value
+      })
+      wireSeg('view', (value) => {
+        body.dataset.view = value
+      })
+
+      topbarOption.addEventListener('change', (event) => {
+        state.topbar = event.target.checked
+        render()
+      })
+      document.getElementById('guides').addEventListener('change', (event) => {
+        body.dataset.guides = event.target.checked ? 'on' : 'off'
+      })
+      document.getElementById('reset').addEventListener('click', () => {
+        Object.assign(state, DEFAULTS)
+        topbarOption.checked = false
+        press('pad-x', DEFAULTS.padX)
+        press('pad-y', DEFAULTS.padY)
+        press('content-max', DEFAULTS.contentMax)
+        render()
+      })
+
+      window.addEventListener('resize', render)
+      render()
+    </script>
+  </body>
+</html>

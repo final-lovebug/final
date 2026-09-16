@@ -28,7 +28,7 @@ export function Sidebar() {
 
   return (
     <div className="flex min-h-screen w-[248px] shrink-0 flex-col border-r border-border-soft bg-surface">
-      <div className="flex items-center justify-between border-b border-border-soft px-[18px] pb-4 pt-[18px]">
+      <div className="flex items-center justify-between border-b border-border-soft px-10 pb-4 pt-[18px]">
         <div className="flex min-w-0 items-center gap-2">
           <LogoMark size={24}>{workspace?.name.charAt(0) ?? 'U'}</LogoMark>
           <span className="truncate font-display text-[13.5px] font-bold">
@@ -37,7 +37,10 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-4 overflow-auto px-3 py-[14px]">
+      {/* 글자 시작점을 40px로 맞춘다 — 여기(24px) + 항목 자체 패딩(16px). 머리말·발치의
+          px-10과 같은 선이다. 배경이 깔리는 항목(hover·활성 알약)은 벽에서 24px 떨어진
+          자리에서 시작한다 — 글자까지 밀면 알약이 벽에 붙어 보인다. */}
+      <nav className="flex flex-1 flex-col gap-4 overflow-auto px-6 py-[14px]">
         <SidebarGroup title="문서">
           <SidebarItem to={routes.documents(workspaceId)} label="문서" end />
           <SidebarItem to={routes.documentDrafts(workspaceId)} label="초안" />
@@ -135,18 +138,18 @@ function SidebarFooter({
   return (
     <div ref={rootRef} className="relative border-t border-border-soft">
       {menuOpen && (
-        <div className="absolute bottom-[calc(100%-4px)] left-3 right-3 overflow-hidden rounded-md border border-border bg-surface shadow-pop">
+        <div className="absolute bottom-[calc(100%-4px)] left-6 right-6 overflow-hidden rounded-md border border-border bg-surface shadow-pop">
           <button
             type="button"
             onClick={handleLogout}
-            className="block w-full cursor-pointer px-3 py-[10px] text-left text-[12.5px] font-semibold text-text-secondary hover:bg-bg"
+            className="block w-full cursor-pointer px-4 py-[10px] text-left text-[12.5px] font-semibold text-text-secondary hover:bg-bg"
           >
             로그아웃
           </button>
           <button
             type="button"
             onClick={handleWithdraw}
-            className="block w-full cursor-pointer border-t border-border-soft px-3 py-[10px] text-left text-[12.5px] font-semibold text-danger hover:bg-bg"
+            className="block w-full cursor-pointer border-t border-border-soft px-4 py-[10px] text-left text-[12.5px] font-semibold text-danger hover:bg-bg"
           >
             회원 탈퇴
           </button>
@@ -157,7 +160,7 @@ function SidebarFooter({
         type="button"
         onClick={() => setMenuOpen((open) => !open)}
         aria-expanded={menuOpen}
-        className="flex w-full cursor-pointer items-center gap-[10px] px-[18px] py-[14px] text-left hover:bg-bg"
+        className="flex w-full cursor-pointer items-center gap-[10px] px-10 py-[14px] text-left hover:bg-bg"
       >
         <Avatar initial={displayName.charAt(0)} tone="accent" size={30} />
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
@@ -182,7 +185,7 @@ function SidebarGroup({ title, children }: { title: string; children: ReactNode 
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full cursor-pointer select-none items-center justify-between px-2 pb-[6px] pt-1"
+        className="flex w-full cursor-pointer select-none items-center justify-between px-4 pb-[6px] pt-1"
         aria-expanded={open}
       >
         <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-text-quaternary">
@@ -221,7 +224,7 @@ function SidebarItem({
       end={end}
       className={({ isActive }) =>
         cx(
-          'flex items-center gap-2 rounded-sm px-[10px] py-2 text-[13px] font-semibold text-text-secondary hover:bg-bg',
+          'flex items-center gap-2 rounded-sm px-4 py-2 text-[13px] font-semibold text-text-secondary hover:bg-bg',
           isActive && 'bg-accent-bg text-accent-strong hover:bg-accent-bg',
         )
       }

@@ -111,7 +111,6 @@ export function DocumentDetailPage() {
       <TwoCol>
         <ColFlex>
           <Card className="px-[30px] py-[26px]">
-            <div className="mb-4 font-display text-base font-bold">{document.title}</div>
             {/* 업로드본이 마크다운이면 마크다운으로 보여준다 — `## 도메인`이 기호째 보이던 것을 고쳤다. */}
             <Markdown
               source={document.content}
