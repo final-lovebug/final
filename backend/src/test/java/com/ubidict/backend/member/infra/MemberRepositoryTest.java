@@ -16,8 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 
 /**
- * Flyway 마이그레이션이 아직 이 테스트 슬라이스에 연결되지 않아 스키마는 Hibernate가
- * 생성한다({@code BaseEntityAuditingTest}와 동일한 관례).
+ * 스키마는 엔티티 매핑에서 Hibernate가 생성한다({@code BaseEntityAuditingTest}와 동일한 관례).
  *
  * <p>{@link MemberFieldEncryptor}는 {@code @DataJpaTest}가 자동으로 스캔하는 대상이
  * 아니라서(일반 {@code @Component}) 명시적으로 {@code @Import}한다 — 안 그러면
@@ -25,7 +24,7 @@ import org.springframework.dao.DataIntegrityViolationException;
  */
 @Import(MemberFieldEncryptor.class)
 @AutoConfigureTestDatabase
-@DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false"})
+@DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop"})
 class MemberRepositoryTest {
 
     @Autowired

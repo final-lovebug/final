@@ -12,6 +12,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -26,7 +27,16 @@ import org.hibernate.type.SqlTypes;
 
 @Entity
 @Getter
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"draft_dictionary_id", "form"}))
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_candidate_term_form",
+                        columnNames = {"draft_dictionary_id", "form"}),
+        indexes = {
+            @Index(name = "idx_candidate_term_draft_status", columnList = "draft_dictionary_id, status"),
+            // 후보어 목록 기본 정렬이 출현 횟수순이다.
+            @Index(name = "idx_candidate_term_occurrence", columnList = "draft_dictionary_id, occurrence_count")
+        })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CandidateTerm extends BaseEntity {
     @Id
@@ -56,7 +66,10 @@ public class CandidateTerm extends BaseEntity {
     @Column(nullable = false, length = 200)
     private String form;
 
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String proposedDefinition;
+
+    @Column(length = 200)
     private String proposedEnglishName;
 
     @Column
@@ -80,7 +93,8 @@ public class CandidateTerm extends BaseEntity {
     @ElementCollection
     @BatchSize(size = 100)
     @CollectionTable(name = "candidate_term_context_snippet", joinColumns = @JoinColumn(name = "candidate_term_id"))
-    @Column(name = "snippet", length = 1000)
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    @Column(name = "snippet", nullable = false)
     private List<String> contextSnippets = new ArrayList<>();
 
     /**

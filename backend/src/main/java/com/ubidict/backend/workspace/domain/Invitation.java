@@ -10,6 +10,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import lombok.AccessLevel;
@@ -18,6 +20,9 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
+// 「같은 워크스페이스·같은 대상에 대기 상태 초대는 1개」는 부분 유니크가 필요해 MySQL 8.4 에서 DB 로 지킬 수 없다.
+// 애플리케이션이 검증하고, DB 는 그 조회를 받쳐 주는 인덱스만 갖는다.
+@Table(indexes = @Index(name = "idx_invitation_workspace_status", columnList = "workspace_id, status"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Invitation extends BaseEntity {
     @Id
@@ -30,6 +35,7 @@ public class Invitation extends BaseEntity {
     @Column(length = 320)
     private String inviteeEmail;
 
+    // 수락 요청이 워크스페이스를 모른 채 토큰만 갖고 오므로 전역 유일이다.
     @Column(nullable = false, unique = true, length = 64, updatable = false)
     private String token;
 

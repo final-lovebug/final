@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.nio.charset.StandardCharsets;
@@ -23,7 +24,16 @@ import org.hibernate.type.SqlTypes;
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"document_id", "in_progress_flag"}))
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_check_job_document_in_progress",
+                        columnNames = {"document_id", "in_progress_flag"}),
+        indexes = {
+            @Index(name = "idx_check_job_document_status", columnList = "document_id, status"),
+            // 타임아웃 스위퍼가 1분마다 도는 조회(D-77): status IN (...) AND updated_at < ?
+            @Index(name = "idx_check_job_status_updated_at", columnList = "status, updated_at")
+        })
 public class CheckJob extends BaseEntity {
 
     @Id

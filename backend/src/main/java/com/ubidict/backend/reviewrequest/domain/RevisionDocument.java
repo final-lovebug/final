@@ -4,10 +4,15 @@ import com.ubidict.backend.common.domain.BaseEntity;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.exception.CommonErrorCode;
 import jakarta.persistence.*;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Getter
+@Table(indexes = @Index(name = "idx_revision_document_request", columnList = "review_request_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RevisionDocument extends BaseEntity {
     @Id
@@ -26,7 +31,8 @@ public class RevisionDocument extends BaseEntity {
     @Column(nullable = false)
     private Long draftDocumentId;
 
-    @Column(nullable = false, columnDefinition = "text")
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    @Column(nullable = false)
     private String proposedBody;
 
     @Column(nullable = false)

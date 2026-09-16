@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
@@ -24,7 +25,15 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
         name = "revision_log",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"workspace_id", "target_type", "target_id", "version_no"}))
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_revision_log_target_version",
+                        columnNames = {"workspace_id", "target_type", "target_id", "version_no"}),
+        // 축 필터와 대상별 최신순 타임라인 조회가 모두 이 앞쪽 컬럼을 탄다.
+        indexes =
+                @Index(
+                        name = "idx_revision_log_timeline",
+                        columnList = "workspace_id, target_type, target_id, published_at"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RevisionLog extends BaseEntity {
 

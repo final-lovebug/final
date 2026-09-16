@@ -33,8 +33,12 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(
         uniqueConstraints = {
-            @UniqueConstraint(columnNames = {"workspace_id", "version_no"}),
-            @UniqueConstraint(columnNames = {"workspace_id", "active_flag"})
+            @UniqueConstraint(
+                    name = "uk_dictionary_workspace_version",
+                    columnNames = {"workspace_id", "version_no"}),
+            @UniqueConstraint(
+                    name = "uk_dictionary_workspace_active",
+                    columnNames = {"workspace_id", "active_flag"})
         })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Dictionary extends BaseEntity {
@@ -56,9 +60,8 @@ public class Dictionary extends BaseEntity {
     /**
      * ACTIVE 사전집을 워크스페이스당 하나만 허용하는 스키마 생성용 generated column.
      *
-     * <p>타입을 <b>두 군데</b> 맞춰야 {@code ddl-auto=validate}를 통과한다(`D-106`) — 기대 타입명은
-     * {@code columnDefinition}의 첫 단어에서, JDBC 타입 코드는 필드 타입에서 각각 온다. 마이그레이션의
-     * {@code tinyint}에 맞춰 둘 다 {@code tinyint}로 둔다.
+     * <p>타입을 <b>두 군데</b> 맞춰야 한다 — 생성되는 컬럼 타입은 {@code columnDefinition}의 첫 단어에서,
+     * 읽고 쓸 때의 JDBC 타입 코드는 {@code @JdbcTypeCode}에서 각각 온다. 둘 다 {@code tinyint}로 둔다.
      */
     @JdbcTypeCode(SqlTypes.TINYINT)
     @Column(

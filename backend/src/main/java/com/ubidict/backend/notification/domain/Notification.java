@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
@@ -27,7 +28,18 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"recipient_id", "dedupe_key"}))
+@Table(
+        // 멱등의 근거(D-43). SQS 는 at-least-once 라 같은 이벤트가 두 번 도착하는 것이 정상이고,
+        // 두 번째 insert 가 여기서 튕겨 NFR-NTF-002 의 「재수신 시 재발송 금지」가 지켜진다.
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_notification_recipient_dedupe",
+                        columnNames = {"recipient_id", "dedupe_key"}),
+        // 목록(최신순 페이징)과 미읽음 수가 모두 이 앞쪽 컬럼을 탄다.
+        indexes =
+                @Index(
+                        name = "idx_notification_recipient",
+                        columnList = "recipient_id, workspace_id, is_read, deleted_at"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Notification extends BaseEntity {
 

@@ -31,7 +31,11 @@ import org.hibernate.type.SqlTypes;
  */
 @Getter
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"document_id", "version_no"}))
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_document_version",
+                        columnNames = {"document_id", "version_no"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DocumentVersion extends BaseEntity {
 

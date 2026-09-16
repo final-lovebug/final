@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -16,7 +17,9 @@ import lombok.NoArgsConstructor;
 /** 개정 이력 하나에 속한 실제 변경 항목. */
 @Getter
 @Entity
-@Table(name = "revision_log_entry")
+@Table(
+        name = "revision_log_entry",
+        indexes = @Index(name = "idx_revision_log_entry_log", columnList = "revision_log_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RevisionLogEntry extends BaseEntity {
 

@@ -4,10 +4,13 @@ import com.ubidict.backend.common.domain.BaseEntity;
 import com.ubidict.backend.common.exception.BusinessException;
 import com.ubidict.backend.common.exception.CommonErrorCode;
 import jakarta.persistence.*;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import lombok.*;
 
 @Entity
 @Getter
+@Table(indexes = @Index(name = "idx_revision_dictionary_request", columnList = "review_request_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RevisionDictionary extends BaseEntity {
     @Id
