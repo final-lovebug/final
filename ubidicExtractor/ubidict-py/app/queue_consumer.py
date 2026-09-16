@@ -27,6 +27,7 @@ from urllib.request import Request, urlopen
 import boto3
 
 from app.backend_db import fetch_active_preferred_forms, fetch_document_body
+from app.mock_delay import sleep_mock_delay
 from app.queue_schema import LlmJobRequest
 
 logger = logging.getLogger("queue_consumer")
@@ -132,6 +133,8 @@ def _callback_for(job: LlmJobRequest) -> tuple[str, dict]:
             return _failure_callback(job, "용어 추출 요청에 sourceDocumentIds가 없습니다.", "INVALID_REQUEST")
         # REAL 은 위에서 실패로 끊었으므로 남은 값은 STUB·MOCK 뿐이다. 그래도 else 로
         # 뭉치지 않는다 — 모드가 하나 늘면 조용히 mock 데이터를 돌려주게 된다.
+        if job.mode == "MOCK":
+            sleep_mock_delay()
         terms = [_mock_term(job.sourceDocumentIds[0])] if job.mode == "MOCK" else []
         return (
             f"/api/internal/llm/extractions/{job.jobId}/result",
@@ -144,6 +147,7 @@ def _callback_for(job: LlmJobRequest) -> tuple[str, dict]:
     # DRAFT_DOCUMENT_CHECK_INVALID_RESULT 로 거절된다. 그래서 추출 MOCK 과 달리 읽기
     # 전용 DB 조회 한 번을 한다 — 모델은 여전히 부르지 않는다.
     if job.mode == "MOCK":
+        sleep_mock_delay()
         try:
             body = fetch_document_body(job.documentId, job.documentVersionNo)
         except Exception:

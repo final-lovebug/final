@@ -54,12 +54,14 @@ def test_malformed_message_is_not_deleted():
     client.delete_message.assert_not_called()
 
 
+@patch("app.queue_consumer.sleep_mock_delay")
 @patch("app.queue_consumer._post_callback", return_value=204)
-def test_mock_extraction_posts_fixed_result_and_deletes_message(mock_post_callback):
+def test_mock_extraction_delays_then_posts_fixed_result_and_deletes_message(mock_post_callback, mock_delay):
     client = MagicMock()
 
     _handle_message(client, _QUEUE_URL, _message(_extraction_job()))
 
+    mock_delay.assert_called_once_with()
     path, body = mock_post_callback.call_args.args
     assert path == "/api/internal/llm/extractions/30/result"
     assert body["requestId"] == "0d5c6f6e-0000-4000-8000-000000000001"
@@ -82,10 +84,11 @@ def test_stub_extraction_posts_empty_terms_and_deletes_message(mock_post_callbac
     client.delete_message.assert_called_once_with(QueueUrl=_QUEUE_URL, ReceiptHandle="rh-1")
 
 
+@patch("app.queue_consumer.sleep_mock_delay")
 @patch("app.queue_consumer.fetch_active_preferred_forms", return_value=["이용자", "결제"])
 @patch("app.queue_consumer.fetch_document_body", return_value="우리 서비스의 유저는 결제할 수 있다.")
 @patch("app.queue_consumer._post_callback", return_value=204)
-def test_mock_check_anchors_suggestions_on_the_real_body(mock_post_callback, mock_fetch_body, _mock_terms):
+def test_mock_check_delays_and_anchors_suggestions_on_the_real_body(mock_post_callback, mock_fetch_body, _mock_terms, mock_delay):
     """MOCK 대조는 본문을 읽어 실제로 있는 자리에만 앵커를 단다.
 
     백엔드의 CheckSuggestionValidator 가 body.substring(anchor) 와 originTerm 이 같은지
@@ -95,6 +98,7 @@ def test_mock_check_anchors_suggestions_on_the_real_body(mock_post_callback, moc
 
     _handle_message(client, _QUEUE_URL, _message(_check_job()))
 
+    mock_delay.assert_called_once_with()
     mock_fetch_body.assert_called_once_with(10, 3)
     path, body = mock_post_callback.call_args.args
     assert path == "/api/internal/llm/checks/40/result"
