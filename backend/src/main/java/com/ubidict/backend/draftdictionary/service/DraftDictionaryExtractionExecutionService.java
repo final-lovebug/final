@@ -1,6 +1,7 @@
 package com.ubidict.backend.draftdictionary.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxService;
 import com.ubidict.backend.draftdictionary.domain.CandidateTerm;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJob;
@@ -39,23 +40,22 @@ public class DraftDictionaryExtractionExecutionService {
     private final ExtractionResultValidator extractionResultValidator;
     private final DraftDictionaryEventPublisher draftDictionaryEventPublisher;
     private final ExtractionJobCompletionEventPublisher completionEventPublisher;
+    private final LlmJobOutboxService outboxService;
 
-    /**
-     * 워커에게 넘기기 직전에 작업을 {@code RUNNING}으로 옮기고 상관 식별자를 기록한다.
-     *
-     * <p>{@code PENDING}이 아니면 {@code Optional.empty()}다 — 발행 신호가 중복으로 도착해도 두 번 보내지 않는다.
-     */
+    @Transactional
+    public boolean prepareDispatch(Long extractionJobId, String requestId) {
+        ExtractionJob extractionJob = extractionJobReader.read(extractionJobId);
+        return extractionJob.prepareDispatch(requestId);
+    }
+
+    /** @deprecated 아웃박스 전환 전 리스너 호환용. 새 흐름은 {@link #prepareDispatch(Long, String)}을 쓴다. */
+    @Deprecated
     @Transactional
     public Optional<ExtractionJobResult> markDispatching(Long extractionJobId, String requestId) {
         ExtractionJob extractionJob = extractionJobReader.read(extractionJobId);
-        if (extractionJob.getStatus() != ExtractionJobStatus.PENDING) {
-            return Optional.empty();
-        }
-        extractionJob.markDispatching(requestId);
-        log.info(
-                "[DraftDictionaryExtractionExecutionService.markDispatching] Draft dictionary extraction dispatched. extractionJobId={}, requestId={}",
-                extractionJobId,
-                requestId);
+        if (extractionJob.getStatus() != ExtractionJobStatus.PENDING) return Optional.empty();
+        extractionJob.assignRequestId(requestId);
+        extractionJob.prepareDispatch(requestId);
         return Optional.of(ExtractionJobResult.from(extractionJob));
     }
 
@@ -150,6 +150,7 @@ public class DraftDictionaryExtractionExecutionService {
     private void expire(ExtractionJob extractionJob, String failureReason) {
         if (!extractionJob.isInProgress()) return;
         extractionJob.fail(failureReason);
+        outboxService.cancel(extractionJob.getRequestId());
         log.warn(
                 "[DraftDictionaryExtractionExecutionService.expire] Draft dictionary extraction failed. extractionJobId={}, reason={}",
                 extractionJob.getId(),

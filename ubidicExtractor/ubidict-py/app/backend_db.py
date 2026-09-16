@@ -83,6 +83,28 @@ def fetch_documents(document_ids: list[int]) -> list[DocumentInput]:
     ]
 
 
+def is_running_llm_job(job_type: str, job_id: int, request_id: str) -> bool:
+    """모델 호출 직전 요청이 아직 유효한지 확인한다.
+
+    Spring 아웃박스 재시도와 타임아웃 회수는 서로 경합할 수 있다. 종료된 Job의
+    지연 메시지로 비용이 드는 모델 호출을 하지 않도록, REAL 작업만 이 읽기 전용
+    조회를 통과시킨다.
+    """
+    table = "extraction_job" if job_type == "TERM_EXTRACTION" else "check_job"
+    sql = f"""
+        SELECT 1
+        FROM {table}
+        WHERE id = %s AND request_id = %s AND status = 'RUNNING' AND deleted_at IS NULL
+    """
+    conn = _connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (job_id, request_id))
+            return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
 def fetch_document_version(document_id: int, version_no: int | None) -> DocumentInput | None:
     """대조 대상 문서 한 건. 없거나 삭제됐으면 ``None``이다.
 

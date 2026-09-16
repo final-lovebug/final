@@ -28,9 +28,8 @@
 ```
 POST /api/draft-dictionaries/extractions   → 202, 작업 PENDING
   │  같은 workspace 에 PENDING/RUNNING 작업이 있으면 → 409 (AI 요청을 발행하지 않음)
-  │  (요청 트랜잭션 커밋)
-  ├─ requestId(UUIDv4) 생성 → 작업 행에 저장, 상태 RUNNING
-  └─ SQS 요청 큐로 발행 ──────────────────────────────┐
+  │  (요청 트랜잭션: Job PENDING + requestId + outbox 행을 함께 커밋)
+  ├─ outbox 디스패처: Job RUNNING 전이 → SQS 요청 큐로 발행 ──┐
                                                       ▼
                                     워커: documentId 로 DB 조회 → 모델 호출
                                                       │
@@ -45,6 +44,18 @@ GET /api/draft-dictionaries/extractions/{jobId}     ← 사용자는 폴링으�
 문서 대조(`/api/draft-documents/checks`)도 같은 모양이다.
 
 **사용자에게 완료를 알리는 수단은 여전히 폴링이다**(`D-34`). 콜백은 백엔드가 결과를 받는 경로일 뿐 사용자 알림 경로가 아니다.
+
+### 2-1. Transactional outbox와 DLQ
+
+백엔드는 SQS 전송을 요청 트랜잭션 안에서 직접 하지 않는다. Job, `requestId`, 직렬화된 요청 payload를
+`llm_job_outbox`에 같은 트랜잭션으로 저장하고, 디스패처가 발행한다. 발행 실패는 지수 백오프로 재시도하며,
+SQS가 성공을 응답한 뒤 상태 저장 전에 죽어 같은 메시지가 다시 나갈 수 있다. 따라서 워커의 `requestId`
+호출 멱등은 그대로 필수다.
+
+워커가 메시지를 ack하지 못해 redrive 정책을 소진하면 요청은 DLQ로 이동한다. Spring의 DLQ 리스너는
+payload의 `jobType`·`jobId`·`requestId`를 대조해 Job을 `FAILED`로 끝낸다. prod의 현재 정책은
+visibility 15분 × 3회이므로 Job 타임아웃은 `PT50M`으로, DLQ 도착보다 늦어야 한다. 타임아웃 스위퍼는
+DLQ에도 닿지 못한 무응답의 마지막 회수 수단이다.
 
 ---
 
@@ -350,6 +361,10 @@ SET llm:request:{requestId} <worker-id> NX EX 900
 ### 7-3. 콜백을 보내지 못한 경우
 
 백엔드가 응답하지 않아 결과를 끝내 전달하지 못하면, 백엔드의 타임아웃 스위퍼가 그 작업을 **실패로 회수한다**(`D-77`). 사용자는 폴링에서 실패 사유를 보고 다시 요청할 수 있다.
+
+워커가 같은 메시지를 재시도하다 DLQ로 보낸 경우에는 Spring DLQ 리스너가 더 먼저 작업을 실패로
+회수한다. 워커는 `REAL` 모델 호출 직전에 Job이 아직 `RUNNING`이고 `requestId`가 같은지 읽기 전용으로
+확인한다. 이미 종결된 작업이면 모델 호출 없이 ack한다.
 
 ---
 

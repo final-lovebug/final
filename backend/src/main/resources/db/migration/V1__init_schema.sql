@@ -268,6 +268,35 @@ create index idx_check_job_document_status
 create index idx_check_job_status_updated_at
     on check_job (status, updated_at);
 
+-- Spring DB 커밋과 LLM 요청 SQS 발행을 원자적으로 잇는 transactional outbox.
+-- 현재 모든 환경은 V1으로 새 스키마를 만들므로 별도 migration 버전을 만들지 않는다.
+create table llm_job_outbox (
+    id                bigint        not null auto_increment,
+    job_type          varchar(30)   not null,
+    job_id            bigint        not null,
+    request_id        varchar(36)   not null,
+    payload           text          not null,
+    status            varchar(20)   not null,
+    attempt_count     int           not null default 0,
+    next_attempt_at   datetime(6)   not null,
+    lease_token       varchar(36),
+    lease_expires_at  datetime(6),
+    last_error        varchar(1000),
+    published_at      datetime(6),
+    created_at        datetime(6)   not null,
+    updated_at        datetime(6)   not null,
+    deleted_at        datetime(6),
+    primary key (id),
+    constraint uk_llm_job_outbox_job unique (job_type, job_id),
+    constraint uk_llm_job_outbox_request unique (request_id)
+);
+
+create index idx_llm_job_outbox_dispatch
+    on llm_job_outbox (status, next_attempt_at);
+
+create index idx_llm_job_outbox_lease
+    on llm_job_outbox (status, lease_expires_at);
+
 -- ── draft_dictionary ──────────────────────────────────────────────────────────
 create table draft_dictionary (
     id            bigint      not null auto_increment,

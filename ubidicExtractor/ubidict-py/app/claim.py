@@ -23,9 +23,9 @@ import os
 
 import redis
 
-# 백엔드의 app.ai.timeout.job(기본 PT15M)과 맞춘다. 이보다 짧으면 백엔드의 타임아웃
-# 스위퍼가 작업을 회수하기 전에 키가 풀려 중복 호출이 다시 열린다.
-_TTL_SECONDS = 900
+# prod Job timeout(PT50M)보다 짧으면 타임아웃 회수 전에 키가 풀려 재배달분이
+# 중복 모델 호출을 할 수 있다. 로컬에서는 환경변수로 더 짧게 조정할 수 있다.
+_TTL_SECONDS = int(os.getenv("LLM_IDEMPOTENCY_TTL_SECONDS", "3000"))
 _KEY_PREFIX = "llm:request:"
 
 # 선점한 쪽을 로그에서 가려내기 위한 값이다. 판정에는 쓰지 않는다 — 판정은 SET NX 의
