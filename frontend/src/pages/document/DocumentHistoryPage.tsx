@@ -78,7 +78,7 @@ export function DocumentHistoryPage() {
     <div>
       <Toolbar className="mb-[18px]">
         <h1 className="font-display text-[19px] font-bold text-text">
-          {document?.title ?? '문서'} · 버전 이력
+          {document?.title ?? '문서'}
         </h1>
         <ToolbarSpacer />
         <Link to={routes.documentDetail(workspaceId, documentId)}>
@@ -117,11 +117,6 @@ export function DocumentHistoryPage() {
                   <p className="my-1 text-[11px] text-text-quaternary">
                     {new Date(version.publishedAt).toLocaleString('ko-KR')} ·{' '}
                     {version.publishedByName ?? '—'}
-                  </p>
-                  <p className="text-xs text-text-secondary">
-                    {version.edited
-                      ? '사람이 본문을 직접 고친 버전입니다.'
-                      : '업로드본 또는 교정 반영본입니다.'}
                   </p>
                   {version.dictionaryVersionNo !== undefined && (
                     <p className="mt-[6px] text-[10.5px] font-semibold text-accent-strong">
@@ -188,11 +183,6 @@ export function DocumentHistoryPage() {
                       decorations={diffDecorations}
                       className="text-[13.5px] leading-[1.9] text-text-secondary"
                     />
-                    <p className="mt-2 text-[11px] text-text-quaternary">
-                      공백 단위 근사 비교입니다 — 백엔드가 본문 diff를 만들지 않으므로(D-61)
-                      화면에서 계산합니다. 바뀐 쪽과 지워진 쪽을 한 본문에 겹쳐 그리므로 제목·표
-                      같은 블록이 통째로 바뀐 자리는 형태가 한쪽으로 치우쳐 보일 수 있습니다.
-                    </p>
                   </>
                 )}
               </div>
@@ -200,18 +190,14 @@ export function DocumentHistoryPage() {
               <div className="border-t border-border-soft pt-4">
                 <div className="mb-2 text-[12.5px] font-bold">처리 내역</div>
                 <p className="mb-[10px] text-[11.5px] text-text-quaternary">
-                  리뷰어는 이 기록으로 무엇이 왜 바뀌었는지 확인합니다
                 </p>
                 <SuggestionHistoryTable items={history ?? []} />
               </div>
-
               <div className="flex items-center gap-3 border-t border-border-soft pt-4">
-                <Button variant="outline" disabled>
+                <Button variant="outline">
                   이전 버전으로 되돌리기
                 </Button>
-                <Pill tone="neutral">MVP2</Pill>
                 <span className="text-[11px] text-text-quaternary">
-                  되돌리면 이전 내용이 새 버전으로 쌓이고 현재 버전은 이력에 남습니다.
                 </span>
               </div>
             </Card>
