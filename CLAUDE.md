@@ -83,8 +83,12 @@
     - 노출 포트는 **앱 포트만** — backend `8080`, frontend `5173`, Grafana UI `3000`. DB와 LocalStack은 Compose 네트워크 내부로만 접근한다(큐 확인은 `docker compose exec localstack awslocal sqs ...`).
     - **`bootRun`·Vite dev 서버와 동시에 띄우지 않는다.** Compose 프로젝트는 분리되지만 호스트 포트 3000·8080·5173이 겹쳐 `port is already allocated`로 죽는다.
     - 접속 정보는 전부 환경변수로 주입한다. `application.properties`에 적지 않는다.
-    - **`SPRING_PROFILES_ACTIVE=local,dev`로 띄운다.** 순서가 의미를 갖는다 — `local`이 `DevAuthController`(`@Profile("local")`)와 `app.auth.cookie.secure=false`를 얹고, 뒤에 온 `dev`가 충돌 키를 이겨 `app.ai.dispatch.mode=sqs`(LocalStack 경로)를 유지한다. `dev` 단독이면 개발용 로그인 백도어가 없어 Google 로그인을 실제로 성공시키기 전까지 모든 도메인 API가 401이다.
+    - **`SPRING_PROFILES_ACTIVE=local,dev`로 띄운다.** 순서가 의미를 갖는다 — `local`이 `DevAuthController`(`@Profile("local")`)와 `app.auth.cookie.secure=false`를 얹고, 뒤에 온 `dev`가 충돌 키를 이겨 `app.ai.dispatch.mode=sqs`(**실제 AWS SQS** 경로)를 유지한다. `dev` 단독이면 개발용 로그인 백도어가 없어 Google 로그인을 실제로 성공시키기 전까지 모든 도메인 API가 401이다.
     - `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET`은 기본값이 없다. 루트 `.env`(`.gitignore` 등록됨)나 셸 환경변수로 넘긴다. **값이 없어도 스택은 뜬다** — Google 로그인만 실패하며, `local` 프로파일의 `/api/auth/dev/login`으로 토큰을 받아 나머지 흐름을 볼 수 있다.
+    - **`dev`는 실제 AWS SQS와 실제 Gemini를 쓴다.** 로컬 `dev`를 운영과 같은 구성으로 맞춘 결과다 — LocalStack을 타지 않는다. 준비물은 셋이다: ① AWS 자격증명(호스트 `~/.aws`를 compose가 워커에 읽기 전용 마운트한다. 백엔드는 SDK 기본 체인을 그대로 쓴다) ② 루트 `.env`의 `GEMINI_API_KEY` ③ 백엔드를 `local,dev`로 기동(`app.ai.mode`가 이미 `real`이다).
+      - ⚠️ **운영과 같은 큐다.** 운영 EC2 워커가 `lovebug-llm-request`를 폴링 중이면 메시지가 두 워커에 갈려 양쪽 다 조용히 실패한다 — 테스트 동안 **운영 워커를 내려 둔다.**
+      - ⚠️ **실제 과금된다.** 게다가 **중복 방지가 없어**(`R-35`) 재배달되면 모델이 다시 불린다.
+      - LocalStack으로 되돌리는 법은 `backend/CLAUDE.md`에 적어 뒀다(환경변수로만 덮고 yml은 고치지 않는다).
   - 로컬 오버라이드가 필요하면 `compose.override.yaml`을 쓰고 `.gitignore`에 등록한다.
 - 어떤 경우에도 운영·공용 환경의 `ddl-auto`를 `create`/`create-drop`/`update`로 설정하지 않는다.
 

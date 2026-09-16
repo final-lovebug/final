@@ -17,7 +17,7 @@
 - **영속성** — Spring Data JPA + MySQL
 - **스키마** — JPA 매핑이 주인이다. 마이그레이션 도구를 쓰지 않고 `ddl-auto`가 스키마를 만든다
 - **캐시·세션** — Redis
-- **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS**(`spring-cloud-aws-starter-sqs`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 발행 어댑터 둘은 `common/infra/event/`(인메모리)와 `common/infra/event/sqs/`(SQS)에 있고 `@ConditionalOnProperty`로 배타 선택된다. 수신 어댑터는 소비 도메인에 두며 **둘이 같은 공용 핸들러에 위임한다.** 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다. **큐는 둘이다** — 도메인 이벤트 큐(`app.messaging.sqs.queue`)와 **AI 워커 요청 큐**(`app.messaging.sqs.llm-request-queue`, `D-67`). **AI 워커 요청 큐는 `app.messaging.mode`와 무관하게 `app.ai.dispatch.mode`로 갈린다** — `local`·`test`는 인프로세스 대역, `dev`는 LocalStack, `prod`는 실 SQS다. **완료 통보는 큐가 아니라 워커가 치는 동기 HTTP 콜백(`/api/internal/llm/**`)이다**(`D-68`). 계약은 `docs/AI_CONTRACT.md`가 원본이다
+- **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS**(`spring-cloud-aws-starter-sqs`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 발행 어댑터 둘은 `common/infra/event/`(인메모리)와 `common/infra/event/sqs/`(SQS)에 있고 `@ConditionalOnProperty`로 배타 선택된다. 수신 어댑터는 소비 도메인에 두며 **둘이 같은 공용 핸들러에 위임한다.** 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다. **큐는 둘이다** — 도메인 이벤트 큐(`app.messaging.sqs.queue`)와 **AI 워커 요청 큐**(`app.messaging.sqs.llm-request-queue`, `D-67`). **AI 워커 요청 큐는 `app.messaging.mode`와 무관하게 `app.ai.dispatch.mode`로 갈린다** — `local`·`test`는 인프로세스 대역, **`dev`·`prod`는 실 SQS**다(`dev`를 로컬에서 띄워도 실제 AWS 계정에 붙는다). **완료 통보는 큐가 아니라 워커가 치는 동기 HTTP 콜백(`/api/internal/llm/**`)이다**(`D-68`). 계약은 `docs/AI_CONTRACT.md`가 원본이다
 - **인증·인가** — Spring Security, JWT (JJWT), OAuth2
 - **API 문서** — SpringDoc OpenAPI (Swagger UI)
 - **관측** — Actuator, Micrometer, OpenTelemetry. **세 신호(트레이스·메트릭·로그)를 OTLP로 내보낸다.** 받는 쪽은 프로파일마다 다르다 — 로컬·테스트는 `grafana/otel-lgtm` 컨테이너, `prod`는 **Grafana Cloud 직행**이다(`D-92`·`D-94`). 수집기 사이드카를 두지 않는다. **어느 설정 파일에도 수집기 주소를 적지 않는다** — 로컬은 `spring-boot-docker-compose`가, 테스트는 `@ServiceConnection LgtmStackContainer`가 실제로 매핑된 포트를 읽어 주입하고, Grafana Cloud 주소는 Parameter Store에서 온다. 로그는 `logback-spring.xml`의 `CONSOLE`(stdout) + `OTEL`(OTLP) 두 appender로 나가며 **파일 appender를 두지 않는다**(`D-93`). `traceId`는 Micrometer Tracing이 MDC에 넣는 값을 쓰고 **별도 필터를 만들지 않는다**(`D-96`, `docs/LOG.md`)
@@ -121,14 +121,22 @@ MySQL 키 길이 상한(3072바이트, utf8mb4에서 컬럼당 `길이 × 4`)을
 - 테스트용 컨테이너는 별도로 `TestcontainersConfiguration`이 관리한다.
   (MySQL, Redis, Grafana LGTM, LocalStack — 이미지 태그는 `compose.yaml`과 맞춘다.)
 - **도메인 이벤트** 버스는 로컬·테스트에서 인메모리 어댑터를 쓴다(`app.messaging.mode`).
-  **AI 워커 요청 큐는 다르다** — `dev` 프로파일과 통합 테스트가 **LocalStack으로 실제 SQS 경로를 탄다**(`D-74`).
-  컨테이너는 `compose.yaml`과 `TestcontainersConfiguration` **양쪽에** 들어 있다 — 한쪽만 있으면
-  테스트가 로컬에서만 돌거나 그 반대가 된다.
-- LocalStack 포트(4566)를 고정한 이유는 `spring-boot-docker-compose`가 LocalStack 커넥션 정보를
-  자동 주입하지 않기 때문이다. `application-dev.yml`이 그 주소를 직접 가리킨다.
+  **AI 워커 요청 큐는 다르다** — 통합 테스트는 LocalStack을 쓰지만(`D-74`, `TestcontainersConfiguration`),
+  **`dev` 프로파일은 로컬에서 띄워도 실제 AWS SQS에 붙는다.** 로컬 `dev`를 운영과 같은 구성으로
+  맞추기 위해서다 — `application-dev.yml`은 엔드포인트도 자격증명도 적지 않고 SDK 기본 체인
+  (`~/.aws/credentials`·환경변수·인스턴스 역할)에 맡긴다. 워커 컨테이너도 마찬가지로 호스트의
+  `~/.aws`를 읽기 전용 마운트로 빌려 쓴다(루트 `compose.yaml`).
+  - ⚠️ **운영과 같은 큐(`lovebug-llm-request`)를 쓴다.** 운영 EC2 워커가 폴링 중이면 메시지가 두
+    워커에 갈려 양쪽 다 조용히 실패한다 — 로컬 `dev` 테스트 동안에는 **운영 워커를 내려 둔다.**
+  - LocalStack으로 되돌리려면 yml을 고치지 말고 환경변수로 덮는다:
+    `SPRING_CLOUD_AWS_ENDPOINT=http://localhost:4566`, `AWS_ACCESS_KEY_ID=test`,
+    `AWS_SECRET_ACCESS_KEY=test`, `SPRING_CLOUD_AWS_SQS_QUEUE_NOT_FOUND_STRATEGY=create`.
+    워커 쪽은 `SQS_ENDPOINT_URL`·`SQS_REQUEST_QUEUE_URL`을 함께 덮는다.
+- LocalStack 포트(4566)를 고정한 이유는 `spring-boot-docker-compose`가 커넥션 정보를 자동
+  주입하지 않아, 위 환경변수로 되돌릴 때 주소가 고정돼 있어야 하기 때문이다.
   테스트는 Testcontainers가 띄우므로 포트가 무엇이든 `DynamicPropertyRegistrar`가 주입한다.
-- **로컬·테스트는 큐를 미리 만들지 않는다.** `spring.cloud.aws.sqs.queue-not-found-strategy: create`가
-  첫 접근에 만든다. **`prod`는 `fail`을 명시한다** — 큐 이름을 틀린 채 조용히 새 큐가 생기는 것을
+- **테스트는 큐를 미리 만들지 않는다.** `spring.cloud.aws.sqs.queue-not-found-strategy: create`가
+  첫 접근에 만든다. **`dev`·`prod`는 `fail`이다** — 큐 이름을 틀린 채 조용히 새 큐가 생기는 것을
   막는다(`D-78`). ⚠️ **라이브러리 기본값은 `fail`이 아니라 `CREATE`다**(awspring 4.1.1,
   `SqsContainerOptions$BuilderImpl.DEFAULT_QUEUE_NOT_FOUND_STRATEGY`). 적지 않으면 운영에서
   애플리케이션이 `sqs:CreateQueue`를 부르고, EC2 역할에 그 권한이 없어 403으로 기동이 깨진다.

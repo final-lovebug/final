@@ -4,18 +4,24 @@
 # 그래서 spring.config.import 가 없고 spring.cloud.aws.parameterstore.enabled 도 기본값(false)을 그대로 쓴다.
 # 값은 저장소에 두지 않고 ${VAR} 참조만 남긴다(루트 CLAUDE.md 「시크릿은 환경변수 또는 AWS 파라미터 스토어로 주입한다」).
 spring:
-  # LocalStack 으로 SQS 경로를 실제 메시지로 검증한다(D-74). 엔드포인트만 갈아끼우면
-  # prod 와 같은 코드가 돈다(NFR-INF-005) — LocalStack 은 자격증명 값을 보지 않는다.
+  # **실제 AWS SQS 에 붙는다.** 엔드포인트도 자격증명도 여기 적지 않는다 — 적지 않아야
+  # SDK 의 기본 체인(~/.aws/credentials · 환경변수 · 인스턴스 역할)이 그대로 동작하고,
+  # 로컬에서 띄운 dev 가 운영과 같은 경로를 탄다(NFR-INF-005).
+  #
+  # ⚠ 운영과 **같은 큐**(lovebug-llm-request)를 쓴다. 운영 EC2 워커가 그 큐를 폴링하고
+  #   있으면 메시지가 두 워커에 갈려 양쪽 다 조용히 실패한다 — 로컬에서 dev 를 띄우는
+  #   동안에는 운영 워커 컨테이너를 내려 둔다.
+  #
+  # LocalStack 으로 되돌리려면 yml 을 고치지 말고 환경변수로 덮는다:
+  #   SPRING_CLOUD_AWS_ENDPOINT=http://localhost:4566 \
+  #   AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
+  #   SPRING_CLOUD_AWS_SQS_QUEUE_NOT_FOUND_STRATEGY=create ./gradlew bootRun ...
   cloud:
     aws:
-      endpoint: ${AWS_ENDPOINT:http://localhost:4566}
-      credentials:
-        access-key: ${AWS_ACCESS_KEY_ID:test}
-        secret-key: ${AWS_SECRET_ACCESS_KEY:test}
       sqs:
-        # 큐가 없으면 만든다. 초기화 스크립트와 리스너 기동의 순서 경합을 없앤다(D-78).
-        # prod 는 기본값(fail)을 유지한다 — 이름을 틀린 채 새 큐가 조용히 생기는 사고를 막는다.
-        queue-not-found-strategy: create
+        # 큐가 없으면 기동을 멈춘다. 실제 계정에 붙으므로, 이름을 틀렸을 때 조용히 새 큐가
+        # 생기는 쪽이 훨씬 위험하다(D-78). prod 와 같은 값이다.
+        queue-not-found-strategy: fail
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -44,7 +50,13 @@ app:
     # dev 는 mock 이 기본이다(D-86) — Spring → LocalStack → FastAPI → Spring 왕복을
     # 비용 없이 확인하려면 결과에 데이터가 있어야 한다. stub 은 빈 결과라 「성공했지만
     # 후보어 0건」과 실패를 구분할 수 없어 화면까지 흐르는지 볼 수 없다.
-    mode: ${AI_MODE:mock}
+    #
+    # **실제 모델로 확인하려면 AI_MODE=real 로 띄운다.**
+    #   AI_MODE=real ./gradlew bootRun --args='--spring.profiles.active=local,dev'
+    # 워커 쪽에도 Gemini 키가 있어야 한다(루트 .env 의 GEMINI_API_KEY → compose 가 주입).
+    # 둘 중 하나만 하면 조용히 mock 으로 돌거나 실패 콜백만 본다. 실제 과금되는 경로이고
+    # 중복 방지가 없으므로(R-35) 재배달 시 모델이 두 번 불릴 수 있다 — 확인 후 되돌린다.
+    mode: ${AI_MODE:real}
 
   security:
     actuator:
