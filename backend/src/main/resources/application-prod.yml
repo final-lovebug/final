@@ -35,7 +35,11 @@ spring:
          enabled: true
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      # 운영 스키마의 주인은 Flyway 다. Hibernate 는 매핑과 실제 스키마가 어긋나면 기동을 막는
+      # 역할만 한다 — create/create-drop/update 는 어떤 경우에도 쓰지 않는다(루트 CLAUDE.md).
+      # create-drop 은 graceful shutdown 때 매핑된 테이블을 전부 DROP 하므로,
+      # stop_container.sh 의 `docker stop --time 60` 과 맞물려 배포마다 운영 DB 를 비운다.
+      ddl-auto: validate
 app:
   messaging:
     mode: sqs
