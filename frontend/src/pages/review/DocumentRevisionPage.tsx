@@ -154,8 +154,10 @@ export function DocumentRevisionPage() {
   )
 
   /**
-   * 본문에 얹는 제안어 표시. 적용은 초록 실선, 무시는 회색 점선이고 **누르면 우측이 그
-   * 용어의 코멘트 스레드로 바뀐다** — 표의 행을 누르는 것과 같은 동작이다.
+   * 본문에 얹는 제안어 표시. 적용은 **GitHub diff의 빨강**(연한 빨강 배경 + 진한 빨강 글자)이고
+   * 무시는 회색 점선이다. 초록 배경은 본문 위에서 거의 보이지 않아 빨강으로 바꿨다.
+   * **누르면 우측이 그 용어의 코멘트 스레드로 바뀐다** — 표의 행을 누르는 것과 같은 동작이다.
+   * 선택 표시는 배경을 갈아끼우지 않고 테두리(outline)로 얹어 빨강이 그대로 남게 한다.
    */
   function renderTermSpan(term: SuggestionTerm, text: string) {
     const applied = term.status === 'APPLY_SUGGESTION'
@@ -169,13 +171,11 @@ export function DocumentRevisionPage() {
             : `유지됨 — ${term.rejectReason ?? '사유 없음'}`
         }
         className={cx(
-          'cursor-pointer rounded-xs border-b-[1.5px] px-[1px]',
-          applied ? 'border-success' : 'border-dashed border-text-faint',
-          selected
-            ? 'bg-accent-bg-strong font-bold'
-            : applied
-              ? 'bg-success-bg'
-              : 'text-text-secondary',
+          'cursor-pointer rounded-xs border-b-[1.5px] px-[2px]',
+          applied
+            ? 'border-diff-removed-border bg-diff-removed-bg font-semibold text-diff-removed'
+            : 'border-dashed border-text-faint text-text-secondary',
+          selected && 'font-bold outline-2 outline-offset-1 outline-accent',
         )}
       >
         {text}
@@ -283,7 +283,7 @@ export function DocumentRevisionPage() {
             {/* 개정안도 원본과 같은 마크다운 본문이다 — 상세 화면과 같은 뷰어로 그린다. */}
             <Markdown source={proposedBody} decorations={bodyDecorations} />
             <Banner tone="neutral" className="mt-6 text-[11.5px]">
-              교정에서 수용한 치환이 이미 반영된 본문입니다. <b>초록</b>은 제안어로 바뀐 자리,
+              교정에서 수용한 치환이 이미 반영된 본문입니다. <b>빨강</b>은 제안어로 바뀐 자리,
               <b> 회색 점선</b>은 검토했지만 그대로 둔 자리입니다 — 누르면 오른쪽에서 그 용어에
               코멘트를 남길 수 있습니다.
               {placedTerms.length < terms.length && (

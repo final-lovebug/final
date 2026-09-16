@@ -41,6 +41,11 @@
   --color-success-bg: #e8f6ee;
   --color-success-border: #c8ecda;
 
+  /* GitHub diff의 삭제(빨강) 계열 — 개정안 본문에서 바뀐 용어를 눈에 띄게 표시할 때 쓴다 */
+  --color-diff-removed: #82071e;
+  --color-diff-removed-bg: #ffebe9;
+  --color-diff-removed-border: #cf222e;
+
   --color-neutral: #6b7080;
   --color-neutral-bg: #f1f2f4;
 
