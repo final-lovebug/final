@@ -12,7 +12,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -22,6 +24,11 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
+@Table(
+        indexes = {
+            @Index(name = "idx_draft_dictionary_dictionary", columnList = "dictionary_id"),
+            @Index(name = "idx_draft_dictionary_workspace", columnList = "workspace_id")
+        })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DraftDictionary extends BaseEntity {
 

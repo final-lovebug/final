@@ -12,6 +12,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -29,7 +30,16 @@ import org.hibernate.type.SqlTypes;
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"workspace_id", "in_progress_flag"}))
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_extraction_job_workspace_in_progress",
+                        columnNames = {"workspace_id", "in_progress_flag"}),
+        indexes = {
+            @Index(name = "idx_extraction_job_workspace_status", columnList = "workspace_id, status"),
+            // 타임아웃 스위퍼가 1분마다 도는 조회(D-77): status IN (...) AND updated_at < ?
+            @Index(name = "idx_extraction_job_status_updated_at", columnList = "status, updated_at")
+        })
 public class ExtractionJob extends BaseEntity {
 
     @Id

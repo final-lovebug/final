@@ -10,6 +10,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,6 +21,7 @@ import org.hibernate.type.SqlTypes;
 /** 사전집 대조 결과를 사람이 교정하는 문서 초안. */
 @Getter
 @Entity
+@Table(indexes = @Index(name = "idx_draft_document_document", columnList = "document_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DraftDocument extends BaseEntity {
 
@@ -48,7 +51,7 @@ public class DraftDocument extends BaseEntity {
     private String draftBody;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private DraftDocumentStatus status;
 
     private Long requestedBy;

@@ -94,7 +94,7 @@
 
 2026-09-13 기준으로 아직 채워지지 않은 부분이다. 관련 작업을 할 때 함께 정리한다.
 
-- ~~**Flyway 마이그레이션 없음.**~~ **해소** — `V1__create_workspace_and_participant.sql`을 추가했다. Repository 테스트는 `RepositoryTestSupport`를 통해 Flyway가 만든 스키마를 쓴다. `BaseEntityAuditingTest`만 테스트 전용 엔티티를 쓰므로 `flyway.enabled=false` + `ddl-auto=create-drop`을 유지한다.
+- **마이그레이션 도구가 없다 — 의도한 상태다.** Flyway는 의존성·설정·`db/migration`까지 제거했고 **스키마의 주인은 JPA 매핑 하나다**(`ddl-auto=create-drop`). 제약·인덱스·`text` 컬럼·생성 컬럼도 전부 애노테이션으로 적는다(`backend/CLAUDE.md` 「스키마 규칙」). **모든 환경에서 기동마다 스키마가 새로 만들어져 데이터가 남지 않는다** — 보존이 필요해지면 그때 마이그레이션 도구를 다시 들인다.
 - ~~**`SecurityConfig` 없음.**~~ **해소** — `member/infra/security/SecurityConfig`와 `JwtAuthenticationFilter`·`JwtAuthenticationEntryPoint`·`JwtAccessDeniedHandler`·`SecurityConfigTest`가 들어왔다(Google OAuth2 로그인 연동, `WLSH-75`·`WLSH-122`).
 - ~~**인증 정합이 아직 남아 있다.**~~ **해소** — `T-INT-3`이 둘을 함께 정리했다. ① **프로파일을 `local`·`dev`·`prod`·`test` 넷으로 분리**했고 `src/test/resources/application.yml`의 수동 복제를 걷어냈다(`NFR-INF-002`·`D-46`). ② **컨트롤러 18개가 받던 `memberId` 요청 파라미터 74곳을 제거**하고 `@AuthenticationPrincipal`로 인증 주체에서 해석한다(`NFR-USR-001`). 컨트롤러 테스트의 `@AutoConfigureMockMvc(addFilters = false)`는 유지하되 `@WithLoginMember`로 principal을 주입한다 — 인증·인가 흐름 자체는 `SecurityConfigTest`가 단독으로 검증한다.
 - **AI 워커(FastAPI) 구현이 이 저장소에 없다.** 백엔드의 책임은 계약·발행·콜백 수신·타임아웃 회수까지이며(`docs/AI_CONTRACT.md`), **워커가 뜨기 전에는 `app.ai.dispatch.mode=sqs`인 환경에서 추출·대조 작업이 제한 시간 뒤 실패로 회수된다.** 로컬에서 흐름을 보려면 기본값(`in-process`)을 쓰면 대역이 즉시 끝낸다 — **추출 대역은 고정 후보어 2건을 돌려주고**(`InProcessExtractionWorker`) 대조 대역은 빈 결과로 끝낸다.

@@ -8,6 +8,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import lombok.AccessLevel;
@@ -18,6 +21,20 @@ import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
+@Table(
+        uniqueConstraints = {
+            // 한 작업에 대한 발행 행은 하나다. 접수 트랜잭션이 두 번 돌아도 두 번째가 여기서 튕긴다(T-INT-25).
+            @UniqueConstraint(
+                    name = "uk_llm_job_outbox_job",
+                    columnNames = {"job_type", "job_id"}),
+            @UniqueConstraint(name = "uk_llm_job_outbox_request", columnNames = "request_id")
+        },
+        indexes = {
+            // 디스패처가 도는 조회: status = ? AND next_attempt_at <= ?
+            @Index(name = "idx_llm_job_outbox_dispatch", columnList = "status, next_attempt_at"),
+            // 리스 회수가 도는 조회: status = ? AND lease_expires_at < ?
+            @Index(name = "idx_llm_job_outbox_lease", columnList = "status, lease_expires_at")
+        })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LlmJobOutbox extends BaseEntity {
 
@@ -36,7 +53,7 @@ public class LlmJobOutbox extends BaseEntity {
     private String requestId;
 
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
-    @Column(nullable = false, columnDefinition = "text")
+    @Column(nullable = false)
     private String payload;
 
     @Enumerated(EnumType.STRING)

@@ -12,6 +12,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,6 +22,8 @@ import org.hibernate.type.SqlTypes;
 
 @Entity
 @Getter
+// 초안 화면이 「이 초안의 미처리 제안」을 상태로 걸러 읽는다.
+@Table(indexes = @Index(name = "idx_suggestion_term_draft_document_status", columnList = "draft_document_id, status"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SuggestionTerm extends BaseEntity {
     @Id
@@ -32,14 +36,14 @@ public class SuggestionTerm extends BaseEntity {
     @Embedded
     private TextRange anchor;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 255)
     private String originTerm;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 255)
     private String suggestionTerm;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private SuggestionTermStatus status;
 
     private Long handledBy;

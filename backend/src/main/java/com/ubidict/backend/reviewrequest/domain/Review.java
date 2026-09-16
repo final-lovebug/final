@@ -11,6 +11,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import lombok.AccessLevel;
@@ -19,6 +21,12 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
+// 「이 요청에 이 사람이 마지막으로 낸 리뷰」를 찾는 조회가 세 컬럼을 그대로 탄다.
+@Table(
+        indexes =
+                @Index(
+                        name = "idx_review_request_member_submitted",
+                        columnList = "review_request_id, member_id, submitted_at"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Review extends BaseEntity {
 

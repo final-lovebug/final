@@ -13,12 +13,28 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Check;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
+@Table(
+        indexes = {
+            @Index(name = "idx_comment_review", columnList = "review_id, created_at, id"),
+            @Index(name = "idx_comment_parent", columnList = "parent_id")
+        })
+// 앵커는 두 오프셋이 함께 있거나 함께 없다. 한쪽만 채워진 코멘트는 어디를 가리키는지 알 수 없다.
+@Check(
+        name = "ck_comment_anchor",
+        constraints = "(start_offset is null and end_offset is null)"
+                + " or (start_offset is not null and end_offset is not null"
+                + " and start_offset >= 0 and start_offset <= end_offset)")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Comment extends BaseEntity {
 
@@ -32,7 +48,8 @@ public class Comment extends BaseEntity {
     @Column(nullable = false, updatable = false)
     private Long authorId;
 
-    @Column(nullable = false, columnDefinition = "text")
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    @Column(nullable = false)
     private String content;
 
     @Embedded

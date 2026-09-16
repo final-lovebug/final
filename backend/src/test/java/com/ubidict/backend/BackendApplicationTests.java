@@ -7,7 +7,6 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest(
         properties = {
             "spring.jpa.hibernate.ddl-auto=create-drop",
-            "spring.flyway.enabled=false",
             "app.messaging.mode=in-memory",
             "app.ai.dispatch.mode=in-process"
         })

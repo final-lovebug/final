@@ -21,12 +21,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({DbCleaner.class, JpaAuditingConfig.class, MySqlContainerConfiguration.class})
-@DataJpaTest(
-        properties = {
-            "spring.jpa.hibernate.ddl-auto=create-drop",
-            "spring.flyway.enabled=false",
-            "app.messaging.mode=in-memory"
-        })
+@DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "app.messaging.mode=in-memory"})
 public abstract class MySqlRepositoryTestSupport {
 
     @Autowired

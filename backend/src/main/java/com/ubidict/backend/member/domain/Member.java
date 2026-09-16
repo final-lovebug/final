@@ -51,18 +51,19 @@ public class Member extends BaseEntity {
     private String displayName;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private MemberStatus status;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private MemberRole role;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private OAuthProvider provider;
 
-    @Column(nullable = false)
+    // utf8mb4 에서 191자면 764바이트다. provider 와 묶인 유니크 인덱스가 MySQL 의 키 길이 상한 안에 들어온다.
+    @Column(nullable = false, length = 191)
     private String providerId;
 
     private Member(String email, String displayName, OAuthProvider provider, String providerId) {
