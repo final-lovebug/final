@@ -28,6 +28,7 @@ import time
 
 from app.backend_db import fetch_dictionary_entries, fetch_documents, fetch_existing_terms
 from app.job_schema import ContrastJobRequest, ExtractJobRequest
+from app.mock_delay import sleep_mock_delay
 from app.pipeline.contrast_llm import find_llm_contrast_matches
 from app.pipeline.llm import extract_synonyms_and_homographs
 from app.pipeline.synonym import build_homograph_candidates, build_synonym_candidates
@@ -48,9 +49,12 @@ from app.schema import (
 # 큐/폴링 배선만 검증하고 싶을 때 쓰는 값이라 정밀할 필요 없다 — 2~3초 사이.
 _STUB_DELAY_SECONDS = 2.5
 
-# mock 모드는 지연을 넣지 않는다. 쓰는 목적이 「데이터가 화면·저장까지 흐르는지」
-# 확인이라 빨리 끝나는 편이 낫고, 배선 확인은 stub 이 담당한다.
-_MOCK_USAGE = Usage(model="mock", inputTokens=0, outputTokens=0, llmCalls=0, elapsedMs=0)
+# mock 모드는 실제 LLM 대신 랜덤 지연을 넣고 고정 응답을 반환한다. 화면·저장까지
+# 데이터가 흐르는지 확인하면서 외부 모델의 처리시간도 모의한다.
+
+
+def _mock_usage(elapsed_ms: int) -> Usage:
+    return Usage(model="mock", inputTokens=0, outputTokens=0, llmCalls=0, elapsedMs=elapsed_ms)
 
 _MOCK_WARNING = "mode=mock — 실제 LLM·DB 호출 없이 고정 임시 데이터를 반환함"
 
@@ -61,6 +65,7 @@ def _mock_extract_response(job: ExtractJobRequest) -> ExtractResponse:
     SQS 경로(`app/queue_consumer.py`의 `_mock_term`)가 돌려주는 것과 같은 용어를
     쓴다 — 두 경로를 번갈아 확인해도 화면에 같은 것이 보이게 하기 위함이다.
     """
+    elapsed_ms = sleep_mock_delay()
     document_id = str(job.documentIds[0])
     snippet = "회원은 결제수단을 선택해 주문을 결제한다."
 
@@ -92,7 +97,7 @@ def _mock_extract_response(job: ExtractJobRequest) -> ExtractResponse:
                 ],
             )
         ],
-        usage=_MOCK_USAGE,
+        usage=_mock_usage(elapsed_ms),
         warnings=[_MOCK_WARNING],
     )
 
@@ -105,6 +110,7 @@ def _mock_contrast_response(job: ContrastJobRequest) -> ContrastResponse:
     `CheckSuggestionValidator` 가 본문을 잘라 `originTerm` 과 대조하므로 본문을
     읽지 않고 만든 제안은 거절된다.
     """
+    elapsed_ms = sleep_mock_delay()
     snippet = "회원은 페이먼트 수단을 선택한다."
 
     return ContrastResponse(
@@ -125,7 +131,7 @@ def _mock_contrast_response(job: ContrastJobRequest) -> ContrastResponse:
                 method="rule",
             )
         ],
-        usage=_MOCK_USAGE,
+        usage=_mock_usage(elapsed_ms),
         warnings=[_MOCK_WARNING],
     )
 
