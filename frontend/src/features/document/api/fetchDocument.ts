@@ -3,7 +3,7 @@ import { fetchMemberNames } from '../../../shared/api/memberNames'
 import type { DocumentListItem } from '../model/fixtures'
 import type { DocumentId, WorkspaceId } from '../../../shared/types/ids'
 
-interface DocumentApiResponse {
+export interface DocumentApiResponse {
   documentId: number
   workspaceId: number
   title: string
@@ -38,7 +38,7 @@ export async function fetchDocument(
   return mapDocument(response, nameByMemberId.get(response.uploaderId) ?? '—')
 }
 
-function mapDocument(response: DocumentApiResponse, ownerName: string): DocumentListItem {
+export function mapDocument(response: DocumentApiResponse, ownerName: string): DocumentListItem {
   return {
     ownerName,
     id: String(response.documentId),
