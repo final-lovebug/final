@@ -5,11 +5,13 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxService;
+import com.ubidict.backend.common.infra.ai.LlmMode;
+import com.ubidict.backend.common.infra.ai.LlmProperties;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJob;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJobStatus;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryCreationPolicyValidator;
 import com.ubidict.backend.draftdictionary.implement.ExtractionJobCreationPolicyValidator;
-import com.ubidict.backend.draftdictionary.implement.ExtractionJobEventPublisher;
 import com.ubidict.backend.draftdictionary.implement.ExtractionJobReader;
 import com.ubidict.backend.draftdictionary.implement.ExtractionJobWriter;
 import com.ubidict.backend.draftdictionary.infra.port.DocumentQueryPort;
@@ -30,10 +32,11 @@ class DraftDictionaryExtractionServiceTest {
     private final DraftDictionaryCreationPolicyValidator draftPolicy =
             mock(DraftDictionaryCreationPolicyValidator.class);
     private final DocumentQueryPort documentQueryPort = mock(DocumentQueryPort.class);
-    private final ExtractionJobEventPublisher eventPublisher = mock(ExtractionJobEventPublisher.class);
+    private final LlmJobOutboxService outboxService = mock(LlmJobOutboxService.class);
+    private final LlmProperties llmProperties = mock(LlmProperties.class);
     private final WorkspaceAccessValidator accessValidator = mock(WorkspaceAccessValidator.class);
     private final DraftDictionaryExtractionService service = new DraftDictionaryExtractionService(
-            reader, writer, jobPolicy, draftPolicy, documentQueryPort, eventPublisher, accessValidator);
+            reader, writer, jobPolicy, draftPolicy, documentQueryPort, outboxService, llmProperties, accessValidator);
 
     @DisplayName("용어 추출을 요청하면 대상 문서만 남긴 대기 작업과 요청 이벤트를 만든다.")
     @Test
@@ -43,6 +46,7 @@ class DraftDictionaryExtractionServiceTest {
         given(documentQueryPort.isExtractable(10L)).willReturn(true);
         given(documentQueryPort.isExtractable(20L)).willReturn(false);
         given(writer.append(1L, null, List.of(10L), 2L)).willReturn(job);
+        given(llmProperties.mode()).willReturn(LlmMode.STUB);
 
         ExtractionJobResult result = service.request(new CreateExtractionJobCommand(1L, null, List.of(10L, 20L), 2L));
 
@@ -52,6 +56,6 @@ class DraftDictionaryExtractionServiceTest {
         verify(accessValidator).validateAtLeast(1L, 2L, Permission.ADMIN);
         verify(draftPolicy).validate(1L);
         verify(jobPolicy).validate(1L);
-        verify(eventPublisher).publishRequested(job);
+        verify(outboxService).enqueue(org.mockito.ArgumentMatchers.any());
     }
 }

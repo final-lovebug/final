@@ -13,6 +13,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -21,10 +23,13 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"workspace_id", "in_progress_flag"}))
 public class ExtractionJob extends BaseEntity {
 
     @Id
@@ -62,6 +67,24 @@ public class ExtractionJob extends BaseEntity {
     @Column(length = 1000)
     private String failureReason;
 
+    /**
+     * 진행 중({@code PENDING}·{@code RUNNING})이면 1, 끝났으면 {@code null}. 「워크스페이스당 진행 중 작업은 1개」를 DB로 보장하기 위한
+     * 컬럼이다({@code uk_extraction_job_workspace_in_progress}).
+     *
+     * <p><b>사전 검사만으로는 막지 못한다</b> — {@code ExtractionJobCreationPolicyValidator}는 락 없는 스냅샷 읽기라 동시 요청 둘을
+     * 모두 통과시키고, 그러면 작업이 둘 생겨 AI 워커가 <b>LLM 을 두 번 호출</b>한다. 콜백 멱등(D-72)은 같은 작업의 중복 콜백만 막으므로
+     * 이 경로에는 듣지 않는다.
+     *
+     * <p>{@code status}를 그대로 유니크에 넣으면 끝난 작업끼리 충돌한다. MySQL 은 UNIQUE 에서 NULL 을 서로 다른 값으로 보므로,
+     * 끝난 작업은 NULL 이라 몇 개든 쌓이고 진행 중인 작업은 1 이라 두 개째가 막힌다.
+     *
+     * <p><b>{@code dictionary.active_flag}와 달리 생성 컬럼이 아니다.</b> 같은 식을 생성 컬럼으로 두면 H2 위에서 도는 테스트가
+     * 삽입 시점에 깨진다. 대신 {@link #changeStatus}가 상태와 함께 갱신한다 — 상태를 바꾸는 경로는 그 메서드 하나뿐이다.
+     */
+    @JdbcTypeCode(SqlTypes.TINYINT)
+    @Column(name = "in_progress_flag")
+    private Integer inProgressFlag;
+
     @Column(nullable = false, updatable = false)
     private Long createdBy;
 
@@ -71,7 +94,7 @@ public class ExtractionJob extends BaseEntity {
         this.dictionaryId = dictionaryId;
         this.sourceDocumentIds = new ArrayList<>(sourceDocumentIds);
         this.requestedBy = requestedBy;
-        this.status = ExtractionJobStatus.PENDING;
+        changeStatus(ExtractionJobStatus.PENDING);
         this.createdBy = requestedBy;
     }
 
@@ -80,19 +103,33 @@ public class ExtractionJob extends BaseEntity {
         return new ExtractionJob(workspaceId, dictionaryId, sourceDocumentIds, requestedBy);
     }
 
-    /**
-     * 워커에게 작업을 넘겼다고 표시한다. 상관 식별자를 기록하면서 {@code PENDING -> RUNNING}으로 옮긴다.
-     *
-     * <p>같은 {@code requestId}로 다시 부르면 아무 일도 하지 않는다 — 발행이 재시도돼도 안전해야 한다.
-     */
-    public void markDispatching(String requestId) {
+    /** 접수 트랜잭션에서 아웃박스 payload와 같은 상관 식별자를 고정한다. */
+    public void assignRequestId(String requestId) {
         if (requestId == null || requestId.isBlank()) {
             throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_EXTRACTION_INVALID_REQUEST);
         }
-        if (status == ExtractionJobStatus.RUNNING && requestId.equals(this.requestId)) return;
-        validateStatus(ExtractionJobStatus.PENDING);
+        if (this.requestId != null && !requestId.equals(this.requestId)) {
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_EXTRACTION_INVALID_STATUS);
+        }
         this.requestId = requestId;
-        this.status = ExtractionJobStatus.RUNNING;
+    }
+
+    /** 아웃박스가 실제 발행을 시도할 때만 {@code PENDING -> RUNNING}으로 옮긴다. */
+    public boolean prepareDispatch(String requestId) {
+        if (!matchesRequestId(requestId)) return false;
+        if (status == ExtractionJobStatus.RUNNING) return true;
+        if (status != ExtractionJobStatus.PENDING) return false;
+        changeStatus(ExtractionJobStatus.RUNNING);
+        return true;
+    }
+
+    /** @deprecated 테스트·구 경로 호환용. 새 접수 흐름은 assign 후 아웃박스가 prepare한다. */
+    @Deprecated
+    public void markDispatching(String requestId) {
+        assignRequestId(requestId);
+        if (!prepareDispatch(requestId)) {
+            throw new BusinessException(DraftDictionaryErrorCode.DRAFT_DICTIONARY_EXTRACTION_INVALID_STATUS);
+        }
     }
 
     /**
@@ -115,7 +152,7 @@ public class ExtractionJob extends BaseEntity {
         }
         this.draftDictionaryId = draftDictionaryId;
         this.failureReason = null;
-        this.status = ExtractionJobStatus.SUCCEEDED;
+        changeStatus(ExtractionJobStatus.SUCCEEDED);
     }
 
     public void fail(String failureReason) {
@@ -126,11 +163,19 @@ public class ExtractionJob extends BaseEntity {
         String normalized =
                 failureReason == null || failureReason.isBlank() ? "용어 추출 작업 처리에 실패했습니다." : failureReason.strip();
         this.failureReason = normalized.substring(0, Math.min(normalized.length(), 1000));
-        this.status = ExtractionJobStatus.FAILED;
+        changeStatus(ExtractionJobStatus.FAILED);
     }
 
     public boolean isInProgress() {
         return status == ExtractionJobStatus.PENDING || status == ExtractionJobStatus.RUNNING;
+    }
+
+    /**
+     * 상태를 바꾸는 유일한 경로. {@link #inProgressFlag}를 함께 갱신해 둘이 어긋나지 않게 한다.
+     */
+    private void changeStatus(ExtractionJobStatus next) {
+        this.status = next;
+        this.inProgressFlag = next == ExtractionJobStatus.PENDING || next == ExtractionJobStatus.RUNNING ? 1 : null;
     }
 
     private void validateStatus(ExtractionJobStatus expected) {

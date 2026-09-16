@@ -2,6 +2,8 @@ package com.ubidict.backend.draftdocument.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxRepository;
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxStatus;
 import com.ubidict.backend.dictionary.domain.Dictionary;
 import com.ubidict.backend.dictionary.fixture.DictionaryFixture;
 import com.ubidict.backend.dictionary.infra.DictionaryRepository;
@@ -46,6 +48,9 @@ class DraftDocumentCheckIntegrationTest extends IntegrationTestSupport {
     private CheckJobRepository checkJobRepository;
 
     @Autowired
+    private LlmJobOutboxRepository outboxRepository;
+
+    @Autowired
     private DraftDocumentRepository draftDocumentRepository;
 
     @Autowired
@@ -82,6 +87,10 @@ class DraftDocumentCheckIntegrationTest extends IntegrationTestSupport {
         assertThat(draftDocumentRepository.findByIdAndDeletedAtIsNull(
                         job(requested.checkJobId()).getDraftDocumentId()))
                 .isPresent();
+        assertThat(outboxRepository.findAll())
+                .singleElement()
+                .extracting(outbox -> outbox.getStatus())
+                .isEqualTo(LlmJobOutboxStatus.PUBLISHED);
     }
 
     @DisplayName("사전집 초안이 진행 중이어도 문서를 갱신할 수 있고, 대조에 쓴 사전집 버전이 초안에 남는다(D-93).")

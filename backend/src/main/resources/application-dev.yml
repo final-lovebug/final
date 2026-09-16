@@ -5,6 +5,9 @@
 # 값은 저장소에 두지 않고 ${VAR} 참조만 남긴다(루트 CLAUDE.md 「시크릿은 환경변수 또는 AWS 파라미터 스토어로 주입한다」).
 spring:
   flyway:
+    # 스키마는 ddl-auto: create-drop 이 만든다. Flyway 를 함께 켜면 create-drop 이 지우지 못하는
+    # flyway_schema_history 만 남아 다음 기동에서 checksum mismatch 로 막힌다.
+    enabled: false
     # 도메인별 버전 대역(backend/CLAUDE.md)을 쓰므로 낮은 번호가 뒤늦게 합류하는 일이 정상적으로 생긴다
     # — 두 사람이 서로 다른 도메인에서 마이그레이션을 만들고 낮은 대역 쪽이 나중에 머지되는 경우다.
     # 이때 기본값(false)이면 검증이 「Detected resolved migration not applied to database」로 기동을 막는다.

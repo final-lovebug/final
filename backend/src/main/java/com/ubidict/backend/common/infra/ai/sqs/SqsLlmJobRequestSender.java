@@ -21,7 +21,9 @@ import tools.jackson.databind.ObjectMapper;
  * 16종이라 수신 측이 타입을 모른다)가 여기에는 없다 — {@link LlmJobRequest} 하나뿐이다.
  *
  * <p>{@code SqsEventPublisher}와 마찬가지로 <b>표준 큐</b>라 {@code MessageGroupId}·{@code MessageDeduplicationId}를
- * 붙이지 않는다(D-53). 중복 수신은 콜백 쪽 멱등이 막는다(D-72).
+ * 붙이지 않는다(D-53). <b>중복 수신이 일어나며, 콜백 쪽 멱등(D-72)이 막는 것은 결과뿐이다</b> — 같은 메시지가 두 번
+ * 배달되면 워커는 모델을 두 번 부르고, 초안만 하나로 접힌다. 모델 호출의 멱등은 워커가 {@code requestId}를 선점해
+ * 보장한다(D-111, {@code docs/AI_CONTRACT.md} 7-2-2).
  */
 @Slf4j
 @Component

@@ -83,16 +83,41 @@ def fetch_documents(document_ids: list[int]) -> list[DocumentInput]:
     ]
 
 
-def fetch_document_body(document_id: int, version_no: int | None) -> str | None:
-    """대조 대상 문서의 본문 한 건. 없거나 삭제됐으면 ``None``이다.
+def is_running_llm_job(job_type: str, job_id: int, request_id: str) -> bool:
+    """모델 호출 직전 요청이 아직 유효한지 확인한다.
+
+    Spring 아웃박스 재시도와 타임아웃 회수는 서로 경합할 수 있다. 종료된 Job의
+    지연 메시지로 비용이 드는 모델 호출을 하지 않도록, REAL 작업만 이 읽기 전용
+    조회를 통과시킨다.
+    """
+    table = "extraction_job" if job_type == "TERM_EXTRACTION" else "check_job"
+    sql = f"""
+        SELECT 1
+        FROM {table}
+        WHERE id = %s AND request_id = %s AND status = 'RUNNING' AND deleted_at IS NULL
+    """
+    conn = _connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (job_id, request_id))
+            return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def fetch_document_version(document_id: int, version_no: int | None) -> DocumentInput | None:
+    """대조 대상 문서 한 건. 없거나 삭제됐으면 ``None``이다.
 
     ``version_no``가 가리키는 버전을 읽는다(``docs/AI_CONTRACT.md`` 5-4). 백엔드는
     콜백에 실린 버전이 현재 버전과 다르면 결과를 버리므로, 여기서 다른 버전을 읽으면
     앵커 오프셋이 조용히 어긋난다. ``None``이면 현재 확정본을 읽는다.
+
+    ``fetch_documents``와 달리 제목까지 담은 ``DocumentInput``을 돌려준다 — REAL
+    대조는 이걸 그대로 판정 파이프라인에 넣고, 프롬프트에 제목이 들어간다.
     """
     if version_no is None:
         sql = """
-            SELECT dv.body AS body
+            SELECT d.id AS document_id, d.title AS title, dv.body AS body
             FROM document d
             JOIN document_version dv
               ON dv.document_id = d.id AND dv.version_no = d.current_version_no
@@ -101,7 +126,7 @@ def fetch_document_body(document_id: int, version_no: int | None) -> str | None:
         params: tuple = (document_id,)
     else:
         sql = """
-            SELECT dv.body AS body
+            SELECT d.id AS document_id, d.title AS title, dv.body AS body
             FROM document d
             JOIN document_version dv
               ON dv.document_id = d.id AND dv.version_no = %s
@@ -117,7 +142,20 @@ def fetch_document_body(document_id: int, version_no: int | None) -> str | None:
     finally:
         conn.close()
 
-    return row["body"] if row else None
+    if row is None:
+        return None
+    return DocumentInput(
+        documentId=str(row["document_id"]),
+        title=row["title"],
+        department="",  # 스키마에 대응 컬럼 없음 — 위 모듈 docstring 참고
+        content=row["body"],
+    )
+
+
+def fetch_document_body(document_id: int, version_no: int | None) -> str | None:
+    """``fetch_document_version``의 본문만. 대조 MOCK 이 쓴다 — 제목이 필요 없다."""
+    document = fetch_document_version(document_id, version_no)
+    return document.content if document else None
 
 
 def fetch_active_preferred_forms(workspace_id: int) -> list[str]:
@@ -144,6 +182,31 @@ def fetch_active_preferred_forms(workspace_id: int) -> list[str]:
         conn.close()
 
     return [row["preferred_form"] for row in rows if row["preferred_form"]]
+
+
+def fetch_active_dictionary_entries(workspace_id: int) -> list[DictionaryEntry]:
+    """워크스페이스 활성 사전집의 용어 전체(``definition`` 포함). 없으면 빈 목록이다.
+
+    REAL 대조가 쓴다. ``fetch_dictionary_entries``와 달리 ``dictionaryId``를 받지 않는다
+    — 대조 요청 메시지에는 그 값이 아예 없다(``docs/AI_CONTRACT.md`` 5-4의
+    ``dictionaryId``는 ``DOCUMENT_CHECK``에서 항상 ``null``이다). 그래서 기준 사전집을
+    ``workspaceId``로 직접 찾는다. 활성 사전집은 워크스페이스당 하나다(5-5).
+    """
+    sql = """
+        SELECT t.id AS term_id, t.preferred_form, t.english_name, t.definition
+        FROM dictionary d
+        JOIN term t ON t.dictionary_id = d.id
+        WHERE d.workspace_id = %s AND d.status = 'ACTIVE'
+    """
+    conn = _connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (workspace_id,))
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    return [_to_entry(row) for row in rows]
 
 
 def fetch_existing_terms(dictionary_id: int) -> list[ExistingTerm]:
@@ -173,13 +236,14 @@ def _fetch_terms(dictionary_id: int) -> list[DictionaryEntry]:
     finally:
         conn.close()
 
-    return [
-        DictionaryEntry(
-            termId=str(row["term_id"]),
-            preferredForm=row["preferred_form"],
-            englishName=row["english_name"],
-            synonyms=[],  # term 테이블에 synonyms 컬럼 자체가 없다
-            definition=row["definition"],
-        )
-        for row in rows
-    ]
+    return [_to_entry(row) for row in rows]
+
+
+def _to_entry(row: dict) -> DictionaryEntry:
+    return DictionaryEntry(
+        termId=str(row["term_id"]),
+        preferredForm=row["preferred_form"],
+        englishName=row["english_name"],
+        synonyms=[],  # term 테이블에 synonyms 컬럼 자체가 없다
+        definition=row["definition"],
+    )

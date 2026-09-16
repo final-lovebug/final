@@ -37,7 +37,8 @@ def _contrast_job(mode: str) -> ContrastJobRequest:
     )
 
 
-def test_extract_mock_returns_candidate_without_db_or_llm():
+@patch("app.service.sleep_mock_delay", return_value=1500)
+def test_extract_mock_returns_candidate_without_db_or_llm(mock_delay):
     with (
         patch("app.service.fetch_documents") as documents,
         patch("app.service.fetch_existing_terms") as terms,
@@ -59,9 +60,12 @@ def test_extract_mock_returns_candidate_without_db_or_llm():
     # 유래 문서는 요청에 실려온 첫 문서다 — 지어낸 id 를 쓰지 않는다.
     assert candidate.occurrences[0].documentId == "10"
     assert response.usage.llmCalls == 0
+    assert response.usage.elapsedMs == 1500
+    mock_delay.assert_called_once_with()
 
 
-def test_extract_mock_occurrence_offsets_match_its_own_snippet():
+@patch("app.service.sleep_mock_delay", return_value=1500)
+def test_extract_mock_occurrence_offsets_match_its_own_snippet(_mock_delay):
     """anchor 를 쓰는 소비자가 있으므로 오프셋이 snippet 과 맞아야 한다."""
     response = run_extract_job(_extract_job("mock"))
 
@@ -77,7 +81,8 @@ def test_extract_stub_still_returns_empty():
     assert response.candidates == []
 
 
-def test_contrast_mock_returns_suggestion_without_db_or_llm():
+@patch("app.service.sleep_mock_delay", return_value=1500)
+def test_contrast_mock_returns_suggestion_without_db_or_llm(mock_delay):
     with (
         patch("app.service.fetch_documents") as documents,
         patch("app.service.fetch_dictionary_entries") as dictionary,
@@ -95,6 +100,8 @@ def test_contrast_mock_returns_suggestion_without_db_or_llm():
     assert suggestion.foundForm == "페이먼트"
     assert suggestion.documentId == "10"
     assert suggestion.snippet[suggestion.charStart : suggestion.charEnd] == suggestion.foundForm
+    assert response.usage.elapsedMs == 1500
+    mock_delay.assert_called_once_with()
 
 
 def test_contrast_stub_still_returns_empty():
