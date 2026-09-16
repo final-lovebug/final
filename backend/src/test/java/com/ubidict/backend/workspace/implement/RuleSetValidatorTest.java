@@ -19,21 +19,32 @@ class RuleSetValidatorTest {
     private final RuleSetValidator validator = new RuleSetValidator(repository);
     private final Workspace workspace = WorkspaceFixture.workspace().id(1L).build();
 
-    @DisplayName("필수 리뷰어 수가 참여자 수를 넘으면 예외가 발생한다.")
+    @DisplayName("필수 리뷰어 수가 요청자를 제외한 참여자 수를 넘으면 예외가 발생한다.")
     @Test
-    void validate_exceedsParticipantCount() {
-        given(repository.countByWorkspaceIdAndDeletedAtIsNull(1L)).willReturn(2L);
+    void validate_exceedsReviewerCapacity() {
+        given(repository.countByWorkspaceIdAndDeletedAtIsNull(1L)).willReturn(3L);
         assertThatThrownBy(() -> validator.validate(workspace, new RuleSet(3, 0)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).errorCode())
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_REVIEWER_COUNT_EXCEEDS_PARTICIPANTS);
     }
 
-    @DisplayName("필수 리뷰어 수가 참여자 수와 같으면 허용한다.")
+    @DisplayName("필수 리뷰어 수가 요청자를 제외한 참여자 수와 같으면 허용한다.")
     @Test
-    void validate_equalsParticipantCount() {
-        given(repository.countByWorkspaceIdAndDeletedAtIsNull(1L)).willReturn(2L);
+    void validate_equalsReviewerCapacity() {
+        given(repository.countByWorkspaceIdAndDeletedAtIsNull(1L)).willReturn(3L);
 
         assertThatCode(() -> validator.validate(workspace, new RuleSet(2, 2))).doesNotThrowAnyException();
+    }
+
+    @DisplayName("참여자가 요청자 혼자면 0보다 큰 리뷰어 수를 설정할 수 없다.")
+    @Test
+    void validate_soleParticipant() {
+        given(repository.countByWorkspaceIdAndDeletedAtIsNull(1L)).willReturn(1L);
+
+        assertThatThrownBy(() -> validator.validate(workspace, new RuleSet(1, 0)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(WorkspaceErrorCode.WORKSPACE_REVIEWER_COUNT_EXCEEDS_PARTICIPANTS);
     }
 }

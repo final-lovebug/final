@@ -6,6 +6,7 @@ import {
   Card,
   ColFlex,
   DataTable,
+  Markdown,
   Pill,
   PrThread,
   TabRow,
@@ -27,8 +28,9 @@ import { useSuggestionHistory } from '../../features/document/hooks/useSuggestio
 import { useDocument } from '../../features/document/hooks/useDocument'
 import { useCheckJob } from '../../features/document/hooks/useCheckJob'
 import { useCreateCheckJob } from '../../features/document/hooks/useCreateCheckJob'
-import { buildSuggestionSegments } from '../../features/document/model/suggestionSegments'
+import { placeSuggestions } from '../../features/document/model/suggestionSegments'
 import type { SuggestionTerm } from '../../features/document/model/types'
+import { ReviewerSelectDialog } from '../../features/review/components/ReviewerSelectDialog'
 import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
 import { useRequestDocumentReview } from '../../features/review/hooks/useRequestDocumentReview'
 
@@ -64,6 +66,8 @@ export function DocumentDraftPage() {
   const { job: checkJob, isPollingExhausted } = useCheckJob(checkJobId)
 
   const [activeId, setActiveId] = useState<string | null>(null)
+  // 리뷰 요청을 보내기 전에 알림 받을 리뷰어를 고른다(전에는 전원 자동 지정이었다).
+  const [reviewerDialogOpen, setReviewerDialogOpen] = useState(false)
   const [sideTab, setSideTab] = useState<SideTab>('suggestions')
   const [rejectReason, setRejectReason] = useState('')
 
@@ -72,26 +76,33 @@ export function DocumentDraftPage() {
   const resolvedCount = suggestions.filter((s) => s.status !== 'PENDING').length
   const totalCount = suggestions.length
   const allResolved = totalCount > 0 && resolvedCount === totalCount
-  const segments = draft ? buildSuggestionSegments(draft.draftBody, suggestions) : []
+  // 본문은 마크다운으로 그리고(`.md` 업로드본이 기호째 보이지 않도록), 제안어 하이라이트는
+  // anchor 오프셋을 그대로 뷰어에 넘겨 글자 노드를 쪼개 얹는다 — 마크다운 구조와 하이라이트가
+  // 같은 본문 위에서 어긋나지 않는다.
+  const placed = draft ? placeSuggestions(draft.draftBody, suggestions) : []
+  const bodyDecorations = placed.map((item) => ({
+    start: item.start,
+    end: item.end,
+    render: (text: string) => renderSuggestionSpan(item.suggestion, text),
+  }))
   const isChecking = checkJob?.status === 'PENDING' || checkJob?.status === 'RUNNING'
 
   function handleRunCheck() {
     createCheckJob.mutate(undefined, { onSuccess: (created) => setCheckJobId(created.id) })
   }
 
-  function handleCompleteReview() {
+  function handleCompleteReview(reviewerMemberIds: string[]) {
     if (!document || !currentMember) return
-    const reviewerMemberIds = (members ?? [])
-      .filter((member) => member.id !== currentMember.id)
-      .map((member) => member.id)
 
     // 요청자는 인증 주체에서 해석되므로 보내지 않는다. 대상 초안(draftDocumentId)은
     // api가 documentId로 찾아준다.
     requestReview.mutate(
       { documentId, title: `${document.title} 개정 반영`, reviewerMemberIds },
       {
-        onSuccess: (reviewRequest) =>
-          navigate(routes.documentRevision(workspaceId, documentId, reviewRequest.id)),
+        onSuccess: (reviewRequest) => {
+          setReviewerDialogOpen(false)
+          navigate(routes.documentRevision(workspaceId, documentId, reviewRequest.id))
+        },
       },
     )
   }
@@ -230,7 +241,10 @@ export function DocumentDraftPage() {
             variant="primary"
             disabled={!allResolved || requestReview.isPending}
             title={allResolved ? undefined : '제안을 전부 처리해야 리뷰를 요청할 수 있습니다'}
-            onClick={handleCompleteReview}
+            onClick={() => {
+              requestReview.reset()
+              setReviewerDialogOpen(true)
+            }}
           >
             {requestReview.isPending ? '리뷰 요청 중…' : '검토 완료 · 리뷰 요청'}
           </Button>
@@ -286,7 +300,7 @@ export function DocumentDraftPage() {
 
       <TwoCol>
         <ColFlex>
-          <Card className="whitespace-pre-wrap wrap-break-word px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
+          <Card className="wrap-break-word px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
             {isLoadingContrast && <p className="text-text-tertiary">불러오는 중…</p>}
             {!isLoadingContrast && !draft && (
               <p className="text-text-tertiary">
@@ -294,17 +308,11 @@ export function DocumentDraftPage() {
                 실행하세요.
               </p>
             )}
-            {draft && segments.length === 0 && (
+            {draft && draft.draftBody.trim() === '' && (
               <p className="text-text-tertiary">초안 본문이 비어 있습니다.</p>
             )}
-            {segments.map((segment, index) =>
-              segment.kind === 'text' ? (
-                <span key={index}>{segment.text}</span>
-              ) : (
-                <span key={index}>
-                  {renderSuggestionSpan(segment.suggestion, segment.text)}
-                </span>
-              ),
+            {draft && draft.draftBody.trim() !== '' && (
+              <Markdown source={draft.draftBody} decorations={bodyDecorations} />
             )}
 
             {draft && totalCount === 0 && (
@@ -410,6 +418,27 @@ export function DocumentDraftPage() {
           )}
         </PrThread>
       </TwoCol>
+
+      <ReviewerSelectDialog
+        open={reviewerDialogOpen}
+        candidates={(members ?? []).map((member) => ({
+          memberId: member.id,
+          name: member.name,
+        }))}
+        excludeMemberId={currentMember?.id}
+        title="리뷰어 지정"
+        confirmLabel="검토 완료 · 리뷰 요청"
+        isPending={requestReview.isPending}
+        error={
+          requestReview.isError
+            ? requestReview.error instanceof ApiError
+              ? requestReview.error.message
+              : '리뷰를 요청하지 못했습니다.'
+            : null
+        }
+        onSubmit={handleCompleteReview}
+        onClose={() => setReviewerDialogOpen(false)}
+      />
     </div>
   )
 }

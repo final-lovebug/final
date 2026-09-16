@@ -4,6 +4,7 @@ import { exchangeOAuthCode } from '../features/auth/api/exchangeOAuthCode'
 import { fetchCurrentMember } from '../features/member/api/fetchCurrentMember'
 import { useAuthStore } from '../shared/stores/authStore'
 import { routes } from '../shared/config/routes'
+import { takePendingInvitationToken } from '../shared/lib/pendingInvitation'
 
 // 백엔드가 Google 로그인 완료 후 리다이렉트하는 목적지(app.oauth.frontend-redirect-uri,
 // backend/CLAUDE.md 환경변수 표). docs/API.md "콜백 및 토큰 교환" 참고 — 쿼리로 1회용
@@ -53,7 +54,16 @@ export function OAuthCallbackPage() {
         login(result.accessToken)
         const member = await fetchCurrentMember()
         setCurrentMember(member)
-        navigate(routes.workspaces(), { replace: true })
+
+        // 초대 링크를 열었다가 로그인하러 온 경우라면 워크스페이스 목록이 아니라
+        // 수락 화면으로 되돌려보낸다(InvitationAcceptPage가 토큰을 맡겨 둔다).
+        const pendingInvitationToken = takePendingInvitationToken()
+        navigate(
+          pendingInvitationToken
+            ? routes.invitationAccept(pendingInvitationToken)
+            : routes.workspaces(),
+          { replace: true },
+        )
       } catch {
         setErrorMessage('로그인 처리 중 문제가 발생했습니다. 다시 시도해 주세요.')
       }

@@ -58,3 +58,22 @@ export interface WorkspaceSettings {
   createdBy: MemberId
   updatedAt: string
 }
+
+// docs/DOMAIN.md "Invitation (초대)" 섹션. 링크(토큰) 발급 → 수락 시 참여자 등록 방식이다.
+// 이메일 발송은 후순위라 화면은 링크 복사로 시작한다(REQ-WS-003).
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELED'
+
+/** 초대로 줄 수 있는 권한. OWNER는 초대로 부여하지 않는다(소유권 이전은 별도 경로). */
+export type InvitablePermission = Extract<ParticipantPermission, 'ADMIN' | 'REGULAR'>
+
+export interface Invitation {
+  id: string
+  workspaceId: WorkspaceId
+  /** 링크 복사 방식이면 없다(docs/API.md «워크스페이스 초대»). */
+  inviteeEmail: string | null
+  /** **발급 응답에만 담긴다** — 목록 응답은 토큰을 내려주지 않는다. */
+  token?: string
+  permission: InvitablePermission
+  status: InvitationStatus
+  expiresAt: string
+}

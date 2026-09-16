@@ -22,3 +22,6 @@ export { Modal } from './Modal'
 export { PrThread, CommentCard } from './Comment'
 export { TimelineItem } from './Timeline'
 export type { TimelineTone } from './Timeline'
+
+// 마크다운 본문 뷰어(업로드된 .md를 형식대로 보여준다).
+export { Markdown } from './Markdown'

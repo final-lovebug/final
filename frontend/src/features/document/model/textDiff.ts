@@ -131,3 +131,40 @@ export function diffWords(before: string, after: string): TextDiffResult {
 
   return { parts, tooLarge: false }
 }
+
+/** 합친 본문에서 삭제·추가 구간이 차지하는 자리. `kind: 'same'`인 구간은 표시가 없어 담지 않는다. */
+export interface DiffRange {
+  kind: 'removed' | 'added'
+  start: number
+  end: number
+}
+
+export interface DiffSource {
+  /** 삭제분과 추가분을 원래 자리에 함께 끼운 본문. 마크다운으로 그릴 대상이다. */
+  text: string
+  ranges: DiffRange[]
+}
+
+/**
+ * diff 조각을 「마크다운으로 그릴 수 있는 한 벌의 본문 + 구간 목록」으로 합친다.
+ *
+ * 비교 화면은 삭제분(취소선)과 추가분(굵게)을 한 흐름 안에서 보여준다. 마크다운으로 그리려면
+ * 그릴 대상이 **하나의 문자열**이어야 하므로 두 버전을 한 벌로 합치고, 어디가 삭제·추가인지는
+ * 문자 구간으로 따로 들고 간다(`shared/ui/Markdown`의 `decorations`).
+ *
+ * **합친 본문은 어느 쪽 버전과도 완전히 같지 않다.** 제목 줄이 통째로 바뀐 경우처럼 블록
+ * 표식이 두 번 나오면 구조가 한쪽으로 치우쳐 보일 수 있다 — 공백 단위 근사 비교라는 한계의
+ * 연장이며, 화면이 그 문구를 갖고 있다.
+ */
+export function toDiffSource(parts: DiffPart[]): DiffSource {
+  let text = ''
+  const ranges: DiffRange[] = []
+
+  for (const part of parts) {
+    const start = text.length
+    text += part.text
+    if (part.kind !== 'same') ranges.push({ kind: part.kind, start, end: text.length })
+  }
+
+  return { text, ranges }
+}

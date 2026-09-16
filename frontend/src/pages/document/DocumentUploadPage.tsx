@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   Button,
   FieldLabel,
+  Markdown,
   ScreenTitle,
+  Segmented,
   TextArea,
   TextInput,
 } from '../../shared/ui'
@@ -45,6 +47,8 @@ export function DocumentUploadPage() {
   const [newLabel, setNewLabel] = useState('')
   const [fileError, setFileError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  // 마크다운으로 올린 본문이 상세 화면에서 어떻게 보일지 올리기 전에 확인할 수 있게 한다.
+  const [contentView, setContentView] = useState<'edit' | 'preview'>('edit')
 
   const knownLabelNames = (labels ?? []).map((label) => label.name)
 
@@ -110,6 +114,11 @@ export function DocumentUploadPage() {
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     if (!currentMember) return
+    // 미리보기 중에는 textarea가 언마운트돼 required 검사가 돌지 않는다 — 편집으로 되돌려 보여준다.
+    if (content.trim() === '') {
+      setContentView('edit')
+      return
+    }
 
     createDocument.mutate(
       {
@@ -230,15 +239,42 @@ export function DocumentUploadPage() {
         </div>
 
         <div>
-          <FieldLabel required>본문</FieldLabel>
-          <TextArea
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            maxLength={DOCUMENT_CONTENT_MAX_LENGTH}
-            required
-            className="min-h-[220px]"
-            placeholder="파일을 올리거나 직접 붙여 넣으세요"
-          />
+          <div className="flex items-center justify-between">
+            <FieldLabel required>본문</FieldLabel>
+            {/* FieldLabel의 아래 여백(mb-2)과 맞춰야 두 요소의 가운데가 나란해진다. */}
+            <div className="mb-2">
+              <Segmented
+                options={[
+                  { value: 'edit', label: '편집' },
+                  { value: 'preview', label: '미리보기' },
+                ]}
+                value={contentView}
+                onChange={setContentView}
+              />
+            </div>
+          </div>
+          {contentView === 'edit' ? (
+            <TextArea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              maxLength={DOCUMENT_CONTENT_MAX_LENGTH}
+              required
+              className="min-h-[220px]"
+              placeholder="파일을 올리거나 직접 붙여 넣으세요 · 마크다운(.md) 문법을 그대로 씁니다"
+            />
+          ) : (
+            // 미리보기는 상세 화면과 같은 뷰어·같은 글자 규격으로 그린다.
+            <div className="min-h-[220px] rounded-sm border border-border-strong bg-surface px-4 py-3">
+              {content.trim() === '' ? (
+                <p className="text-[12.5px] text-text-quaternary">미리볼 본문이 없습니다.</p>
+              ) : (
+                <Markdown
+                  source={content}
+                  className="text-[13.5px] leading-[1.9] text-text-secondary"
+                />
+              )}
+            </div>
+          )}
           <div className="mt-1 text-right text-[11px] text-text-quaternary">
             {content.length.toLocaleString()} /{' '}
             {DOCUMENT_CONTENT_MAX_LENGTH.toLocaleString()}

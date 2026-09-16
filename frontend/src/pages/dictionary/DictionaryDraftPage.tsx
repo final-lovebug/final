@@ -35,6 +35,7 @@ import { useCreateCandidateTerm } from '../../features/dictionary/hooks/useCreat
 import { useUpdateCandidateTerm } from '../../features/dictionary/hooks/useUpdateCandidateTerm'
 import { useSubmitDictionaryRevision } from '../../features/dictionary/hooks/useSubmitDictionaryRevision'
 import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
+import { ReviewerSelectDialog } from '../../features/review/components/ReviewerSelectDialog'
 import { useDictionaryRevision } from '../../features/review/hooks/useDictionaryRevision'
 import { usePerformReexamine } from '../../features/review/hooks/useReviewLifecycle'
 import type { CandidateTermType } from '../../features/dictionary/model/types'
@@ -93,6 +94,8 @@ export function DictionaryDraftPage() {
   const [typeFilter, setTypeFilter] = useState('')
   const [keyword, setKeyword] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
+  // 리뷰 요청을 보내기 전에 알림 받을 리뷰어를 고른다(전에는 전원 자동 지정이었다).
+  const [reviewerDialogOpen, setReviewerDialogOpen] = useState(false)
 
   const candidates = data?.candidates ?? NO_CANDIDATES
 
@@ -174,11 +177,8 @@ export function DictionaryDraftPage() {
     )
   }
 
-  function handleRequestReview() {
+  function handleRequestReview(reviewerMemberIds: string[]) {
     setActionError(null)
-    const reviewerMemberIds = (members ?? [])
-      .filter((member) => member.id !== currentMember?.id)
-      .map((member) => member.id)
 
     submitRevision.mutate(
       {
@@ -188,8 +188,10 @@ export function DictionaryDraftPage() {
       },
       {
         // 중간 탭 없이 생성된 리뷰 요청의 개정안 상세로 바로 간다.
-        onSuccess: (created) =>
-          navigate(routes.dictionaryRevision(workspaceId, created.reviewRequestId)),
+        onSuccess: (created) => {
+          setReviewerDialogOpen(false)
+          navigate(routes.dictionaryRevision(workspaceId, created.reviewRequestId))
+        },
         onError: (error) => setActionError(errorMessageOf(error, '리뷰를 요청하지 못했습니다.')),
       },
     )
@@ -250,7 +252,10 @@ export function DictionaryDraftPage() {
                 ? undefined
                 : `정의가 빈 후보어가 ${data.missingDefinition.length}건 남아 있습니다`
             }
-            onClick={handleRequestReview}
+            onClick={() => {
+              setActionError(null)
+              setReviewerDialogOpen(true)
+            }}
           >
             {submitRevision.isPending ? '요청 중…' : '리뷰 요청'}
           </Button>
@@ -565,6 +570,21 @@ export function DictionaryDraftPage() {
           </DetailPanel>
         )}
       </TwoCol>
+
+      <ReviewerSelectDialog
+        open={reviewerDialogOpen}
+        candidates={(members ?? []).map((member) => ({
+          memberId: member.id,
+          name: member.name,
+        }))}
+        excludeMemberId={currentMember?.id}
+        title="리뷰어 지정"
+        confirmLabel="리뷰 요청"
+        isPending={submitRevision.isPending}
+        error={submitRevision.isError ? actionError : null}
+        onSubmit={handleRequestReview}
+        onClose={() => setReviewerDialogOpen(false)}
+      />
     </div>
   )
 }

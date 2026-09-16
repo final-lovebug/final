@@ -52,10 +52,17 @@ class RuleSetTest {
                 .isEqualTo(WorkspaceErrorCode.WORKSPACE_INVALID_REVIEWER_COUNT);
     }
 
-    @DisplayName("참여자 수와 같은 리뷰어 수는 넘지 않은 것으로 본다.")
+    @DisplayName("요청자를 제외한 참여자 수까지는 넘지 않은 것으로 본다.")
     @Test
-    void exceedsParticipantCount_boundary() {
-        assertThat(new RuleSet(2, 3).exceedsParticipantCount(3)).isFalse();
-        assertThat(new RuleSet(2, 4).exceedsParticipantCount(3)).isTrue();
+    void exceedsReviewerCapacity_boundary() {
+        assertThat(new RuleSet(2, 2).exceedsReviewerCapacity(3)).isFalse();
+        assertThat(new RuleSet(2, 3).exceedsReviewerCapacity(3)).isTrue();
+    }
+
+    @DisplayName("참여자가 혼자면 0을 넘는 리뷰어 수는 채울 수 없으므로 초과로 본다.")
+    @Test
+    void exceedsReviewerCapacity_soleParticipant() {
+        assertThat(new RuleSet(0, 0).exceedsReviewerCapacity(1)).isFalse();
+        assertThat(new RuleSet(1, 0).exceedsReviewerCapacity(1)).isTrue();
     }
 }

@@ -4,6 +4,7 @@ import { RequireAuth } from './RequireAuth'
 import { LoginPage } from '../pages/LoginPage'
 import { OAuthCallbackPage } from '../pages/OAuthCallbackPage'
 import { NicknameOnboardingPage } from '../pages/onboarding/NicknameOnboardingPage'
+import { InvitationAcceptPage } from '../pages/InvitationAcceptPage'
 import { WorkspacesPage } from '../pages/WorkspacesPage'
 import { DocumentListPage } from '../pages/document/DocumentListPage'
 import { DocumentDraftListPage } from '../pages/document/DocumentDraftListPage'
@@ -42,6 +43,13 @@ export const router = createBrowserRouter([
     path: '/onboarding/nickname',
     element: <NicknameOnboardingPage />,
     handle: { title: '닉네임 설정' },
+  },
+  {
+    // RequireAuth 밖이다 — 초대 링크는 로그아웃 상태에서 열리는 게 보통이라
+    // 가드에 튕기면 토큰이 사라진다. 인증 분기는 화면이 직접 한다.
+    path: '/invitations/:token',
+    element: <InvitationAcceptPage />,
+    handle: { title: '워크스페이스 초대' },
   },
   {
     element: <RequireAuth />,
