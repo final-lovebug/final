@@ -90,7 +90,10 @@ AI 작업의 멱등은 하나의 장치가 아니라 아래 세 층으로 나뉜
   - **왜 REAL만**: `STUB`·`MOCK`은 모델을 부르지 않는다. 목 대역만 쓰는 로컬 개발이 Redis 없이 그대로 돌아야 해서다
   - 의존성 `redis` 추가(`pyproject.toml`·`uv.lock`), `.env.example`에 `REDIS_URL`, `docker-compose.local.yml`에 `redis:8.2-alpine`(REAL 을 로컬에서 돌릴 때만 필요)
   - 테스트 10개 추가 — `tests/test_claim.py`(6), `tests/test_queue_consumer.py`(4: 선점 호출·중복 배달 드롭·저장소 장애·MOCK 은 선점 안 함). 전체 81개 통과, ruff 통과
-- [ ] **`deploy/scripts/start_container.sh`에 `REDIS_URL` 주입** — 이것 없이 배포하면 **운영의 모든 REAL 작업이 `CLAIM_UNAVAILABLE`로 실패한다.** 정해야 할 것은 「백엔드가 쓰는 ElastiCache를 공유할지, 워커용을 따로 둘지」다. 공유한다면 `/lovebug/redis/host`·`/lovebug/redis/port`를 RDS 블록과 같은 방식으로 읽어 `rediss://host:port`로 넘기면 되지만, **보안그룹(워커 EC2 → Redis 6379)과 TLS·인증 설정 확인이 먼저다**
+- [x] ~~**`deploy/scripts/start_container.sh`에 `REDIS_URL` 주입**~~ — **2026-09-16 반영.** 예고대로 운영에서 터졌다(`extractionJobId=1`이 `CLAIM_UNAVAILABLE`로 실패). **백엔드 ElastiCache 공유로 결정**했고, `/lovebug/redis/host`·`/lovebug/redis/port`를 RDS 블록과 같은 방식으로 읽어 `rediss://host:port/0`으로 넘긴다. 스킴이 `rediss`인 것은 백엔드가 같은 클러스터를 `spring.data.redis.ssl.enabled: true`로 쓰기 때문이다. **아래 셋은 AWS 콘솔 작업이라 스크립트가 해결하지 못한다.**
+  - [ ] **보안그룹** — 워커 EC2(`lovebug-ec2-fastapi`) → ElastiCache 6379 인바운드. 없으면 `REDIS_URL`이 있어도 접속 타임아웃으로 같은 실패가 난다
+  - [ ] **IAM** — `lovebug-ec2-fastapi` 역할에 `/lovebug/redis/*` 읽기 권한. 없으면 `start_container.sh`가 `aws ssm get-parameter`에서 죽어 **배포 자체가 실패한다**(`set -euo pipefail`)
+  - [ ] ElastiCache에 AUTH 토큰이 걸려 있다면 URL이 `rediss://:<token>@host:port/0`이 된다 — 토큰 파라미터를 추가하고 스크립트도 함께 고쳐야 한다
 - [ ] **`app/idempotency.py`·`db/schema.sql`(`processed_jobs`)가 죽은 코드다** — 어디서도 import 하지 않는다. ①응답 큐 시절(`처리 → 응답 큐 발행 → mark_processed`) 설계라 지금의 HTTP 콜백 계약과 맞지 않고 ②「끝난 뒤 기록」이라 **모델 중복 호출을 막지 못한다**(그 자리를 `app/claim.py`가 맡았다) ③`processed_jobs`가 백엔드 MySQL 에 있어 `backend_db.py`가 지키는 「백엔드 소유 DB 에는 쓰지 않는다」와도 어긋난다. 지우는 것을 권함(테스트 `tests/test_idempotency.py`도 함께)
 
 - [x] ~~`idempotency.py`·`queue_consumer.py` 단위 테스트(모킹) 작성~~ — 2026-09-14 완료. `tests/{test_idempotency,test_queue_consumer,test_queue_schema,test_main}.py` — boto3/pymysql/Gemini 전부 모킹, 15개 전부 통과(로컬 + GitHub Actions 둘 다 확인)

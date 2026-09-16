@@ -81,6 +81,22 @@ DB_NAME="${DB_AND_QUERY%%\?*}"
 MYSQL_HOST="${HOSTPORT%%:*}"
 MYSQL_PORT="${HOSTPORT##*:}"
 
+# ── 백엔드와 공유하는 ElastiCache ────────────────────────────────────────
+# app/claim.py가 mode=REAL 호출 직전에 requestId를 선점하는 데 쓴다. 없으면
+# 선점 여부를 모르는 채로 모델을 부르지 않으므로 **운영의 모든 REAL 작업이
+# CLAIM_UNAVAILABLE로 실패한다** — 2026-09-16에 실제로 겪었다(extractionJobId=1).
+#
+# 스킴이 rediss다. 스프링 백엔드가 같은 클러스터를 spring.data.redis.ssl.enabled:
+# true로 쓰므로 평문 redis://로는 붙지 않는다.
+#
+# 선행 조건 둘은 AWS 콘솔 작업이라 이 스크립트가 해결하지 못한다.
+#   - 보안그룹: 워커 EC2(lovebug-ec2-fastapi) → ElastiCache 6379 인바운드
+#   - IAM: lovebug-ec2-fastapi 역할에 /lovebug/redis/* 읽기 권한
+REDIS_HOST=$(aws ssm get-parameter --name /lovebug/redis/host \
+  --region "$REGION" --query Parameter.Value --output text)
+REDIS_PORT=$(aws ssm get-parameter --name /lovebug/redis/port \
+  --region "$REGION" --query Parameter.Value --output text)
+
 docker rm -f ubidict-py 2>/dev/null || true
 
 # ── 작업 완료 콜백 주소 ───────────────────────────────────────────────────
@@ -117,6 +133,7 @@ docker run -d --name ubidict-py \
   -e MYSQL_DATABASE="$DB_NAME" \
   -e MYSQL_USER="$RDS_USER" \
   -e MYSQL_PASSWORD="$RDS_PASSWORD" \
+  -e REDIS_URL="rediss://$REDIS_HOST:$REDIS_PORT/0" \
   -e GEMINI_MODEL=gemini-3.5-flash \
   "${ENV_ARGS[@]}" \
   "$IMAGE_REPO:$TAG"
