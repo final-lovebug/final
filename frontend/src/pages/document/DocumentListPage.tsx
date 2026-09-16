@@ -15,6 +15,7 @@ import {
   Tr,
 } from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
+import { markdownToPlainText } from '../../shared/lib/markdown'
 import { useDocuments } from '../../features/document/hooks/useDocuments'
 import { useLabels } from '../../features/document/hooks/useLabels'
 import { dictionaryVersionLabel } from '../../features/document/model/dictionaryVersionLabel'
@@ -126,7 +127,7 @@ export function DocumentListPage() {
                     <div className="font-bold text-text">{doc.title}</div>
                     {doc.content && (
                       <div className="mt-[2px] line-clamp-1 text-[11.5px] text-text-quaternary">
-                        {doc.content}
+                        {markdownToPlainText(doc.content)}
                       </div>
                     )}
                   </Td>

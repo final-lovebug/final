@@ -6,6 +6,7 @@ import {
   Card,
   ColFlex,
   DataTable,
+  Markdown,
   Pill,
   PrThread,
   TabRow,
@@ -27,7 +28,7 @@ import { useSuggestionHistory } from '../../features/document/hooks/useSuggestio
 import { useDocument } from '../../features/document/hooks/useDocument'
 import { useCheckJob } from '../../features/document/hooks/useCheckJob'
 import { useCreateCheckJob } from '../../features/document/hooks/useCreateCheckJob'
-import { buildSuggestionSegments } from '../../features/document/model/suggestionSegments'
+import { placeSuggestions } from '../../features/document/model/suggestionSegments'
 import type { SuggestionTerm } from '../../features/document/model/types'
 import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
 import { useRequestDocumentReview } from '../../features/review/hooks/useRequestDocumentReview'
@@ -72,7 +73,15 @@ export function DocumentDraftPage() {
   const resolvedCount = suggestions.filter((s) => s.status !== 'PENDING').length
   const totalCount = suggestions.length
   const allResolved = totalCount > 0 && resolvedCount === totalCount
-  const segments = draft ? buildSuggestionSegments(draft.draftBody, suggestions) : []
+  // 본문은 마크다운으로 그리고(`.md` 업로드본이 기호째 보이지 않도록), 제안어 하이라이트는
+  // anchor 오프셋을 그대로 뷰어에 넘겨 글자 노드를 쪼개 얹는다 — 마크다운 구조와 하이라이트가
+  // 같은 본문 위에서 어긋나지 않는다.
+  const placed = draft ? placeSuggestions(draft.draftBody, suggestions) : []
+  const bodyDecorations = placed.map((item) => ({
+    start: item.start,
+    end: item.end,
+    render: (text: string) => renderSuggestionSpan(item.suggestion, text),
+  }))
   const isChecking = checkJob?.status === 'PENDING' || checkJob?.status === 'RUNNING'
 
   function handleRunCheck() {
@@ -286,7 +295,7 @@ export function DocumentDraftPage() {
 
       <TwoCol>
         <ColFlex>
-          <Card className="whitespace-pre-wrap wrap-break-word px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
+          <Card className="wrap-break-word px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
             {isLoadingContrast && <p className="text-text-tertiary">불러오는 중…</p>}
             {!isLoadingContrast && !draft && (
               <p className="text-text-tertiary">
@@ -294,17 +303,11 @@ export function DocumentDraftPage() {
                 실행하세요.
               </p>
             )}
-            {draft && segments.length === 0 && (
+            {draft && draft.draftBody.trim() === '' && (
               <p className="text-text-tertiary">초안 본문이 비어 있습니다.</p>
             )}
-            {segments.map((segment, index) =>
-              segment.kind === 'text' ? (
-                <span key={index}>{segment.text}</span>
-              ) : (
-                <span key={index}>
-                  {renderSuggestionSpan(segment.suggestion, segment.text)}
-                </span>
-              ),
+            {draft && draft.draftBody.trim() !== '' && (
+              <Markdown source={draft.draftBody} decorations={bodyDecorations} />
             )}
 
             {draft && totalCount === 0 && (

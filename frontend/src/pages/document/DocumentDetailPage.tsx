@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Button, Card, ColFlex, Pill, Toolbar, ToolbarSpacer, TwoCol } from '../../shared/ui'
+import {
+  Button,
+  Card,
+  ColFlex,
+  Markdown,
+  Pill,
+  Toolbar,
+  ToolbarSpacer,
+  TwoCol,
+} from '../../shared/ui'
 import { routes } from '../../shared/config/routes'
 import { ApiError } from '../../shared/api/httpClient'
 import { dictionaryVersionLabel } from '../../features/document/model/dictionaryVersionLabel'
@@ -95,9 +104,11 @@ export function DocumentDetailPage() {
         <ColFlex>
           <Card className="px-[30px] py-[26px]">
             <div className="mb-4 font-display text-base font-bold">{document.title}</div>
-            <p className="whitespace-pre-wrap wrap-break-word text-[13.5px] leading-[1.9] text-text-secondary">
-              {document.content}
-            </p>
+            {/* 업로드본이 마크다운이면 마크다운으로 보여준다 — `## 도메인`이 기호째 보이던 것을 고쳤다. */}
+            <Markdown
+              source={document.content}
+              className="text-[13.5px] leading-[1.9] text-text-secondary"
+            />
           </Card>
         </ColFlex>
 

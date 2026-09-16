@@ -7,6 +7,7 @@ import {
   Card,
   ColFlex,
   CommentCard,
+  Markdown,
   Pill,
   PrThread,
   TextArea,
@@ -164,9 +165,8 @@ export function DocumentRevisionPage() {
       <TwoCol>
         <ColFlex>
           <Card className="px-[30px] py-[26px] text-sm leading-[2.1] text-[#2A2D33]">
-            <p className="whitespace-pre-wrap wrap-break-word">
-              {revision?.proposedBody ?? document?.content}
-            </p>
+            {/* 개정안도 원본과 같은 마크다운 본문이다 — 상세 화면과 같은 뷰어로 그린다. */}
+            <Markdown source={revision?.proposedBody ?? document?.content ?? ''} />
             <Banner tone="neutral" className="mt-6 text-[11.5px]">
               개정안 본문입니다 — 교정에서 수용한 치환이 이미 반영돼 있습니다. 무엇이 어떻게
               바뀌었는지는 문서 버전 이력의 「처리 내역」에서 확인하세요.

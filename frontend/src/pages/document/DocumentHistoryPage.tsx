@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   Button,
   Card,
   ColFlex,
   DataTable,
+  Markdown,
   Pill,
   Td,
   Th,
@@ -19,6 +20,7 @@ import { cx } from '../../shared/lib/cx'
 import { useDocument } from '../../features/document/hooks/useDocument'
 import { useDocumentVersions } from '../../features/document/hooks/useDocumentVersions'
 import { useDocumentVersionDiff } from '../../features/document/hooks/useDocumentVersionBodies'
+import { toDiffSource } from '../../features/document/model/textDiff'
 import { useSuggestionHistory } from '../../features/document/hooks/useSuggestionHistory'
 
 // ui/main.js renderDocHistoryScreen() 이식 — 타임라인(360px) + 비교·처리 내역 2단.
@@ -50,6 +52,30 @@ export function DocumentHistoryPage() {
   )
 
   const currentVersionNo = versions?.[0]?.versionNo
+
+  // diff 조각을 「한 벌의 본문 + 구간」으로 합쳐 마크다운 뷰어에 넘긴다(`toDiffSource`).
+  const diffSource = useMemo(
+    () => toDiffSource(comparison?.diff.parts ?? []),
+    [comparison?.diff.parts],
+  )
+  const diffDecorations = useMemo(
+    () =>
+      diffSource.ranges.map((range) => ({
+        start: range.start,
+        end: range.end,
+        render: (text: string) => (
+          <span
+            className={cx(
+              range.kind === 'removed' && 'text-text-faint line-through',
+              range.kind === 'added' && 'font-bold text-text',
+            )}
+          >
+            {text}
+          </span>
+        ),
+      })),
+    [diffSource],
+  )
 
   return (
     <div>
@@ -157,22 +183,18 @@ export function DocumentHistoryPage() {
 
                 {comparison && !comparison.diff.tooLarge && (
                   <>
-                    <p className="whitespace-pre-wrap wrap-break-word text-[13.5px] leading-[1.9] text-text-secondary">
-                      {comparison.diff.parts.map((part, index) => (
-                        <span
-                          key={index}
-                          className={cx(
-                            part.kind === 'removed' && 'text-text-faint line-through',
-                            part.kind === 'added' && 'font-bold text-text',
-                          )}
-                        >
-                          {part.text}
-                        </span>
-                      ))}
-                    </p>
+                    {/* 삭제분·추가분을 한 벌로 합친 본문을 마크다운으로 그리고, 어디가
+                        지워지고 더해졌는지는 문자 구간으로 얹는다 — 문서 상세와 같은 모양으로
+                        보면서 취소선·굵게 표시도 그대로 남는다. */}
+                    <Markdown
+                      source={diffSource.text}
+                      decorations={diffDecorations}
+                      className="text-[13.5px] leading-[1.9] text-text-secondary"
+                    />
                     <p className="mt-2 text-[11px] text-text-quaternary">
                       공백 단위 근사 비교입니다 — 백엔드가 본문 diff를 만들지 않으므로(D-61)
-                      화면에서 계산합니다.
+                      화면에서 계산합니다. 바뀐 쪽과 지워진 쪽을 한 본문에 겹쳐 그리므로 제목·표
+                      같은 블록이 통째로 바뀐 자리는 형태가 한쪽으로 치우쳐 보일 수 있습니다.
                     </p>
                   </>
                 )}
