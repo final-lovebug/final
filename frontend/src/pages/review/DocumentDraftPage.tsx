@@ -5,17 +5,13 @@ import {
   Button,
   Card,
   ColFlex,
-  DataTable,
   Markdown,
   Pill,
   PrThread,
   TabRow,
-  Td,
   TextInput,
-  Th,
   Toolbar,
   ToolbarSpacer,
-  Tr,
   TwoCol,
 } from '../../shared/ui'
 import { cx } from '../../shared/lib/cx'
@@ -28,6 +24,7 @@ import { useSuggestionHistory } from '../../features/document/hooks/useSuggestio
 import { useDocument } from '../../features/document/hooks/useDocument'
 import { useCheckJob } from '../../features/document/hooks/useCheckJob'
 import { useCreateCheckJob } from '../../features/document/hooks/useCreateCheckJob'
+import { SuggestionHistoryTable } from '../../features/document/components/SuggestionHistoryTable'
 import { placeSuggestions } from '../../features/document/model/suggestionSegments'
 import type { SuggestionTerm } from '../../features/document/model/types'
 import { ReviewerSelectDialog } from '../../features/review/components/ReviewerSelectDialog'
@@ -373,47 +370,7 @@ export function DocumentDraftPage() {
             </>
           ) : (
             <div className="mt-3 overflow-x-auto">
-              {(!history || history.length === 0) && (
-                <p className="text-xs text-text-tertiary">아직 처리한 제안이 없습니다.</p>
-              )}
-              {history && history.length > 0 && (
-                <DataTable className="text-xs">
-                  <thead>
-                    <tr>
-                      <Th className="px-2 text-[10.5px]">원래</Th>
-                      <Th className="px-2 text-[10.5px]">결과</Th>
-                      <Th className="px-2 text-[10.5px]">처리</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((item) => (
-                      <Tr key={`${item.original}-${item.result}`}>
-                        <Td className="px-2 py-2">
-                          {item.action === 'ignored' && (
-                            <span className="mr-1 inline-block h-[5px] w-[5px] rounded-full bg-danger" />
-                          )}
-                          {item.original}
-                        </Td>
-                        <Td className="px-2 py-2">{item.result}</Td>
-                        <Td
-                          className={cx(
-                            'px-2 py-2',
-                            item.action === 'applied' && 'font-semibold text-success',
-                            item.action === 'manual' && 'font-semibold text-accent-strong',
-                            item.action === 'ignored' && 'text-text-tertiary',
-                          )}
-                        >
-                          {item.action === 'applied'
-                            ? '적용'
-                            : item.action === 'manual'
-                              ? `직접 입력 → "${item.manualValue}"`
-                              : `무시 — "${item.reason}"`}
-                        </Td>
-                      </Tr>
-                    ))}
-                  </tbody>
-                </DataTable>
-              )}
+              <SuggestionHistoryTable items={history ?? []} dense />
             </div>
           )}
         </PrThread>

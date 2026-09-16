@@ -11,6 +11,7 @@ import { DocumentDraftListPage } from '../pages/document/DocumentDraftListPage'
 import { DocumentRevisionListPage } from '../pages/document/DocumentRevisionListPage'
 import { DocumentUploadPage } from '../pages/document/DocumentUploadPage'
 import { DocumentDetailPage } from '../pages/document/DocumentDetailPage'
+import { DocumentEditPage } from '../pages/document/DocumentEditPage'
 import { DocumentHistoryPage } from '../pages/document/DocumentHistoryPage'
 import { TermExtractionPage } from '../pages/dictionary/TermExtractionPage'
 import { DictionaryDraftPage } from '../pages/dictionary/DictionaryDraftPage'
@@ -88,6 +89,11 @@ export const router = createBrowserRouter([
             path: 'documents/:documentId',
             element: <DocumentDetailPage />,
             handle: { title: '문서' },
+          },
+          {
+            path: 'documents/:documentId/edit',
+            element: <DocumentEditPage />,
+            handle: { title: '문서 편집' },
           },
           {
             path: 'documents/:documentId/history',

@@ -19,6 +19,8 @@ export const routes = {
     `/workspaces/${workspaceId}/documents/upload`,
   documentDetail: (workspaceId: string, documentId: string) =>
     `/workspaces/${workspaceId}/documents/${documentId}`,
+  documentEdit: (workspaceId: string, documentId: string) =>
+    `/workspaces/${workspaceId}/documents/${documentId}/edit`,
   documentHistory: (workspaceId: string, documentId: string) =>
     `/workspaces/${workspaceId}/documents/${documentId}/history`,
   documentDraft: (workspaceId: string, documentId: string) =>

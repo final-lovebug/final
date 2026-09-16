@@ -10,14 +10,23 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.OffsetDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
+@Table(
+        indexes = {
+            @Index(name = "idx_review_request_workspace_status", columnList = "workspace_id, status"),
+            @Index(name = "idx_review_request_type_status", columnList = "type, status")
+        })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReviewRequest extends BaseEntity {
 
@@ -37,7 +46,7 @@ public class ReviewRequest extends BaseEntity {
     @Column(nullable = false, length = TITLE_MAX_LENGTH)
     private String title;
 
-    @Column(columnDefinition = "text")
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String description;
 
     @Column(nullable = false, updatable = false)

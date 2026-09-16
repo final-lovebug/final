@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
@@ -24,7 +25,13 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"workspace_id", "member_id"}))
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_participant_workspace_member",
+                        columnNames = {"workspace_id", "member_id"}),
+        // 「내가 속한 워크스페이스」 조회가 member_id 로만 들어온다.
+        indexes = @Index(name = "idx_participant_member", columnList = "member_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Participant extends BaseEntity {
 

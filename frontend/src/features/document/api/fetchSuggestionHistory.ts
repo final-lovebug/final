@@ -1,6 +1,17 @@
 import { fetchSuggestions } from './fetchSuggestions'
-import type { SuggestionHistoryItem } from '../model/types'
+import type { SuggestionHistoryItem, SuggestionTerm } from '../model/types'
 import type { DocumentId } from '../../../shared/types/ids'
+
+function toHistory(suggestions: SuggestionTerm[]): SuggestionHistoryItem[] {
+  return suggestions
+    .filter((suggestion) => suggestion.status !== 'PENDING')
+    .map((suggestion) => ({
+      original: suggestion.originTerm,
+      result: suggestion.suggestionTerm,
+      action: suggestion.status === 'APPLY_SUGGESTION' ? 'applied' : 'ignored',
+      reason: suggestion.rejectReason ?? '사유 없음',
+    }))
+}
 
 /**
  * "처리 내역" 뷰. **전용 엔드포인트가 없다** — 판정이 끝난 제안어가 곧 처리 내역이므로
@@ -14,12 +25,5 @@ export async function fetchSuggestionHistory(
 ): Promise<SuggestionHistoryItem[]> {
   const { suggestions } = await fetchSuggestions(documentId)
 
-  return suggestions
-    .filter((suggestion) => suggestion.status !== 'PENDING')
-    .map((suggestion) => ({
-      original: suggestion.originTerm,
-      result: suggestion.suggestionTerm,
-      action: suggestion.status === 'APPLY_SUGGESTION' ? 'applied' : 'ignored',
-      reason: suggestion.rejectReason ?? '사유 없음',
-    }))
+  return toHistory(suggestions)
 }

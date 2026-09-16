@@ -15,7 +15,7 @@
 - **빌드** — Gradle (Groovy DSL)
 - **아키텍처** — 모놀리식 / 도메인별 레이어드
 - **영속성** — Spring Data JPA + MySQL
-- **스키마 마이그레이션** — Flyway
+- **스키마** — JPA 매핑이 주인이다. 마이그레이션 도구를 쓰지 않고 `ddl-auto`가 스키마를 만든다
 - **캐시·세션** — Redis
 - **메시징** — **로컬·테스트는 Spring `ApplicationEvent`(인메모리), AWS 배포는 SQS**(`spring-cloud-aws-starter-sqs`). 어댑터 선택은 `app.messaging.mode` 프로퍼티로 하고 상위 레이어는 `EventPublisher` 포트만 참조한다. 발행 어댑터 둘은 `common/infra/event/`(인메모리)와 `common/infra/event/sqs/`(SQS)에 있고 `@ConditionalOnProperty`로 배타 선택된다. 수신 어댑터는 소비 도메인에 두며 **둘이 같은 공용 핸들러에 위임한다.** 오래 걸리는 작업(용어 추출·문서 대조)은 DB 작업 테이블로 상태를 관리하고 조회는 폴링이다. **큐는 둘이다** — 도메인 이벤트 큐(`app.messaging.sqs.queue`)와 **AI 워커 요청 큐**(`app.messaging.sqs.llm-request-queue`, `D-67`). **AI 워커 요청 큐는 `app.messaging.mode`와 무관하게 `app.ai.dispatch.mode`로 갈린다** — `local`·`test`는 인프로세스 대역, `dev`는 LocalStack, `prod`는 실 SQS다. **완료 통보는 큐가 아니라 워커가 치는 동기 HTTP 콜백(`/api/internal/llm/**`)이다**(`D-68`). 계약은 `docs/AI_CONTRACT.md`가 원본이다
 - **인증·인가** — Spring Security, JWT (JJWT), OAuth2
@@ -31,54 +31,46 @@
 - Spring Boot 3.x 기준의 블로그·예제 코드를 그대로 복사하지 않는다. 특히 **Security 설정, 프로퍼티 키, 자동 구성 클래스 위치**가 달라진 부분이 있다.
 - 새 HTTP 클라이언트는 `RestClient` / 선언적 HTTP 인터페이스를 우선 사용한다.
 
-### Flyway 마이그레이션 파일 규칙
+### 스키마 규칙 — 주인은 JPA 매핑이다
 
-**현재 마이그레이션은 `V1__init_schema.sql` 하나다.** 도메인별로 나뉘어 있던 31개(V1~V900)를
-이것으로 합쳤다 — 뒤따르던 `ALTER`가 전부 최종 컬럼 정의에 반영돼 있어 이 파일이 곧 현재 스키마다.
-합치기 전 파일이 필요하면 git 이력에서 본다.
+**마이그레이션 도구를 쓰지 않는다.** Flyway는 제거했고 `src/main/resources/db/migration`도 없다.
+스키마는 **엔티티 매핑에서 Hibernate가 만든다**(`ddl-auto: create-drop`). 스키마를 바꾸려면
+SQL이 아니라 **엔티티를 고친다.**
 
-> ⚠️ **이미 마이그레이션이 적용된 DB는 이 변경으로 깨진다.** `flyway_schema_history`에 남은
-> 31개 행에 대응하는 파일이 없어 검증이 실패하고 `V1`의 체크섬도 달라진다. 해당 DB는 스키마와
-> 이력 테이블을 비우고 새로 받는다.
+> ⚠️ **`create-drop`은 기동마다 매핑된 테이블을 새로 만든다.** 데이터가 남지 않는다.
+> 보존이 필요한 환경이 생기면 그때 마이그레이션 도구를 다시 들인다.
 
-새 마이그레이션은 아래 대역 규칙을 그대로 이어서 붙인다. 도메인별로 버전 대역을 다르게 생성하여
-서로 다른 도메인 작업 간 충돌을 막는다.
+제약·인덱스도 SQL이 아니라 애노테이션으로 적는다. **이름을 직접 지어 준다** — 이름이 없으면
+Hibernate가 해시 이름(`UKabc123…`)을 붙여 로그·`information_schema`에서 무엇이 걸렸는지 읽을 수 없다.
 
-- 1 - 99: member 도메인
-- 100 - 199: workspace 도메인
-- 200 - 299: document 도메인
-- 300 - 399: dictionary 도메인
-- 400 - 499: draftdocument 도메인
-- 500 - 599: draftdictionary 도메인
-- 600 - 699: reviewrequest 도메인
-- 700 - 799: notification 도메인
-- 800 - 899: revisionlog 도메인
-- 900 - 999: 공통 / 사후 정리
+```java
+@Table(
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_participant_workspace_member",
+                columnNames = {"workspace_id", "member_id"}),
+        indexes = @Index(name = "idx_participant_member", columnList = "member_id"))
+```
 
-### 스키마 ↔ 엔티티 정합 규칙
+MySQL에서 자주 어긋나는 지점은 아래와 같다.
 
-**스키마의 주인은 Flyway 하나다**(`D-106`). 마이그레이션과 엔티티 매핑이 어긋나면
-**엔티티를 고친다.** `ddl-auto`는 모든 프로파일에서 `validate`이고(`D-107`) 어느
-환경에서도 엔티티가 스키마를 만들지 않는다.
-
-**순서는 SQL 먼저, 엔티티 나중이다.** 어긋나면 `SchemaValidationTest`가 `check`에서
-실패한다 — MySQL 컨테이너 위에서 Flyway가 만든 스키마를 `validate`로 검증하는
-테스트이며, 이 조합을 재현하는 유일한 테스트다(`D-108`). 나머지 테스트 지원 클래스는
-전부 `create-drop` + Flyway off라 드리프트를 잡지 못한다.
-
-MySQL에서 반복해서 어긋나는 지점은 아래와 같다(`D-109`).
-
-| 컬럼 | 매핑 | 비고 |
+| 원하는 컬럼 | 매핑 | 비고 |
 | --- | --- | --- |
-| `text` | `@JdbcTypeCode(SqlTypes.LONGVARCHAR)` | **`@Lob`을 쓰지 않는다** — `longtext`를 기대해 검증이 깨진다 |
+| `text` | `@JdbcTypeCode(SqlTypes.LONGVARCHAR)` | **`@Lob`을 쓰지 않는다** — `longtext`가 나온다. `columnDefinition = "text"`도 쓰지 않는다 |
 | `longtext` | `@Lob` 또는 `@JdbcTypeCode(SqlTypes.LONG32VARCHAR)` | 정말 4GB 대역이 필요할 때만 |
-| `varchar(n)` | `@Column(length = n)` | 길이 숫자가 SQL과 같아야 한다 |
-| enum 컬럼 | `@Enumerated(EnumType.STRING)` + `@Column(length = n)` | SQL은 `varchar(n)` |
-| generated column | `columnDefinition` 첫 단어 = SQL 타입명, 필드 타입(또는 `@JdbcTypeCode`) = JDBC 타입 코드 | **둘 다** 맞춰야 통과한다 |
+| `varchar(n)` | `@Column(length = n)` | 생략하면 255다 |
+| enum 컬럼 | `@Enumerated(EnumType.STRING)` + `@Column(length = n)` | 길이를 빼면 `varchar(255)`가 된다 |
+| generated column | `columnDefinition` 첫 단어 = 타입명, `@JdbcTypeCode` = 읽고 쓸 때의 JDBC 타입 | **둘 다** 맞춘다(`dictionary.active_flag`) |
+| check 제약 | `org.hibernate.annotations.@Check` | JPA 표준에 없어 Hibernate 애노테이션을 쓴다(`comment`) |
 
-> ⚠️ **`validate`가 보는 것은 컬럼의 존재와 타입까지다.** `nullable`·기본값·인덱스·
-> 유니크 제약·외래키·collation은 검증 범위 밖이라 **마이그레이션 리뷰가 유일한
-> 방어선이다.**
+MySQL 키 길이 상한(3072바이트, utf8mb4에서 컬럼당 `길이 × 4`)을 넘는 유니크 인덱스는 DDL이
+거절된다. `member.provider_id`가 `varchar(191)`인 이유다.
+
+**애그리게잇을 식별자로만 참조하므로(`@ManyToOne`을 쓰지 않는다) 그 컬럼에는 FK가 생기지 않는다.**
+`@ElementCollection`의 조인 컬럼만 FK를 받는다. 참조 무결성은 애플리케이션이 지킨다.
+
+**잘못된 매핑은 `SchemaGenerationTest`가 잡는다** — MySQL 컨테이너 위에서 엔티티로 DDL을 만들어
+보는 테스트다. MySQL이어야 하는 이유는 `columnDefinition`의 타입명·생성 컬럼 식이 방언에 걸려
+있어 H2의 `MODE=MySQL`로는 검증되지 않기 때문이다. 나머지 테스트는 H2 위에서 돈다.
 
 ---
 

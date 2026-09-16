@@ -28,7 +28,11 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"workspace_id", "name"}))
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_label_workspace_name",
+                        columnNames = {"workspace_id", "name"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Label extends BaseEntity {
 

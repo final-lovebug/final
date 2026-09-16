@@ -8,9 +8,18 @@ interface Props {
   comments: Comment[]
   reviewers: Reviewer[]
   members: { memberId: string; name: string }[]
-  termNameById: Map<string, string>
-  onSelectTerm: (termId: string) => void
+  /**
+   * 후보어 id → 이름. **용어 단위 코멘트가 있는 화면만 넘긴다** — 문서 리뷰는 본문 앵커를
+   * 포기해(`D-61`) 코멘트가 전부 전체 코멘트라 넘길 것이 없다.
+   */
+  termNameById?: Map<string, string>
+  /** 용어 이름표를 눌렀을 때. `termNameById`와 짝이다. */
+  onSelectTerm?: (termId: string) => void
 }
+
+const NO_TERM_NAMES: Map<string, string> = new Map()
+
+function noop() {}
 
 function verdictLabel(verdict: Review['verdict']) {
   return verdict === 'APPROVED' ? '✓ 승인' : '↻ 변경 요청'
@@ -74,7 +83,14 @@ function ReviewEntryCard({ entry, onSelectTerm, termNameById, old = false }: { e
   )
 }
 
-export function ReviewList({ reviews, comments, reviewers, members, termNameById, onSelectTerm }: Props) {
+export function ReviewList({
+  reviews,
+  comments,
+  reviewers,
+  members,
+  termNameById = NO_TERM_NAMES,
+  onSelectTerm = noop,
+}: Props) {
   const groups = groupReviewsByMember(reviews, comments)
   const nameById = new Map(members.map((member) => [member.memberId, member.name]))
   const reviewed = new Set(groups.map((group) => group.memberId))

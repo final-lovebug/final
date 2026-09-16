@@ -2,11 +2,19 @@ package com.ubidict.backend.reviewrequest.domain;
 
 import com.ubidict.backend.common.domain.BaseEntity;
 import jakarta.persistence.*;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
 import lombok.*;
 
 @Entity
 @Getter
+// 한 요청에 같은 리뷰어를 두 번 지정할 수 없다.
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_reviewer_request_member",
+                        columnNames = {"review_request_id", "member_id"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Reviewer extends BaseEntity {
     @Id

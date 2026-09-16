@@ -86,6 +86,14 @@ export function DocumentDetailPage() {
           </Pill>
         )}
         <ToolbarSpacer />
+        {/* 편집은 대조·리뷰를 거치지 않고 바로 새 버전을 발행한다(`G-9`) — 되돌리기 어려운
+            삭제와 달리 확인 창을 두지 않는 대신, 편집 화면이 그 사실을 먼저 알려 준다. */}
+        <Button
+          variant="outline"
+          onClick={() => navigate(routes.documentEdit(workspaceId, documentId))}
+        >
+          편집
+        </Button>
         <Button variant="outline" disabled={createCheckJob.isPending} onClick={handleRunCheck}>
           {createCheckJob.isPending ? '접수 중…' : '최신 사전집으로 갱신'}
         </Button>

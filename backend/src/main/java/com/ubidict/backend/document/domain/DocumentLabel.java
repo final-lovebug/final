@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
@@ -19,7 +20,13 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"document_id", "label_id"}))
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_document_label",
+                        columnNames = {"document_id", "label_id"}),
+        // 라벨로 문서를 거꾸로 찾는 조회. 유니크 인덱스의 선두 컬럼이 document_id 라 그쪽으로는 타지 못한다.
+        indexes = @Index(name = "idx_document_label_label", columnList = "label_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DocumentLabel extends BaseEntity {
 

@@ -19,10 +19,10 @@ import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 
 /**
- * 테스트 전용 엔티티를 쓰므로 마이그레이션 대상이 아니다. 스키마는 Flyway 대신 Hibernate가 생성한다.
+ * 테스트 전용 엔티티를 쓴다. 스키마는 다른 테스트와 마찬가지로 엔티티 매핑에서 Hibernate가 생성한다.
  */
 @Import(JpaAuditingConfig.class)
-@DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false"})
+@DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop"})
 class BaseEntityAuditingTest {
 
     @Autowired

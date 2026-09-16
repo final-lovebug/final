@@ -121,9 +121,11 @@ Mock은 외부 협력 객체의 결과를 통제해야 할 때만 쓴다 — 외
 - 커밋이 일어나지 않으므로 `@TransactionalEventListener(AFTER_COMMIT)` 리스너가 실행되지 않는다.
 - 명시적 flush로 순서를 만드는 코드(`DictionaryUpdater.archive`의 `saveAndFlush`)가 무엇을 막는지 드러나지 않는다.
 
-`DbCleaner`는 엔티티 메타모델이 아니라 `information_schema`에서 실제 테이블을 읽어 `truncate`한다. Flyway 이력 테이블은 지우지 않는다 — 지우면 다음 컨텍스트에서 마이그레이션이 다시 돌아 스키마가 어긋난다.
+`DbCleaner`는 엔티티 메타모델이 아니라 `information_schema`에서 실제 테이블을 읽어 `truncate`한다 — 컨텍스트마다 스캔되는 엔티티 집합이 달라 메타모델에 없는 테이블이 남을 수 있다.
 
-> **테스트 전용 엔티티를 만들지 않는다.** 스키마는 Flyway 마이그레이션이 만들고 실제 운영 스키마와 같은 형태에서 매핑을 검증한다. 예외는 `BaseEntityAuditingTest` 하나이며 그 테스트만 `flyway.enabled=false` + `ddl-auto=create-drop`을 쓴다.
+> **테스트 전용 엔티티를 만들지 않는다.** 스키마는 운영과 같은 엔티티 매핑에서 `ddl-auto=create-drop`이 만들고, 그 형태 위에서 매핑을 검증한다. 예외는 `BaseEntityAuditingTest` 하나다.
+>
+> 매핑이 **MySQL에서** DDL로 떨어지는지는 `SchemaGenerationTest`가 MySQL 컨테이너 위에서 확인한다. H2의 `MODE=MySQL`은 `columnDefinition`의 타입명·생성 컬럼 식을 그대로 검증해 주지 않는다.
 
 ## 큐 테스트 독립 환경 설정
 

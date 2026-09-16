@@ -10,14 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 테스트 사이에 테이블을 비운다.
  *
- * <p>엔티티 메타모델이 아니라 information_schema에서 실제 테이블을 읽는다. 테스트 전용 엔티티처럼 마이그레이션에 없는 테이블을 지우려다 실패하는 것을 막는다.
- *
- * <p>Flyway 이력 테이블은 지우지 않는다. 지우면 다음 컨텍스트에서 마이그레이션이 다시 돌아 스키마가 어긋난다.
+ * <p>엔티티 메타모델이 아니라 information_schema에서 실제 테이블을 읽는다. 컨텍스트마다 스캔되는 엔티티 집합이 달라 메타모델에 없는 테이블이 남을 수 있기 때문이다.
  */
 @Component
 public class DbCleaner {
-
-    private static final String FLYWAY_HISTORY_TABLE = "flyway_schema_history";
 
     @PersistenceContext
     private EntityManager em;
@@ -54,12 +50,8 @@ public class DbCleaner {
 
     @SuppressWarnings("unchecked")
     private List<String> tableNames() {
-        List<String> tables = em.createNativeQuery("select table_name from information_schema.tables "
+        return em.createNativeQuery("select table_name from information_schema.tables "
                         + "where table_schema = schema() and table_type = 'BASE TABLE'")
                 .getResultList();
-
-        return tables.stream()
-                .filter(table -> !FLYWAY_HISTORY_TABLE.equalsIgnoreCase(table))
-                .toList();
     }
 }

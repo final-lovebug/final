@@ -27,7 +27,11 @@ import org.hibernate.type.SqlTypes;
  */
 @Getter
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"dictionary_id", "preferred_form"}))
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_term_dictionary_preferred_form",
+                        columnNames = {"dictionary_id", "preferred_form"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Term extends BaseEntity {
 

@@ -12,6 +12,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -22,6 +24,12 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
+// 회차는 요청마다 한 번씩만 열린다.
+@Table(
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_reexamine_request_round",
+                        columnNames = {"review_request_id", "round"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Reexamine extends BaseEntity {
 
