@@ -26,11 +26,11 @@ AI 작업의 멱등은 하나의 장치가 아니라 아래 세 층으로 나뉜
 | --- | --- | --- |
 | 접수 배타 | Spring DB | 추출은 워크스페이스당, 대조는 문서당 `PENDING`/`RUNNING` 작업을 1개로 제한한다. 동시 접수의 나머지는 409이며 AI 요청을 만들지 않는다 |
 | 결과 멱등 | Spring | 같은 작업의 중복 콜백은 초안·작업 상태를 한 벌만 남기고 204로 끝낸다 |
-| 호출 멱등 | 이 워커 | `mode=REAL`에서 모델 호출 직전 `SET llm:request:{requestId} <worker-id> NX EX 900`으로 선점한다 |
+| 호출 멱등 | 이 워커 | `mode=REAL`에서 모델 호출 직전 `SET llm:request:{requestId} <worker-id> NX EX 3000`으로 선점한다 |
 
 - 선점 실패는 다른 배달분이 이미 처리 중이거나 처리했다는 뜻이다. **모델과 콜백을 호출하지 않고** SQS 메시지만 삭제한다.
 - `REDIS_URL`이 없거나 Redis에 닿지 못하면 선점을 건너뛰지 않는다. 모델을 호출하지 않고 `CLAIM_UNAVAILABLE` 실패 콜백을 보낸다.
-- 키는 끝나도 지우지 않는다. 900초 TTL은 Spring 작업 제한 시간(`app.ai.timeout.job`, 기본 15분)과 같으며, 그 전에 지우거나 만료하면 늦은 재배달이 다시 모델을 호출할 수 있다.
+- 키는 끝나도 지우지 않는다. 3000초 TTL은 Spring 작업 제한 시간(`app.ai.timeout.job`, prod 기본 50분)과 같으며, 그 전에 지우거나 만료하면 늦은 재배달이 다시 모델을 호출할 수 있다.
 - `STUB`·`MOCK`은 모델을 부르지 않으므로 Redis 선점을 하지 않는다.
 
 > 아래의 `processed_jobs`·응답 큐 서술은 2026-09-14 이전 구조의 이력이다. 현재 런타임은 이를 사용하지 않는다. `app/idempotency.py`·`db/schema.sql`·해당 테스트는 별도 정리 작업에서 제거 대상이다.
@@ -42,7 +42,7 @@ AI 작업의 멱등은 하나의 장치가 아니라 아래 세 층으로 나뉜
 | 메시지큐 | SQS |
 | 결과 회신 | Spring 내부 콜백(`POST /api/internal/llm/**`). 2xx·4xx면 SQS 메시지를 삭제하고, 5xx·네트워크 오류만 재시도한다 |
 | DB | `final/backend`의 MySQL을 **읽기 전용**으로 공유해 문서 본문·사전집 용어를 읽는다. 작업 멱등 기록을 MySQL에 쓰지 않는다 |
-| 모델 호출 멱등 | Redis `requestId` 선점(`SET ... NX EX 900`). `mode=REAL`에서만 적용한다 |
+| 모델 호출 멱등 | Redis `requestId` 선점(`SET ... NX EX 3000`). `mode=REAL`에서만 적용한다 |
 | 문서·사전집 전달 방식 | **2026-09-14부터 ID 기반** — 요청은 `documentIds`/`dictionaryId`만 받고, 본문·용어는 `app/backend_db.py`가 DB에서 직접 읽는다(인라인 전송 안 함) |
 | 인증 | JWT(`accessToken`)는 **검증하지 않는다** — 그대로 받아서 응답에 그대로 에코 |
 | stub/real 모드 | 요청(`ExtractJobRequest`/`ContrastJobRequest.mode`)에 포함. `stub`(기본값)이면 DB·Gemini 둘 다 안 부르고 2.5초 뒤 빈 결과, `real`이면 실제 처리. 백엔드의 `app.ai.extractor.mode`/`checker.mode`와 같은 개념 |
@@ -86,7 +86,7 @@ AI 작업의 멱등은 하나의 장치가 아니라 아래 세 층으로 나뉜
 
 - [x] ~~**모델 호출 멱등(중복 LLM 호출 방지)**~~ — 2026-09-16 완료. `app/claim.py` 신규 + `queue_consumer._handle_message` 배선.
   - **왜**: 요청 큐가 표준 큐(at-least-once)라 같은 메시지가 두 번 배달되면 **모델을 두 번 부른다.** 백엔드의 콜백 멱등(`D-72`)은 초안만 하나로 접으므로 **DB는 깨끗하고 요금만 두 배**로 나간다 — 실패로 남지 않아 눈에 띄지 않던 낭비다. 계약은 `final/docs/AI_CONTRACT.md` 7-2-2(`D-111`·`D-113`)에 확정돼 있다
-  - **무엇**: `mode=REAL`만, 모델 호출 직전에 `SET llm:request:{requestId} <worker-id> NX EX 900`. 선점 실패 = 다른 배달분이 이미 잡았다 → **콜백도 보내지 않고** 메시지만 지운다. `REDIS_URL`이 없거나 Redis 에 닿지 못하면 `CLAIM_UNAVAILABLE` 실패 콜백으로 끝낸다(선점 여부를 모르는 채 부르지 않는다). **키는 지우지 않는다** — TTL 만료에 맡겨야 그 뒤 재배달분이 다시 선점에 성공하지 않는다
+  - **무엇**: `mode=REAL`만, 모델 호출 직전에 `SET llm:request:{requestId} <worker-id> NX EX 3000`. 선점 실패 = 다른 배달분이 이미 잡았다 → **콜백도 보내지 않고** 메시지만 지운다. `REDIS_URL`이 없거나 Redis 에 닿지 못하면 `CLAIM_UNAVAILABLE` 실패 콜백으로 끝낸다(선점 여부를 모르는 채 부르지 않는다). **키는 지우지 않는다** — TTL 만료에 맡겨야 그 뒤 재배달분이 다시 선점에 성공하지 않는다
   - **왜 REAL만**: `STUB`·`MOCK`은 모델을 부르지 않는다. 목 대역만 쓰는 로컬 개발이 Redis 없이 그대로 돌아야 해서다
   - 의존성 `redis` 추가(`pyproject.toml`·`uv.lock`), `.env.example`에 `REDIS_URL`, `docker-compose.local.yml`에 `redis:8.2-alpine`(REAL 을 로컬에서 돌릴 때만 필요)
   - 테스트 10개 추가 — `tests/test_claim.py`(6), `tests/test_queue_consumer.py`(4: 선점 호출·중복 배달 드롭·저장소 장애·MOCK 은 선점 안 함). 전체 81개 통과, ruff 통과

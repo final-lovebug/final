@@ -25,6 +25,18 @@ def claim_request_mock():
         yield mock
 
 
+@pytest.fixture(autouse=True)
+def running_llm_job_mock():
+    """REAL 배선 테스트는 아직 실행 중인 Job만 받은 경우를 본다.
+
+    상태 조회 자체의 SQL 규격은 ``tests/test_backend_db.py``가, 종결된 Job을
+    ack하는 분기는 아래 전용 테스트가 본다. 이 목이 없으면 REAL 테스트가 실제
+    MySQL을 찾아 CI 환경에서 실패한다.
+    """
+    with patch("app.queue_consumer.is_running_llm_job", return_value=True) as mock:
+        yield mock
+
+
 def _message(body: dict) -> dict:
     return {"Body": json.dumps(body), "ReceiptHandle": "rh-1"}
 
@@ -266,6 +278,41 @@ def test_client_error_deletes_message_without_retry(_mock_post_callback):
 
 
 # ── REAL — 대역 자체는 tests/test_real_job.py 가 본다. 여기서는 배선만 본다 ──
+
+
+@patch("app.queue_consumer.run_real_extraction")
+@patch("app.queue_consumer._post_callback")
+def test_terminated_real_job_is_acknowledged_without_claim_or_callback(
+    mock_post_callback, mock_run, claim_request_mock, running_llm_job_mock
+):
+    """타임아웃/DLQ가 회수한 지연 메시지는 비용 없이 버린다."""
+    running_llm_job_mock.return_value = False
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_extraction_job(mode="REAL")))
+
+    running_llm_job_mock.assert_called_once_with("TERM_EXTRACTION", 30, "0d5c6f6e-0000-4000-8000-000000000001")
+    claim_request_mock.assert_not_called()
+    mock_run.assert_not_called()
+    mock_post_callback.assert_not_called()
+    client.delete_message.assert_called_once_with(QueueUrl=_QUEUE_URL, ReceiptHandle="rh-1")
+
+
+@patch("app.queue_consumer.run_real_extraction")
+@patch("app.queue_consumer._post_callback")
+def test_real_job_state_read_failure_keeps_message_for_sqs_retry(
+    mock_post_callback, mock_run, claim_request_mock, running_llm_job_mock
+):
+    """상태를 확인할 수 없으면 유효한 작업을 잃지 않도록 재시도에 맡긴다."""
+    running_llm_job_mock.side_effect = RuntimeError("database unavailable")
+    client = MagicMock()
+
+    _handle_message(client, _QUEUE_URL, _message(_extraction_job(mode="REAL")))
+
+    claim_request_mock.assert_not_called()
+    mock_run.assert_not_called()
+    mock_post_callback.assert_not_called()
+    client.delete_message.assert_not_called()
 
 
 @patch("app.queue_consumer.run_real_extraction", return_value=[{"form": "결제"}])

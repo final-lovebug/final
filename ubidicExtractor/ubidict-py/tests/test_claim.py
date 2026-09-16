@@ -27,7 +27,7 @@ def test_claim_succeeds_when_key_is_new(mock_from_url):
 
 @patch("app.claim.redis.Redis.from_url")
 def test_claim_uses_nx_and_ttl_matching_backend_job_timeout(mock_from_url):
-    """SET NX EX 900 이 아니면 선점이 아니거나 스위퍼보다 먼저 풀린다."""
+    """SET NX EX 3000 이 아니면 선점이 아니거나 스위퍼보다 먼저 풀린다."""
     client = MagicMock()
     mock_from_url.return_value = client
     client.set.return_value = True
@@ -37,7 +37,7 @@ def test_claim_uses_nx_and_ttl_matching_backend_job_timeout(mock_from_url):
     key, _value = client.set.call_args.args
     assert key == "llm:request:req-2"
     assert client.set.call_args.kwargs["nx"] is True
-    assert client.set.call_args.kwargs["ex"] == 900
+    assert client.set.call_args.kwargs["ex"] == 3000
 
 
 @patch("app.claim.redis.Redis.from_url")

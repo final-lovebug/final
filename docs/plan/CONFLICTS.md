@@ -272,6 +272,7 @@
 | **D-76** | **비동기 대기는 Awaitility로 통일하고 상한을 한 상수에 둔다.** 손으로 쓴 5초 데드라인 폴링이 세 곳에 복제돼 있었고, 대기 구간이 「같은 JVM의 한 홉」에서 「커밋 → 큐 발행 → 롱폴 수신 → 워커 → 콜백 → 커밋」으로 길어졌다. 기존 `waitForTerminal`은 타임아웃 시 마지막 상태를 조용히 반환해 실패 원인이 흐려졌다. **새 의존성이 아니다** — `spring-boot-starter-test`가 이미 `awaitility`를 끌어온다 | `Y-33` |
 | **D-77** | **콜백이 끝내 오지 않은 작업은 `@Scheduled` 스위퍼가 회수한다.** 정책 완화로 때우지 않는다. 이것이 없으면 고아 작업 하나가 **워크스페이스 전체의 추출**(또는 그 문서의 대조)을 영구히 막고, 리포지토리에 상태로 긁는 수단이 없어 운영자가 SQL 없이는 손댈 수도 없다. 기준은 `updatedAt`이며 `PENDING`과 `RUNNING`을 같은 시계로 잰다. 실패 전이가 멱등이라 **다중 인스턴스가 동시에 쓸어도 안전하다** — 락을 걸지 않는다. `app.ai.timeout.job`은 **가시성 타임아웃 × maxReceiveCount 보다 커야 한다** | `NFR-MSG-005` |
 | **D-78** | **테스트의 큐는 미리 만들지 않고 `queue-not-found-strategy: create`로 첫 접근에 만든다.** 초기화 스크립트와 리스너 컨테이너 기동의 순서 경합을 없앤다. **`prod`는 기본값(`fail`)을 유지한다** — 큐 이름을 틀린 채 조용히 새 큐가 생기는 사고를 막는다 | `NFR-MSG-004` |
+| **D-114** | **LLM 요청은 transactional outbox로 발행하고, 워커 재시도 소진은 DLQ 리스너가 Job `FAILED`로 회수한다.** Job·`requestId`·요청 payload를 한 트랜잭션으로 저장한다. outbox는 Spring→SQS 발행 실패를 재시도하고, DLQ는 워커 소비·콜백 실패만 다룬다. prod의 visibility 15분 × 3회보다 큰 `PT50M`을 Job timeout으로 둔다 | NFR-MSG-004·005 |
 | **D-86** | **요청 메시지 `mode`에 `MOCK`을 추가한다.** `STUB`은 기존 빈 결과 호환값으로 남기고, `MOCK`은 FastAPI 워커가 모델·DB 조회 없이 계약에 맞는 고정 결과를 HTTP 콜백으로 보낸다. `dev`의 기본값은 `MOCK`으로 해 Spring → LocalStack → FastAPI → Spring 왕복을 비용 없이 확인한다 | `D-71`의 개발용 검증 구체화 |
 
 > **`app.messaging.mode`는 이번 범위가 아니다.** 도메인 이벤트 버스는 로컬·테스트에서 계속 인메모리이고, LocalStack은 **LLM 요청 큐 전용**이다.

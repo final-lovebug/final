@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxService;
 import com.ubidict.backend.draftdictionary.domain.CandidateTerm;
 import com.ubidict.backend.draftdictionary.domain.DraftDictionary;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJob;
@@ -45,6 +46,7 @@ class DraftDictionaryExtractionExecutionServiceTest {
     private final DraftDictionaryEventPublisher draftEventPublisher = mock(DraftDictionaryEventPublisher.class);
     private final ExtractionJobCompletionEventPublisher completionEventPublisher =
             mock(ExtractionJobCompletionEventPublisher.class);
+    private final LlmJobOutboxService outboxService = mock(LlmJobOutboxService.class);
     private final DraftDictionaryExtractionExecutionService service = new DraftDictionaryExtractionExecutionService(
             jobReader,
             draftWriter,
@@ -53,7 +55,8 @@ class DraftDictionaryExtractionExecutionServiceTest {
             creationPolicy,
             resultValidator,
             draftEventPublisher,
-            completionEventPublisher);
+            completionEventPublisher,
+            outboxService);
 
     @DisplayName("이미 승계된 표기가 추출 결과에 다시 나오면 후보어로 더하지 않는다.")
     @Test

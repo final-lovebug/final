@@ -32,7 +32,7 @@ from urllib.request import Request, urlopen
 import boto3
 
 from app.anchor import anchor_for
-from app.backend_db import fetch_active_preferred_forms, fetch_document_body
+from app.backend_db import fetch_active_preferred_forms, fetch_document_body, is_running_llm_job
 from app.claim import ClaimUnavailableError, claim_request
 from app.mock_delay import sleep_mock_delay
 from app.queue_schema import LlmJobRequest
@@ -116,6 +116,22 @@ def _handle_message(client, queue_url: str, message: dict) -> None:
     except Exception:
         logger.exception("메시지 파싱 실패 — 형식이 잘못됐다. 삭제하지 않고 DLQ 정책에 맡긴다.")
         return
+
+    # 아웃박스 발행 재시도와 Spring의 타임아웃 회수 사이의 경합으로 지연 메시지가
+    # 도착할 수 있다. 비용이 드는 REAL 호출만 Job 상태를 다시 보고 종결 작업이면 ack한다.
+    if job.mode == "REAL":
+        try:
+            if not is_running_llm_job(job.jobType, job.jobId, job.requestId):
+                client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
+                logger.info(
+                    "jobId=%s requestId=%s 종료되었거나 유효하지 않은 작업 — 모델을 부르지 않고 메시지를 지운다",
+                    job.jobId,
+                    job.requestId,
+                )
+                return
+        except Exception:
+            logger.exception("jobId=%s Job 상태를 읽지 못했다 — 재시도를 위해 메시지를 남긴다", job.jobId)
+            return
 
     # 모델을 부르기 전에 requestId 를 선점한다(docs/AI_CONTRACT.md 7-2-2). 큐가
     # at-least-once 라 이것이 없으면 재배달분이 같은 작업으로 모델을 한 번 더 부른다

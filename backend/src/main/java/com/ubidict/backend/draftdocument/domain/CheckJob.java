@@ -88,21 +88,33 @@ public class CheckJob extends BaseEntity {
         return new CheckJob(documentId, requestedBy);
     }
 
-    /**
-     * 워커에게 작업을 넘겼다고 표시한다. 상관 식별자를 기록하면서 {@code PENDING -> RUNNING}으로 옮긴다.
-     *
-     * <p>같은 {@code requestId}로 다시 부르면 아무 일도 하지 않는다 — 발행이 재시도돼도 안전해야 한다.
-     */
-    public void markDispatching(String requestId) {
+    /** 접수 트랜잭션에서 아웃박스 payload와 같은 상관 식별자를 고정한다. */
+    public void assignRequestId(String requestId) {
         if (requestId == null || requestId.isBlank()) {
             throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_CHECK_INVALID_REQUEST);
         }
-        if (status == CheckJobStatus.RUNNING && requestId.equals(this.requestId)) {
-            return;
+        if (this.requestId != null && !requestId.equals(this.requestId)) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_CHECK_INVALID_STATUS);
         }
-        validateStatus(CheckJobStatus.PENDING);
         this.requestId = requestId;
+    }
+
+    /** 아웃박스가 실제 발행을 시도할 때만 {@code PENDING -> RUNNING}으로 옮긴다. */
+    public boolean prepareDispatch(String requestId) {
+        if (!matchesRequestId(requestId)) return false;
+        if (status == CheckJobStatus.RUNNING) return true;
+        if (status != CheckJobStatus.PENDING) return false;
         changeStatus(CheckJobStatus.RUNNING);
+        return true;
+    }
+
+    /** @deprecated 테스트·구 경로 호환용. 새 접수 흐름은 assign 후 아웃박스가 prepare한다. */
+    @Deprecated
+    public void markDispatching(String requestId) {
+        assignRequestId(requestId);
+        if (!prepareDispatch(requestId)) {
+            throw new BusinessException(DraftDocumentErrorCode.DRAFT_DOCUMENT_CHECK_INVALID_STATUS);
+        }
     }
 
     /**

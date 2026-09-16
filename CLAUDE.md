@@ -26,6 +26,7 @@
 - `docs/TEST.md` — 테스트 코드 작성 규칙
 - `docs/API.md` — API 요청/응답 규격, 공통 규칙
 - `docs/AI_CONTRACT.md` — **Spring Boot ↔ FastAPI 워커 계약**(요청 메시지·콜백 스키마, 워커가 읽는 테이블, 재시도 규약). AI 워커를 붙이거나 계약을 바꿀 때 읽는다
+- `docs/OUTBOX.md` — **LLM 작업 발행의 transactional outbox**(`T-INT-25`). 접수 트랜잭션·디스패처·리스·중복 방어 관문·타이밍 예산. 발행 경로나 재시도 타이밍을 건드릴 때 읽는다
 
 기획·도메인 문서는 구현 전에 읽고, 결정이 바뀌면 코드보다 먼저 갱신한다.
 

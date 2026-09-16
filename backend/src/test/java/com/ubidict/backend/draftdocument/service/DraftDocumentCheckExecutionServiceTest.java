@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxService;
 import com.ubidict.backend.draftdocument.domain.CheckJob;
 import com.ubidict.backend.draftdocument.domain.CheckJobStatus;
 import com.ubidict.backend.draftdocument.domain.DraftDocument;
@@ -48,6 +49,7 @@ class DraftDocumentCheckExecutionServiceTest {
     private final DraftDocumentEventPublisher draftDocumentEventPublisher = mock(DraftDocumentEventPublisher.class);
     private final CheckJobCompletionEventPublisher completionEventPublisher =
             mock(CheckJobCompletionEventPublisher.class);
+    private final LlmJobOutboxService outboxService = mock(LlmJobOutboxService.class);
     private final DraftDocumentCheckExecutionService service = new DraftDocumentCheckExecutionService(
             checkJobReader,
             documentQueryPort,
@@ -57,7 +59,8 @@ class DraftDocumentCheckExecutionServiceTest {
             creationPolicyValidator,
             checkSuggestionValidator,
             draftDocumentEventPublisher,
-            completionEventPublisher);
+            completionEventPublisher,
+            outboxService);
 
     @DisplayName("대기 중인 작업을 워커에게 넘기면 실행 중 상태가 되고 상관 식별자가 남는다.")
     @Test

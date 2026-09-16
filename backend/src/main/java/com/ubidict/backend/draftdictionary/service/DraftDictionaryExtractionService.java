@@ -1,11 +1,13 @@
 package com.ubidict.backend.draftdictionary.service;
 
 import com.ubidict.backend.common.exception.BusinessException;
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxService;
+import com.ubidict.backend.common.infra.ai.LlmJobRequest;
+import com.ubidict.backend.common.infra.ai.LlmProperties;
 import com.ubidict.backend.draftdictionary.domain.ExtractionJob;
 import com.ubidict.backend.draftdictionary.exception.DraftDictionaryErrorCode;
 import com.ubidict.backend.draftdictionary.implement.DraftDictionaryCreationPolicyValidator;
 import com.ubidict.backend.draftdictionary.implement.ExtractionJobCreationPolicyValidator;
-import com.ubidict.backend.draftdictionary.implement.ExtractionJobEventPublisher;
 import com.ubidict.backend.draftdictionary.implement.ExtractionJobReader;
 import com.ubidict.backend.draftdictionary.implement.ExtractionJobWriter;
 import com.ubidict.backend.draftdictionary.infra.port.DocumentQueryPort;
@@ -29,7 +31,8 @@ public class DraftDictionaryExtractionService {
     private final ExtractionJobCreationPolicyValidator extractionJobCreationPolicyValidator;
     private final DraftDictionaryCreationPolicyValidator draftDictionaryCreationPolicyValidator;
     private final DocumentQueryPort documentQueryPort;
-    private final ExtractionJobEventPublisher extractionJobEventPublisher;
+    private final LlmJobOutboxService outboxService;
+    private final LlmProperties llmProperties;
     private final WorkspaceAccessValidator workspaceAccessValidator;
 
     @Transactional
@@ -46,7 +49,15 @@ public class DraftDictionaryExtractionService {
 
         ExtractionJob extractionJob = extractionJobWriter.append(
                 command.workspaceId(), command.dictionaryId(), extractableDocumentIds, command.memberId());
-        extractionJobEventPublisher.publishRequested(extractionJob);
+        String requestId = LlmJobRequest.newRequestId();
+        extractionJob.assignRequestId(requestId);
+        outboxService.enqueue(LlmJobRequest.termExtraction(
+                requestId,
+                extractionJob.getId(),
+                extractionJob.getWorkspaceId(),
+                extractionJob.getDictionaryId(),
+                extractionJob.getSourceDocumentIds(),
+                llmProperties.mode()));
         log.info(
                 "[DraftDictionaryExtractionService.request] Draft dictionary extraction requested. extractionJobId={}, workspaceId={}, memberId={}",
                 extractionJob.getId(),

@@ -2,6 +2,8 @@ package com.ubidict.backend.draftdictionary.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxRepository;
+import com.ubidict.backend.common.infra.ai.LlmJobOutboxStatus;
 import com.ubidict.backend.document.domain.Document;
 import com.ubidict.backend.document.fixture.DocumentFixture;
 import com.ubidict.backend.document.fixture.DocumentVersionFixture;
@@ -40,6 +42,9 @@ class DraftDictionaryExtractionIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private ExtractionJobRepository extractionJobRepository;
+
+    @Autowired
+    private LlmJobOutboxRepository outboxRepository;
 
     @Autowired
     private DraftDictionaryRepository draftDictionaryRepository;
@@ -95,6 +100,10 @@ class DraftDictionaryExtractionIntegrationTest extends IntegrationTestSupport {
                         job(requested.extractionJobId()).getDraftDictionaryId()))
                 .extracting(candidate -> candidate.getForm())
                 .containsExactlyInAnyOrder("결제", "주문");
+        assertThat(outboxRepository.findAll())
+                .singleElement()
+                .extracting(outbox -> outbox.getStatus())
+                .isEqualTo(LlmJobOutboxStatus.PUBLISHED);
     }
 
     private ExtractionJob job(Long extractionJobId) {
