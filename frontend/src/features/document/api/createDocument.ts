@@ -65,7 +65,6 @@ export async function createDocument(input: CreateDocumentInput): Promise<Docume
     updaterId: input.ownerId,
     ownerName: input.ownerName,
     updaterName: input.ownerName,
-    label: response.labels[0] ? { id: response.labels[0], name: response.labels[0] } : undefined,
     labels: response.labels,
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,

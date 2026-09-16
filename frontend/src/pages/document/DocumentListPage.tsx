@@ -144,7 +144,22 @@ export function DocumentListPage() {
                       )}
                     </span>
                   </Td>
-                  <Td>{doc.label ? <Pill tone="outline">{doc.label.name}</Pill> : '—'}</Td>
+                  <Td>
+                    {/* 라벨은 문서당 최대 5개고 전부 보여준다. 표 칸에 그대로 풀면 긴 이름
+                        다섯이 문서명 칸을 밀어내므로, 너비를 묶어 두고 안에서 줄바꿈시킨다
+                        (`td`의 max-width는 auto 레이아웃에서 잘 안 먹어 div로 감쌌다). */}
+                    {doc.labels && doc.labels.length > 0 ? (
+                      <div className="flex max-w-[240px] flex-wrap gap-[6px]">
+                        {doc.labels.map((label) => (
+                          <Pill key={label} tone="outline">
+                            {label}
+                          </Pill>
+                        ))}
+                      </div>
+                    ) : (
+                      '—'
+                    )}
+                  </Td>
                   <Td>{doc.ownerName ?? '—'}</Td>
                   {/* 실 API 문서 응답엔 최종 수정자 필드가 없다(T-INT-10) — "—"로 둔다. */}
                   <Td>{doc.updaterName ?? '—'}</Td>
@@ -167,15 +182,25 @@ export function DocumentListPage() {
               className="flex flex-col gap-[10px] rounded-md border border-border bg-surface p-[18px] shadow-card hover:border-accent-border hover:shadow-card-hover"
             >
               <div className="font-display text-[14px] font-bold text-text">{doc.title}</div>
+              {/* 상태(사전집 버전·배지)와 라벨을 줄로 나눈다 — 한 줄에 섞으면 라벨 다섯이
+                  밀고 들어와 배지가 카드마다 다른 자리에 떨어진다. */}
               <div className="flex flex-wrap items-center gap-[6px]">
                 <Pill tone="outline">{dictionaryVersionLabel(doc.dictionaryVersionNo)}</Pill>
-                {doc.label && <Pill tone="outline">{doc.label.name}</Pill>}
                 {doc.badge && (
                   <Pill tone={doc.badge === 'danger' ? 'danger' : 'neutral'}>
                     {doc.badge === 'danger' ? '재검사 필요' : '뒤처짐'}
                   </Pill>
                 )}
               </div>
+              {doc.labels && doc.labels.length > 0 && (
+                <div className="flex flex-wrap items-center gap-[6px]">
+                  {doc.labels.map((label) => (
+                    <Pill key={label} tone="outline">
+                      {label}
+                    </Pill>
+                  ))}
+                </div>
+              )}
               <div className="flex justify-between border-t border-border-soft pt-[10px] text-[11px] text-text-quaternary">
                 <span>{doc.ownerName ?? '—'}</span>
                 <span>{new Date(doc.updatedAt).toLocaleDateString('ko-KR')}</span>
