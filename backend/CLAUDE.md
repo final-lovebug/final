@@ -127,8 +127,15 @@ MySQL 키 길이 상한(3072바이트, utf8mb4에서 컬럼당 `길이 × 4`)을
 - LocalStack 포트(4566)를 고정한 이유는 `spring-boot-docker-compose`가 LocalStack 커넥션 정보를
   자동 주입하지 않기 때문이다. `application-dev.yml`이 그 주소를 직접 가리킨다.
   테스트는 Testcontainers가 띄우므로 포트가 무엇이든 `DynamicPropertyRegistrar`가 주입한다.
-- **큐를 미리 만들지 않는다.** `spring.cloud.aws.sqs.queue-not-found-strategy: create`가 첫 접근에 만든다.
-  **`prod`는 기본값(`fail`)을 유지한다** — 큐 이름을 틀린 채 조용히 새 큐가 생기는 것을 막는다(`D-78`).
+- **로컬·테스트는 큐를 미리 만들지 않는다.** `spring.cloud.aws.sqs.queue-not-found-strategy: create`가
+  첫 접근에 만든다. **`prod`는 `fail`을 명시한다** — 큐 이름을 틀린 채 조용히 새 큐가 생기는 것을
+  막는다(`D-78`). ⚠️ **라이브러리 기본값은 `fail`이 아니라 `CREATE`다**(awspring 4.1.1,
+  `SqsContainerOptions$BuilderImpl.DEFAULT_QUEUE_NOT_FOUND_STRATEGY`). 적지 않으면 운영에서
+  애플리케이션이 `sqs:CreateQueue`를 부르고, EC2 역할에 그 권한이 없어 403으로 기동이 깨진다.
+- **운영 큐는 인프라가 만든다.** 애플리케이션이 붙는 큐는 셋이며(`lovebug-domain-event`,
+  `lovebug-llm-request`, `lovebug-llm-dlq`) 요청 큐 → DLQ redrive policy도 인프라가
+  건다(`NFR-MSG-004`). EC2 역할에는 `sqs:GetQueueUrl`·`GetQueueAttributes`·`SendMessage`·
+  `ReceiveMessage`·`DeleteMessage`·`ChangeMessageVisibility`가 필요하고 **`CreateQueue`는 주지 않는다.**
 
 ### 환경변수
 
