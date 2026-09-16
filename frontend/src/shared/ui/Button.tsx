@@ -13,7 +13,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const baseClass =
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm border border-transparent font-semibold cursor-pointer disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-bg disabled:text-text-faint disabled:hover:bg-bg'
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm border border-transparent font-semibold cursor-pointer disabled:cursor-not-allowed'
+
+// **(2026-09-16)** 비활성 표현을 baseClass에서 variant로 내렸다. 박스가 있는 버튼은
+// 종전대로 회색 박스로 죽이고, 텍스트처럼 생긴 dangerText·link는 글자색만 죽인다 —
+// 텍스트 버튼에 박스를 씌우면 같은 자리의 활성/비활성이 서로 다른 크기로 보인다.
+const disabledBoxClass =
+  'disabled:border-border-soft disabled:bg-bg disabled:text-text-faint disabled:hover:bg-bg'
 
 const sizeClass: Record<ButtonSize, string> = {
   md: 'px-[18px] py-[9px] text-[13px]',
@@ -21,11 +27,12 @@ const sizeClass: Record<ButtonSize, string> = {
 }
 
 const variantClass: Record<ButtonVariant, string> = {
-  default: 'bg-surface text-text hover:bg-bg',
-  outline: 'border-border-strong bg-surface text-text hover:bg-bg',
-  primary: 'border-accent bg-accent text-white hover:bg-accent-strong',
-  dangerText: 'bg-surface text-danger hover:bg-bg',
-  link: 'border-none bg-transparent p-0 text-[12px] text-accent-strong hover:text-accent',
+  default: `bg-surface text-text hover:bg-bg ${disabledBoxClass}`,
+  outline: `border-border-strong bg-surface text-text hover:bg-bg ${disabledBoxClass}`,
+  primary: `border-accent bg-accent text-white hover:bg-accent-strong ${disabledBoxClass}`,
+  dangerText:
+    'bg-surface text-danger hover:bg-bg disabled:bg-surface disabled:text-text-disabled disabled:hover:bg-surface',
+  link: 'border-none bg-transparent p-0 text-[12px] text-accent-strong hover:text-accent disabled:text-text-disabled',
 }
 
 export function Button({

@@ -6,6 +6,9 @@ export const routes = {
   oauthCallback: () => '/oauth/callback',
   onboardingNickname: () => '/onboarding/nickname',
   workspaces: () => '/workspaces',
+  // 초대 수락은 워크스페이스를 모른 채 토큰만 들고 진입하므로 /workspaces 하위가 아니다
+  // (docs/API.md «워크스페이스 초대» — POST /api/invitations/{token}/accept와 같은 이유).
+  invitationAccept: (token: string) => `/invitations/${encodeURIComponent(token)}`,
 
   documents: (workspaceId: string) => `/workspaces/${workspaceId}/documents`,
   documentDrafts: (workspaceId: string) =>

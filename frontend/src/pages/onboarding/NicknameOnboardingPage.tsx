@@ -4,6 +4,7 @@ import { completeRegistration } from '../../features/auth/api/completeRegistrati
 import { fetchCurrentMember } from '../../features/member/api/fetchCurrentMember'
 import { useAuthStore } from '../../shared/stores/authStore'
 import { routes } from '../../shared/config/routes'
+import { takePendingInvitationToken } from '../../shared/lib/pendingInvitation'
 import { Button, Card, FieldLabel, LogoMark, TextInput } from '../../shared/ui'
 
 interface LocationState {
@@ -40,7 +41,16 @@ export function NicknameOnboardingPage() {
       login(accessToken)
       const member = await fetchCurrentMember()
       setCurrentMember(member)
-      navigate(routes.workspaces(), { replace: true })
+
+      // 초대 링크로 처음 들어온 사람은 여기가 로그인의 끝이다 — 워크스페이스 목록 대신
+      // 수락 화면으로 되돌려보낸다(OAuthCallbackPage의 이미 가입된 경로와 같은 처리).
+      const pendingInvitationToken = takePendingInvitationToken()
+      navigate(
+        pendingInvitationToken
+          ? routes.invitationAccept(pendingInvitationToken)
+          : routes.workspaces(),
+        { replace: true },
+      )
     } catch {
       setErrorMessage('닉네임 등록 중 문제가 발생했습니다. 다시 시도해 주세요.')
       setIsSubmitting(false)
