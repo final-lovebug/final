@@ -201,14 +201,7 @@ export function DictionaryPage() {
         </ColFlex>
 
         <Card className="w-[280px] shrink-0 border-border-soft bg-surface-muted p-4 opacity-60">
-          <div className="mb-[6px] flex items-center gap-[6px]">
-            <span className="text-[12.5px] font-bold">역인덱스 · 변경 이력</span>
-            <Pill tone="neutral">MVP2</Pill>
-          </div>
-          <p className="text-[11.5px] leading-[1.6] text-text-tertiary">
-            이 용어가 쓰인 문서 목록과 변경 이력 타임라인은 추후 제공됩니다. 지금은 사전집
-            리비전 이력에서 확인할 수 있습니다.
-          </p>
+
         </Card>
       </TwoCol>
 

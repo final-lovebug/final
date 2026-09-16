@@ -58,7 +58,6 @@ export function Sidebar() {
           <SidebarItem
             to={routes.settings(workspaceId)}
             label="설정"
-            trailing={<span className="text-[10px] font-medium text-text-faint">ADMIN+</span>}
           />
         </div>
       </nav>
