@@ -30,6 +30,7 @@ import { useCheckJob } from '../../features/document/hooks/useCheckJob'
 import { useCreateCheckJob } from '../../features/document/hooks/useCreateCheckJob'
 import { placeSuggestions } from '../../features/document/model/suggestionSegments'
 import type { SuggestionTerm } from '../../features/document/model/types'
+import { ReviewerSelectDialog } from '../../features/review/components/ReviewerSelectDialog'
 import { useWorkspaceMembers } from '../../features/member/hooks/useWorkspaceMembers'
 import { useRequestDocumentReview } from '../../features/review/hooks/useRequestDocumentReview'
 
@@ -65,6 +66,8 @@ export function DocumentDraftPage() {
   const { job: checkJob, isPollingExhausted } = useCheckJob(checkJobId)
 
   const [activeId, setActiveId] = useState<string | null>(null)
+  // 리뷰 요청을 보내기 전에 알림 받을 리뷰어를 고른다(전에는 전원 자동 지정이었다).
+  const [reviewerDialogOpen, setReviewerDialogOpen] = useState(false)
   const [sideTab, setSideTab] = useState<SideTab>('suggestions')
   const [rejectReason, setRejectReason] = useState('')
 
@@ -88,19 +91,18 @@ export function DocumentDraftPage() {
     createCheckJob.mutate(undefined, { onSuccess: (created) => setCheckJobId(created.id) })
   }
 
-  function handleCompleteReview() {
+  function handleCompleteReview(reviewerMemberIds: string[]) {
     if (!document || !currentMember) return
-    const reviewerMemberIds = (members ?? [])
-      .filter((member) => member.id !== currentMember.id)
-      .map((member) => member.id)
 
     // 요청자는 인증 주체에서 해석되므로 보내지 않는다. 대상 초안(draftDocumentId)은
     // api가 documentId로 찾아준다.
     requestReview.mutate(
       { documentId, title: `${document.title} 개정 반영`, reviewerMemberIds },
       {
-        onSuccess: (reviewRequest) =>
-          navigate(routes.documentRevision(workspaceId, documentId, reviewRequest.id)),
+        onSuccess: (reviewRequest) => {
+          setReviewerDialogOpen(false)
+          navigate(routes.documentRevision(workspaceId, documentId, reviewRequest.id))
+        },
       },
     )
   }
@@ -239,7 +241,10 @@ export function DocumentDraftPage() {
             variant="primary"
             disabled={!allResolved || requestReview.isPending}
             title={allResolved ? undefined : '제안을 전부 처리해야 리뷰를 요청할 수 있습니다'}
-            onClick={handleCompleteReview}
+            onClick={() => {
+              requestReview.reset()
+              setReviewerDialogOpen(true)
+            }}
           >
             {requestReview.isPending ? '리뷰 요청 중…' : '검토 완료 · 리뷰 요청'}
           </Button>
@@ -413,6 +418,27 @@ export function DocumentDraftPage() {
           )}
         </PrThread>
       </TwoCol>
+
+      <ReviewerSelectDialog
+        open={reviewerDialogOpen}
+        candidates={(members ?? []).map((member) => ({
+          memberId: member.id,
+          name: member.name,
+        }))}
+        excludeMemberId={currentMember?.id}
+        title="리뷰어 지정"
+        confirmLabel="검토 완료 · 리뷰 요청"
+        isPending={requestReview.isPending}
+        error={
+          requestReview.isError
+            ? requestReview.error instanceof ApiError
+              ? requestReview.error.message
+              : '리뷰를 요청하지 못했습니다.'
+            : null
+        }
+        onSubmit={handleCompleteReview}
+        onClose={() => setReviewerDialogOpen(false)}
+      />
     </div>
   )
 }
